@@ -1,0 +1,76 @@
+package rdf
+
+import (
+	"context"
+	"fmt"
+	"sync"
+
+	"github.com/DynamoGraph/client"
+	slog "github.com/DynamoGraph/syslog"
+)
+
+type Request struct {
+	PKey  []byte
+	SortK string
+	Nd    [][]byte
+}
+
+var (
+	ReqCh chan Request
+)
+
+func init() {
+	ReqCh = make(chan Request)
+}
+
+type edge struct {
+	child  []byte
+	parent []byte
+	sortk  string
+}
+
+type attachList []edge
+
+var attachNodes attachList
+
+func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
+
+	defer wgEnd.Done()
+	var (
+		req Request
+	)
+
+	slog.Log("rdfuuid: ", "Powering on...")
+	wp.Done()
+
+	for {
+
+		select {
+
+		case req = <-AddEdgeCh:
+
+			var e edge
+			for _, n := range req.Nd {
+
+				e = edge{child: req.PKey, parent: n, sortk: req.SortK}
+				attachNodes = append(attachNodes, e)
+
+			}
+
+		case reqAttachNodes = <-AttachNodes:
+
+			var errs []error
+			for _, v := range attachNodes {
+				errs := AttachNode(v.child, v.parent, v.sortk)
+			}
+
+			attachNodes = nil
+
+		case <-ctx.Done():
+			slog.Log("rdfuuid: ", "Powering down...")
+			return
+
+		}
+
+	}
+}

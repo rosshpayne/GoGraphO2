@@ -1,0 +1,28 @@
+  
+{
+    "AttributeDefinitions": [
+        {
+            "AttributeName": "Nm", 
+            "AttributeType": "S"
+        },
+        {
+            "AttributeName": "Atr", 
+            "AttributeType": "S"
+        }
+    ], 
+    "TableName": "DyGTypes", 
+    "KeySchema": [
+        {
+            "AttributeName": "Nm", 
+            "KeyType": "HASH"
+        },
+        {
+            "AttributeName": "Atr", 
+            "KeyType": "RANGE"
+        }
+    ],
+    "ProvisionedThroughput": {
+                "ReadCapacityUnits": 1, 
+                "WriteCapacityUnits": 1
+    }
+}

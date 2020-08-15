@@ -1,0 +1,66 @@
+package client
+
+import (
+	"fmt"
+
+	"testing"
+)
+
+func TestUnmarshalGQLMap(t *testing.T) {
+	t0 := time.Now()
+
+	uid := []byte("5lFOnTStSYWqmi8S6FDFDQ==")
+	at, err := FetchData(uid, "A#")
+	if err != nil {
+		t.Error(err)
+	}
+	ty := at.GetType()
+	if len(ty) == 0 {
+		t.Fatal("Type not found")
+	}
+	t1 := time.Now()
+	fmt.Println()
+	fmt.Println("DB Access: ", t1.Sub(t0))
+	var a = ClientNV{ // represents the attributes in a Graph Query
+		&NV{Name: "Age"},
+		&NV{Name: "Name"},
+		&NV{Name: "DOB"},
+		&NV{Name: "Cars"},
+		&NV{Name: "Siblings"},
+		&NV{Name: "Siblings:Name"},
+		&NV{Name: "Siblings:Age"},
+	}
+
+	err = at.UnmarshalGQLMap(ty, a) // TODO: get rid of Person argument
+	for _, v := range a {
+		switch x := v.Value.(type) {
+		case int64:
+			x++
+			v.Value = x
+		}
+	}
+	//
+	// le(Sibling.Age,61)
+	//
+	for _, v := range a {
+		switch x := v.Value.(type) {
+		case int64:
+			fmt.Printf("%s %d\n", v.Name, x)
+		case []int64:
+			fmt.Printf("++ %s \n", v.Name)
+			for _, r := range x {
+				fmt.Printf("%d\n", r)
+			}
+		case string:
+			fmt.Printf("%s %s\n", v.Name, x)
+		case []string:
+			for _, t := range x {
+				fmt.Printf("%s %s\n", v.Name, t)
+			}
+		case [][]byte:
+			fmt.Printf("%s %s\n", v.Name, x)
+		}
+	}
+	a.MarshalJSON()
+
+}

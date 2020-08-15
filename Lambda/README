@@ -1,0 +1,6 @@
+Steps to install Lambda func
+
+1. GOOS=Linux go build lambda.go (creates a main binary)
+2 ./s3transfer.shard
+
+3. use Lambda console to load Lambda func using S3 URL: https://lambda-deploy-syd2.s3.amazonaws.com/main.zip
