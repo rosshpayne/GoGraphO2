@@ -20,6 +20,7 @@ import (
 	"github.com/DynamoGraph/rdf/uuid"
 	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/util"
+	"github.com/my-elasticsearch-app/es"
 )
 
 const (
@@ -82,6 +83,10 @@ func Load(f io.Reader) error { // S P O
 		n              int // for loop counter
 		eof            bool
 	)
+	//
+	// ES test
+	//
+	es.ESTest()
 	//
 	// sync.WorkGroups
 	//
