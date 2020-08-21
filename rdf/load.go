@@ -12,6 +12,7 @@ import (
 	"github.com/DynamoGraph/cache"
 	"github.com/DynamoGraph/client"
 	"github.com/DynamoGraph/db"
+	"github.com/DynamoGraph/es"
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/ds"
 	elog "github.com/DynamoGraph/rdf/errlog"
@@ -20,7 +21,6 @@ import (
 	"github.com/DynamoGraph/rdf/uuid"
 	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/util"
-	"github.com/my-elasticsearch-app/es"
 )
 
 const (
@@ -116,7 +116,6 @@ func Load(f io.Reader) error { // S P O
 	//
 	rdr, _ := reader.New(f)
 	//
-
 	var errLimitCh chan bool
 	errLimitCh = make(chan bool)
 
