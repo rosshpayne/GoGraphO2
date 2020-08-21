@@ -25,6 +25,7 @@ _:c DOB "29 Jan 1953"  .
 _:c Age "67"	.
 _:c Siblings _:abc	.
 _:c Siblings _:b	.
+_:c Friends _:abc .
 _:c Cars "VW Passat"  .
 _:c Cars "Mitsubishi"  .
 _:c Cars "Ford Laser"   .  
@@ -32,6 +33,7 @@ _:c Cars "Honda"   .
 
 _:d __type "Person" . /* specify type for blank node */
 _:d Name "Phil Smith"  .
+_:d Friends _:abc .
 _:d DOB "17 June 1976"  .
 _:d Age "36"	.
 _:d Cars "Roll Roycet"  .

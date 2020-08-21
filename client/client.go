@@ -4,6 +4,7 @@ import (
 	//"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -164,20 +165,43 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 			return
 		}
 		//
-		// build NVclient based on Type info - contains all scalar types
+		// build NVclient based on Type info - either all scalar types or only those  declared in IncP attruibte for the attachment type define in sortk
 		//
 		var cnv ds.ClientNV
+		// find attachment data type from sortK eg. A#G#:S , S is the attachment data type
+		s := strings.Split(sortK, "#")
+
+		attachTy := s[len(s)-1][1:]
+		fmt.Printf("\nggf attachTy: %s %s\n", s[len(s)-1], attachTy)
 		for _, v := range cty {
-			switch v.DT {
-			// scalar types to be propagated
-			case "I", "F", "Bl", "S": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
-				if v.Pg {
-					// scalar type has propagation enabled
-					nv := &ds.NV{Name: v.Name}
-					cnv = append(cnv, nv)
+			if v.C == attachTy {
+				// grab only explicitly declared scalars from IncP
+				if len(v.IncP) > 0 {
+					for _, ip := range v.IncP {
+						for _, v := range cty {
+							if v.C == ip {
+								nv := &ds.NV{Name: v.Name}
+								cnv = append(cnv, nv)
+							}
+						}
+					}
+				} else {
+					// grab all scalars
+					for _, v := range cty {
+						switch v.DT {
+						// scalar types to be propagated
+						case "I", "F", "Bl", "S": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
+							if v.Pg {
+								// scalar type has propagation enabled
+								nv := &ds.NV{Name: v.Name}
+								cnv = append(cnv, nv)
+							}
+						}
+					}
 				}
 			}
 		}
+		fmt.Printf("\nfff  nv : %#v\n", cnv)
 		//
 		// copy cache data into cnv and unlock child node.
 		//

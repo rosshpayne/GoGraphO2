@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -259,7 +260,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				return fmt.Errorf(" Value is not an Int ")
+				return fmt.Errorf(" Value is not a slice of int64")
 			}
 
 		case "SF":
@@ -277,7 +278,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				return fmt.Errorf(" Value is not an Int ")
+				return fmt.Errorf(" Value is not an slice float64 ")
 			}
 
 		case "SBl":
@@ -295,7 +296,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				return fmt.Errorf(" Value is not an Int ")
+				return fmt.Errorf(" Value is not an slice of bool ")
 			}
 
 		case "SS":
@@ -313,7 +314,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				return fmt.Errorf(" Value is not an Int ")
+				return fmt.Errorf(" Value is not an String Set ")
 			}
 
 		case "SB":
@@ -393,6 +394,79 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 			syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 			if err != nil {
 				return fmt.Errorf("XX Error: PutItem, %s", err.Error())
+			}
+		}
+	}
+	//
+	// expand SS and LS types into individual S# entries to be indexed
+	//
+	for _, nv := range nv_ {
+
+		// append child attr value to parent uid-pred list
+		switch nv.DT {
+
+		case "SS":
+
+			type Item struct {
+				PKey  []byte
+				SortK string
+				P     string // Dynamo will use AV List type - will convert to SS in convertSet2list()
+				S     string
+			}
+			var sk string
+			if ss, ok := nv.Value.([]string); ok {
+				//
+				for i, s := range ss {
+					sk = "S#:" + nv.C + "#" + strconv.Itoa(i)
+					a := Item{PKey: UID, SortK: sk, P: nv.Name, S: s}
+					av, err = dynamodbattribute.MarshalMap(a)
+					if err != nil {
+						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
+					}
+					t0 := time.Now()
+					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
+						TableName:              aws.String("DyGraph"),
+						Item:                   av,
+						ReturnConsumedCapacity: aws.String("TOTAL"),
+					})
+					t1 := time.Now()
+					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					if err != nil {
+						return fmt.Errorf("XX Error: PutItem, %s", err.Error())
+					}
+				}
+			}
+
+		case "LS":
+
+			type Item struct {
+				PKey  []byte
+				SortK string
+				P     string // Dynamo will use AV List type - will convert to SS in convertSet2list()
+				S     string
+			}
+			var sk string
+			if ss, ok := nv.Value.([]string); ok {
+				//
+				for i, s := range ss {
+					sk = "S#:" + nv.C + "#" + strconv.Itoa(i)
+					a := Item{PKey: UID, SortK: sk, P: nv.Name, S: s}
+					av, err = dynamodbattribute.MarshalMap(a)
+					if err != nil {
+						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
+					}
+					t0 := time.Now()
+					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
+						TableName:              aws.String("DyGraph"),
+						Item:                   av,
+						ReturnConsumedCapacity: aws.String("TOTAL"),
+					})
+					t1 := time.Now()
+					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					if err != nil {
+						return fmt.Errorf("XX Error: PutItem, %s", err.Error())
+					}
+				}
 			}
 		}
 	}

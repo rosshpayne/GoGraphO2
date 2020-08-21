@@ -111,6 +111,15 @@ func Load(f io.Reader) error { // S P O
 	//
 	rdr, _ := reader.New(f)
 	//
+
+	var errLimitCh chan bool
+	errLimitCh = make(chan bool)
+
+	errLimitReached := func() bool {
+		elog.CheckLimit(errLimitCh)
+		return <-errLimitCh
+	}
+
 	for {
 		//
 		// make nodes
@@ -121,20 +130,24 @@ func Load(f io.Reader) error { // S P O
 			nodes[i] = new(ds.Node)
 		}
 		//
-		// read rdf file into nodes
+		// read rdf file []nodes at a time
 		//
 		n, eof, err = rdr.Read(nodes)
 		if err != nil {
-			// cancel ctx
-			err = fmt.Errorf("Read error: %w", err.Error())
-			break
+			// log error and continue to read until eof reached
+			elog.Add <- fmt.Errorf("Read error: %s", err.Error())
 		}
 		//
-		// send on channel
+		// send []nodes on pipeline to be unmarshalled and saved to db
 		//
 		v := verifyNd{n: n, nodes: nodes}
 		syslog("Send node batch on channel verifyCh")
 		verifyCh <- v
+
+		// check if too many errors
+		if errLimitReached() {
+			break
+		}
 		//
 		// exit when
 		//
@@ -142,16 +155,28 @@ func Load(f io.Reader) error { // S P O
 			break
 		}
 	}
+
 	syslog("close verify channel")
 	close(verifyCh)
 	//go processErrors()
-	syslog("wait for goroutines to end")
 	wpEnd.Wait()
-	syslog("cancel contexts")
+
+	// cancel context (close Done channel) on all autonomous goroutines
+	lcherr := make(chan elog.ErrorS)
+	elog.ListReqCh <- lcherr
+	syslog("11.....")
+	ex := <-lcherr
+	syslog(fmt.Sprintf("22.....error cnt: %d", len(ex)))
+
+	for _, e := range ex {
+		fmt.Println("Errors: ", e.Error())
+	}
+
 	cancel()
-	syslog("wait for autonomous goroutines to end")
+
 	ctxEnd.Wait()
 	syslog("loader exists.....")
+
 	return err
 }
 
@@ -183,33 +208,26 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 
 		// unmarshal (& validate) each node in its own goroutine
 		for i := 0; i < nodes_.n; i++ {
+
 			if len(nodes[i].Lines) == 0 {
 				break
 			}
 			ii := i
 			ty, err := getType(nodes[ii])
 			if err != nil {
-				fmt.Println(err.Error()) //TODO: handle error
+				elog.Add <- err
 			}
 			// first pipeline func. Passes NV data to saveCh and then to database.
 			//	slog.Log("verify: ", fmt.Sprintf("Pass to unmarshal... %d %#v", i, nodes[ii]))
-
-			//	slog.Log("verify: ", " Send Ask request to limiter.")
 			limiter.Ask()
-			//	slog.Log("verify: ", "Verify is waiting from ACK from gcmgr....to proceed to run go routine")
 			<-limiter.RespCh()
-			//	slog.Log("verify: ", "ACK from gcmgr....received...")
 
 			wg.Add(1)
 			go unmarshalRDF(nodes[ii], ty, &wg, limiter)
 
 		}
-		//	slog.Log("verify: ", fmt.Sprintf("*** Verify back to waiting on veryifyCh"))
-
 	}
-	//	slog.Log("verify: ", "verify at wg.Wait() .....")
 	wg.Wait()
-	//	slog.Log("verify: ", "verify exited.....")
 
 }
 
@@ -244,7 +262,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		return s.String()
 	}
 
-	slog.Log("unmarshalRDF", "Entered unmarshalRDF. ")
+	slog.Log("unmarshalRDF: ", "Entered unmarshalRDF. ")
 
 	lmtr.StartR()
 	defer lmtr.EndR()
@@ -255,6 +273,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		name  string
 		dt    string
 		sortk string
+		c     string // type attribute short name
 	}
 	var attr map[string]*mergedRDF
 	attr = make(map[string]*mergedRDF)
@@ -302,7 +321,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 				if a, ok := attr[v.Name]; !ok {
 					ss := make([]string, 1)
 					ss[0] = n.Obj
-					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT}
+					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT, c: v.C}
 				} else {
 					if ss, ok := a.value.([]string); !ok {
 						err := fmt.Errorf("Conflict with SS type at line %d", n.N)
@@ -323,7 +342,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 				if a, ok := attr[v.Name]; !ok {
 					ss := make([]string, 1)
 					ss[0] = n.Obj
-					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT}
+					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT, c: v.C}
 					//	attr[v.Name] = ss
 				} else {
 					if ls, ok := a.value.([]string); !ok {
@@ -395,12 +414,13 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		//
 		if !found {
 			if !v.N && v.DT != "Nd" {
-				err := fmt.Errorf("Not null type attribute %q must be specified ", v.Name)
+				err := fmt.Errorf("Not null type attribute %q must be specified in node %s", v.Name, node.ID)
 				node.Err = append(node.Err, err)
 			}
 		}
 		if len(node.Err) > 0 {
-			slog.Log("unmarshalRDF", fmt.Sprintf("return with %d errors. First error:  %s", len(node.Err), node.Err[0].Error()))
+			slog.Log("unmarshalRDF: ", fmt.Sprintf("return with %d errors. First error:  %s", len(node.Err), node.Err[0].Error()))
+			elog.AddBatch <- node.Err
 			return
 		}
 
@@ -420,7 +440,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 			nv = append(nv, e)
 			addTy = false
 		}
-		e := ds.NV{Sortk: v.sortk, Name: k, SName: node.ID, Value: v.value, DT: v.dt}
+		e := ds.NV{Sortk: v.sortk, Name: k, SName: node.ID, Value: v.value, DT: v.dt, C: v.c}
 		nv = append(nv, e)
 	}
 	//
@@ -452,14 +472,14 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	// pass NV onto database goroutine if no errors detected
 	//
 	if len(node.Err) == 0 {
-		slog.Log("unmarshalRDF", fmt.Sprintf("send on saveCh: nv: %#v", nv))
+		slog.Log("unmarshalRDF: ", fmt.Sprintf("send on saveCh: nv: %#v", nv))
 		saveCh <- nv
 	} else {
 		node.Lines = nil
 		errNodes[node.ID] = node
 	}
 	//
-	slog.Log("unmarshalRDF", "Exit  unmarshalRDF. ")
+	slog.Log("unmarshalRDF: ", "Exit  unmarshalRDF. ")
 }
 
 func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
@@ -505,18 +525,18 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 		if string(e.Cuid) == "eol" {
 			break
 		}
-		//		slog.Log("attachNode: ", fmt.Sprintf("read from AttachNodeCh channel %d now ASK limiter", c))
+		slog.Log("attachNode: ", fmt.Sprintf("read from AttachNodeCh channel %d now ASK limiter", c))
 
 		limiterAttach.Ask()
 		<-limiterAttach.RespCh()
 
-		//		slog.Log("attachNode: ", "limiter has ACK and will start goroutine...")
+		//slog.Log("attachNode: ", "limiter has ACK and will start goroutine...")
 
 		wg.Add(1)
-		//		slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
+		slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
 		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach)
 	}
-	//	syslog("saveNode  waiting on AttachNode to finish")
+	syslog("saveNode  waiting on AttachNode to finish")
 	wg.Wait()
 	syslog("saveNode finished waiting...exiting")
 }

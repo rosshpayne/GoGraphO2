@@ -10,6 +10,7 @@ type NV struct {
 	SName NdShortNm //  node alias name
 	Name  string    // predicate name == type attribute name
 	DT    string    // datatype N,S,Bl,B, LN,LS,LBL,LB, Nd, SN,SS,SBl, SB
+	C     string    // type attribute short name
 	Value interface{}
 }
 

@@ -569,7 +569,7 @@ func (d *NodeCache) UnmarshalValue(attr string, i interface{}) error {
 		return err
 	}
 
-	fmt.Println("TyAttrC size ", len(TyAttrC))
+	fmt.Printf("UnmarshalValue: TyAttrC size %#v\n ", len(TyAttrC), TyAttrC)
 
 	if aty, ok = TyAttrC[ty+":"+attr]; !ok {
 		panic(fmt.Errorf("Attribute %q not found in type %q", attr, ty))
@@ -1059,9 +1059,9 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 		// scalar type or abstract type e.g [person]
 		//
 		if v.Ty[0] == '[' {
-			a = blk.TyAttrD{Name: v.Atr, DT: "Nd", C: v.C, Ty: v.Ty[1 : len(v.Ty)-1], P: v.P, Pg: v.Pg}
+			a = blk.TyAttrD{Name: v.Atr, DT: "Nd", C: v.C, Ty: v.Ty[1 : len(v.Ty)-1], P: v.P, Pg: v.Pg, IncP: v.IncP}
 		} else {
-			a = blk.TyAttrD{Name: v.Atr, DT: v.Ty, C: v.C, P: v.P, N: v.N, Pg: v.Pg}
+			a = blk.TyAttrD{Name: v.Atr, DT: v.Ty, C: v.C, P: v.P, N: v.N, Pg: v.Pg, IncP: v.IncP}
 		}
 		tc = append(tc, a)
 		//

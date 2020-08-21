@@ -309,17 +309,18 @@ func (nv *StreamCnv) GetF() float64 {
 // type dictionary
 //
 type TyItem struct {
-	Nm  string   // type name
-	Atr string   // attribute name
-	Ty  string   // DataType
-	F   []string // facets name#DataType#CompressedIdentifer
-	C   string   // compressed identifer for attribute
-	P   string   // data partition containig attribute data - TODO: is this obselete???
-	Pg  bool     // true: propagate scalar data to parent
-	N   bool     // NULLABLE. False : not null (attribute will always exist ie. be populated), True: nullable (attribute may not exist)
-	Cd  int      // cardinality - NOT USED
-	Sz  int      // average size of attribute data - NOT USED
-	Ix  string   // supported indexes: FT=Full Text (S type only)
+	Nm   string   // type name
+	Atr  string   // attribute name
+	Ty   string   // DataType
+	F    []string // facets name#DataType#CompressedIdentifer
+	C    string   // compressed identifer for attribute
+	P    string   // data partition containig attribute data - TODO: is this obselete???
+	Pg   bool     // true: propagate scalar data to parent
+	N    bool     // NULLABLE. False : not null (attribute will always exist ie. be populated), True: nullable (attribute may not exist)
+	Cd   int      // cardinality - NOT USED
+	Sz   int      // average size of attribute data - NOT USED
+	Ix   string   // supported indexes: FT=Full Text (S type only)
+	IncP []string
 }
 
 type TyIBlock []TyItem
@@ -333,6 +334,7 @@ type TyAttrD struct {
 	P    string // data partition (aka shard) containing attribute
 	N    bool   // true: nullable (attribute may not exist) false: not nullable
 	Pg   bool   // true: propagate scalar data to parent
+	IncP []string
 }
 
 type TyAttrBlock []TyAttrD

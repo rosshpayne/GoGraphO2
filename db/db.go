@@ -1426,7 +1426,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 // db.AddReverseEdge(eventID, seq, cUID, pUID, ptyName, sortK, tUID, &cwg)
 func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, itemId int) error {
 	//
-	// BS : set of binary values representing puid + tUID + sortk(last entry). Used to determine the tUID the child is data is saved to.
+	// BS : set of binary values representing puid + tUID + sortk(last entry). Used to determine the tUID the child data saved to.
 	// PBS : set of binary values representing puid + sortk (last entry). Can be used to quickly access of child is attached to parent
 	fmt.Println("UpdateReverseEdge: on ", cuid, tUID)
 

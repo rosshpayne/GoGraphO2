@@ -56,6 +56,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 		case req = <-ReqCh:
 
+			//slog.Log("rdfuuid: ", fmt.Sprintf("Request received.. %#v", req))
 			if uid, ok = nodeUID[req.SName]; !ok {
 				if req.SName == "__" {
 					uid = []byte(req.SName)

@@ -7,15 +7,21 @@ import (
 	slog "github.com/DynamoGraph/syslog"
 )
 
-type errorS []error
+type ErrorS []error
 
 var (
-	errors     errorS
-	AddCh      chan error
+	Add        chan error
 	ListCh     chan error
 	ClearCh    chan struct{}
-	PrintLogCh chan errorS
+	PrintLogCh chan ErrorS
+	checkLimit chan chan bool
+	ListReqCh  chan chan ErrorS
+	AddBatch   chan []error
 )
+
+func CheckLimit(lc chan bool) {
+	checkLimit <- lc
+}
 
 func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
@@ -24,22 +30,41 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 	slog.Log("errlog: ", "Powering on...")
 	wp.Done()
 
-	AddCh = make(chan error)
-	ListCh = make(chan error)
+	var (
+		errors   ErrorS
+		errLimit = 5
+		e        error
+		eb       []error
+		lc       chan bool
+		l        chan ErrorS
+	)
+
+	Add = make(chan error)
+	ListReqCh = make(chan chan ErrorS)
 	ClearCh = make(chan struct{})
-	PrintLogCh = make(chan errorS)
+	PrintLogCh = make(chan ErrorS)
+	checkLimit = make(chan chan bool)
+	AddBatch = make(chan []error)
 
 	for {
 
 		select {
 
-		case e := <-AddCh:
+		case e = <-Add:
 
 			errors = append(errors, e)
 
-		case <-ListCh:
+		case eb = <-AddBatch:
 
-			PrintLogCh <- errors
+			errors = append(errors, eb...)
+
+		case lc = <-checkLimit:
+
+			lc <- len(errors) > errLimit
+
+		case l = <-ListReqCh:
+
+			l <- errors
 
 		case <-ClearCh:
 

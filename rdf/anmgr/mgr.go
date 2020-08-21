@@ -71,64 +71,66 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			attachDone = make(attachDoneMap)
 			attachRunning = make(attachRunningMap)
 			var dontrun bool
-			for {
-				for _, e := range edges {
-					dontrun = false
-					slog.Log("anmgr ", fmt.Sprintf("for loop: e = %#v", e))
-					if attachRunning[e] || attachDone[e] {
-						slog.Log("anmgr ", fmt.Sprintf("running or done: e = %#v", e))
-						continue
-					}
-					//
-					// check if any running attaches have completed
-					//
-					for i := 0; i < 3; i++ {
-						select {
+			if len(edges) > 0 {
+				for {
+					for _, e := range edges {
+						dontrun = false
+						slog.Log("anmgr ", fmt.Sprintf("for loop: e = %#v", e))
+						if attachRunning[e] || attachDone[e] {
+							slog.Log("anmgr ", fmt.Sprintf("running or done: e = %#v", e))
+							continue
+						}
+						//
+						// check if any running attaches have completed
+						//
+						for i := 0; i < 3; i++ {
+							select {
 
-						case e := <-attachDoneCh:
+							case e := <-attachDoneCh:
 
-							slog.Log("anmgr ", fmt.Sprintf("** received on attachDoneCh.... %d", i))
-							attachDone[e] = true
-							delete(attachRunning, e)
+								slog.Log("anmgr ", fmt.Sprintf("** received on attachDoneCh.... %d", i))
+								attachDone[e] = true
+								delete(attachRunning, e)
 
-						default:
-							time.Sleep(5 * time.Millisecond)
+							default:
+								time.Sleep(5 * time.Millisecond)
+							}
+
+						}
+						for r, _ := range attachRunning {
+							// if new edge shares any edges with currently running attach jobs move onot next edge
+							if e.CSn == r.CSn || e.PSn == r.CSn || e.CSn == r.PSn || e.PSn == r.PSn {
+								dontrun = true
+								break
+							}
+						}
+						if dontrun {
+
+							if len(attachDone) == len(edges)-1 {
+								time.Sleep(50 * time.Millisecond)
+								slog.Log("anmgr ", fmt.Sprintf("sleep "))
+								// only one left to run go to top of loop
+								break
+							}
+							continue
 						}
 
+						// get UUIDs for rdf blank node names (SName) from uuid goroutine
+						uuid.ReqCh <- uuid.Request{SName: e.CSn, RespCh: lch}
+						csn := <-lch
+						uuid.ReqCh <- uuid.Request{SName: e.PSn, RespCh: lch}
+						psn := <-lch
+
+						slog.Log("anmgr ", fmt.Sprintf("About to run AttachNodeCh: %s  %s  %s %s", e.CSn, e.PSn, csn.String(), psn.String()))
+
+						AttachNodeCh <- Edge{Cuid: csn, Puid: psn, Sortk: e.Sortk, E: e}
+
+						attachRunning[e] = true
 					}
-					for r, _ := range attachRunning {
-						// if new edge shares any edges with currently running attach jobs move onot next edge
-						if e.CSn == r.CSn || e.PSn == r.CSn || e.CSn == r.PSn || e.PSn == r.PSn {
-							dontrun = true
-							break
-						}
+					slog.Log("anmgr ", fmt.Sprintf("for loop finished %d  %d ", len(attachDone), len(edges)))
+					if len(attachDone) == len(edges)-1 {
+						break
 					}
-					if dontrun {
-
-						if len(attachDone) == len(edges)-1 {
-							time.Sleep(50 * time.Millisecond)
-							slog.Log("anmgr ", fmt.Sprintf("sleep "))
-							// only one left to run go to top of loop
-							break
-						}
-						continue
-					}
-
-					// get UUIDs for rdf blank node names (SName) from uuid goroutine
-					uuid.ReqCh <- uuid.Request{SName: e.CSn, RespCh: lch}
-					csn := <-lch
-					uuid.ReqCh <- uuid.Request{SName: e.PSn, RespCh: lch}
-					psn := <-lch
-
-					slog.Log("anmgr ", fmt.Sprintf("About to run AttachNodeCh: %s  %s  %s %s", e.CSn, e.PSn, csn.String(), psn.String()))
-
-					AttachNodeCh <- Edge{Cuid: csn, Puid: psn, Sortk: e.Sortk, E: e}
-
-					attachRunning[e] = true
-				}
-				slog.Log("anmgr ", fmt.Sprintf("for loop finished %d  %d ", len(attachDone), len(edges)))
-				if len(attachDone) == len(edges)-1 {
-					break
 				}
 			}
 			edges = nil
