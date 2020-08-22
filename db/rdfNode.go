@@ -98,11 +98,12 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				SortK string
 				N     int
 				P     string
+				Ty    string // node type
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if i, ok := nv.Value.(int); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, N: i, P: nv.Name}
+				a := Item{PKey: UID, SortK: nv.Sortk, N: i, P: nv.Name, Ty: nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -118,11 +119,12 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				SortK string
 				N     string // float kept in program as string - this is a trial to see if keeping as string works.
 				P     string
+				Ty    string // node type
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if f, ok := nv.Value.(string); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, N: f, P: nv.Name}
+				a := Item{PKey: UID, SortK: nv.Sortk, N: f, P: nv.Name, Ty: nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -138,11 +140,12 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				SortK string
 				S     string
 				P     string
+				Ty    string // node type
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if f, ok := nv.Value.(string); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, S: f, P: nv.Name}
+				a := Item{PKey: UID, SortK: nv.Sortk, S: f, P: nv.Name, Ty: nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -158,6 +161,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				SortK string
 				S     string
 				P     string
+				Ty    string // node type
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if s, ok := nv.Value.(string); ok {
@@ -178,10 +182,11 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				SortK string
 				Bl    bool
 				P     string
+				Ty    string // node type
 			}
 			if f, ok := nv.Value.(bool); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, Bl: f, P: nv.Name}
+				a := Item{PKey: UID, SortK: nv.Sortk, Bl: f, P: nv.Name, Ty: nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -197,10 +202,11 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				SortK string
 				B     []byte
 				P     string
+				Ty    string // node type
 			}
 			if f, ok := nv.Value.([]byte); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, B: f, P: nv.Name}
+				a := Item{PKey: UID, SortK: nv.Sortk, B: f, P: nv.Name, Ty: nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -398,7 +404,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 		}
 	}
 	//
-	// expand SS and LS types into individual S# entries to be indexed
+	// expand SS and LS types into individual S# entries to be indexed// TODO: what about SN, LN
 	//
 	for _, nv := range nv_ {
 
@@ -412,13 +418,14 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				SortK string
 				P     string // Dynamo will use AV List type - will convert to SS in convertSet2list()
 				S     string
+				Ty    string
 			}
 			var sk string
 			if ss, ok := nv.Value.([]string); ok {
 				//
 				for i, s := range ss {
 					sk = "S#:" + nv.C + "#" + strconv.Itoa(i)
-					a := Item{PKey: UID, SortK: sk, P: nv.Name, S: s}
+					a := Item{PKey: UID, SortK: sk, P: nv.Name, S: s, Ty: nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())

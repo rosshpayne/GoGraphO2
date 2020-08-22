@@ -12,6 +12,7 @@ type NV struct {
 	DT    string    // datatype N,S,Bl,B, LN,LS,LBL,LB, Nd, SN,SS,SBl, SB
 	C     string    // type attribute short name
 	Value interface{}
+	Ty    string // node type - used in GSI item
 }
 
 type Line struct {

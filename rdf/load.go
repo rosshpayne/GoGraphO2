@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/cache"
@@ -86,7 +87,10 @@ func Load(f io.Reader) error { // S P O
 	//
 	// ES test
 	//
+	t0 := time.Now()
 	es.ESTest()
+	t1 := time.Now()
+	fmt.Println("Duration of es.ESTest: ", t1.Sub(t0))
 	//
 	// sync.WorkGroups
 	//
@@ -213,7 +217,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 		// unmarshal (& validate) each node in its own goroutine
 		for i := 0; i < nodes_.n; i++ {
 
-			if len(nodes[i].Lines) == 0 {
+			if len(nodes[i].Lines) == 0 { //TODO: should i be ii
 				break
 			}
 			ii := i
@@ -432,6 +436,14 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	//
 	// unmarshal attr into NV -except Nd types, handle in next for
 	//
+	// 	type NV struct {
+	// 	Sortk  string    // dynamodb sortk value  P#:C (for scalar) P#G#:C (for Nd)
+	// 	SName  NdShortNm //  node alias name
+	// 	Name   string    // predicate name == type attribute name
+	// 	DT     string    // datatype N,S,Bl,B, LN,LS,LBL,LB, Nd, SN,SS,SBl, SB
+	// 	Value  interface{}
+	// 	TyName string // Node type
+	// }
 	var addTy = true
 	for k, v := range attr {
 		//
@@ -444,7 +456,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 			nv = append(nv, e)
 			addTy = false
 		}
-		e := ds.NV{Sortk: v.sortk, Name: k, SName: node.ID, Value: v.value, DT: v.dt, C: v.c}
+		e := ds.NV{Sortk: v.sortk, Name: k, SName: node.ID, Value: v.value, DT: v.dt, C: v.c, Ty: node.TyName}
 		nv = append(nv, e)
 	}
 	//

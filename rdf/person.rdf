@@ -37,4 +37,6 @@ _:d Friends _:abc .
 _:d DOB "17 June 1976"  .
 _:d Age "36"	.
 _:d Cars "Roll Roycet"  .
-_:d Cars "Bentley"   .  
+_:d Cars "Bentley"   . 
+_:d Cars "Honda"   . 
+_:d Cars "VW Golf"  .
