@@ -735,10 +735,12 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 func (d *NodeCache) GetType() (tyN string, ok bool) { // TODO: source type from GSI after Ty attribute is added ???
 	var di *blk.DataItem
 
+	syslog(fmt.Sprintf("d.m: %#v\n", d.m))
 	if di, ok = d.m["A#T"]; !ok {
+		syslog("in GetType: no A#T entry in NodeCache")
 		return "", ok
 	}
-	return di.GetS(), true
+	return di.GetTy(), true
 }
 
 // SetOvflBlkFull sets in cache and database the state of the overflow block UID
@@ -769,11 +771,11 @@ func (pn *NodeCache) SetOvflBlkFull(ovflBlkUID util.UID, sortk string) error {
 	return nil
 }
 
-var iterate int = 0
-
 // ConfigureUpred returns either the parent block or an overflow block as the target for the propagation of child scalar data
 // in the case of overflow block it may require more overflow blocks to be created if less than a certain number are available.
-func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID) (util.UID, int, error) {
+// ConfigureUpred makes changes to the node cache (i.e. adds overflows in the cache first). The last operation ofConfigureUpred
+// writes the uid-pred portion of the nocde cache to the database
+func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ...int) (util.UID, int, error) {
 	var (
 		ok          bool
 		embedded    int
@@ -786,29 +788,39 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID) (util.UID
 		itemId      []int
 	)
 	//
+	// check if its a recursive call and if greater than 1 recursive call abort
+	//
+	syslog(fmt.Sprintf("ConfigureUpred:  pUID,cUID,sortK : %s   %s   %s", pUID.String(), cUID.String(), sortK))
+	switch {
+	case len(rsvCnt) == 0:
+		rsvCnt = append(rsvCnt, 1)
+	default:
+		rsvCnt[0] += 1
+	}
+	if rsvCnt[0] > param.MaxOvFlBlocks {
+		return nil, 0, fmt.Errorf(fmt.Sprintf("Abort: Recursive calls to ConfigureUpred exceeeds %d", param.MaxOvFlBlocks))
+	}
+	//
 	// exclusive parent node lock has been applied in calling routine
 	//
-	if iterate > 1 {
-		return nil, 0, fmt.Errorf("Too many recursive calls to ConfigureUpred..")
-	}
 	if di, ok = pn.m[sortK]; !ok {
 		// no uid-pred exists - create an empty one
 		di = new(blk.DataItem)
 		pn.m[sortK] = di
 		//	return nil, 0, fmt.Errorf("GetTargetBlock: Target attribute %q does not exit", sortK)
 	}
-	fmt.Println("In ConfigureUpred sortk ", sortK)
-
-	// XF is a LN (list of Number) populated in uid-predicate. Flag value 0 : c-UID, 1 : c-UID is soft deleted, 2 : overflow UID, 3 : overflow block full
+	// XF is a LN (list of Number) populated in uid-predicate. Flag value 1 : c-UID, 2 : inUse 3 : c-UID is soft deleted (detached), 4 : overflow UID, 5 : overflow Blk InUse  6 : Ovflw item FUll (not applicable anymore)
 	// Get the current distribution of propagation data either embedded in parent node or in overflow blocks (UIDs)
 	for i, v := range di.XF {
 		switch {
 		case v <= blk.UIDdetached:
+			// includes attached cUIDs, inUse cUIDs &  attached cUIDs
 			embedded++
-		case v == blk.OvflBlockUID || v == blk.OvflItemFull || v == blk.OuidInuse: // count available overflow UIDs only
+		case v == blk.OvflBlockUID || v == blk.OvflItemFull || v == blk.OuidInuse:
+			// count overflow UIDs in any state
 			ovflBlocks++
 			if v == blk.OvflBlockUID { // || v == blk.OvflItemFull {
-				// available overflow uids
+				// available overflow uids only
 				availOfUids = append(availOfUids, di.Nd[i])
 				itemId = append(itemId, di.Id[i])
 			}
@@ -826,10 +838,10 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID) (util.UID
 		di.XF = append(di.XF, blk.CuidInuse)
 		di.Id = append(di.Id, 0)
 
-		//	db.SaveUpredState(di)
-		//db.SaveUpredState(di, cUID, blk.CuidInuse, 'A')
-		db.SaveCompleteUpred(di)
-
+		err := db.SaveCompleteUpred(di)
+		if err != nil {
+			return nil, 0, fmt.Errorf("SaveCompleteUpred: %s", err)
+		}
 		return pUID, 0, nil // attachment point is the parent UID
 	}
 	//
@@ -866,10 +878,16 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID) (util.UID
 			return nil, 0, fmt.Errorf("MakeOvflBlocks: %s", err)
 		}
 	}
+	//
+	// keep adding overflow blocks until max limit reached then go back and populate into existing overflow blocks
+	// incrementing the item count. An overflow block has 1:n items. Each item contains upto param.UIDsPerOflwItem.
+	// When the item limit is exceeded (ie. cUIDs in an overflow item) and MaxOvFlBlocks is exceeded we keep creating
+	// new items in the existing overflow blocks
+	//
 
 	if ovflBlocks == param.MaxOvFlBlocks && len(availOfUids) == 0 {
 		fmt.Println("** ovflBlocks == MaxOvFlBlocks && len(availOfUids) == 0")
-		// only mode now is appending to existing overflow blocks creating new overflow items as item ssize limit exceeded.
+		// only mode now is appending to existing overflow blocks creating new overflow items as item size limit exceeded.
 		for i, v := range di.XF {
 			if v == blk.OvflItemFull {
 				di.XF[i] = blk.OvflBlockUID
@@ -878,7 +896,7 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID) (util.UID
 			}
 		}
 		// try again
-		return pn.ConfigureUpred(sortK, pUID, cUID)
+		return pn.ConfigureUpred(sortK, pUID, cUID, rsvCnt[0])
 	}
 	//
 	// choose and overflow to use - must be available
@@ -914,8 +932,7 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID) (util.UID
 	if err != nil {
 		if errors.Is(err, db.ErrConditionalCheckFailed) {
 			di.XF[idx] = blk.OvflItemFull
-			iterate++
-			return pn.ConfigureUpred(sortK, pUID, cUID)
+			return pn.ConfigureUpred(sortK, pUID, cUID, rsvCnt[0])
 		}
 		return nil, 0, err
 

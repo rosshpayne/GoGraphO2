@@ -196,7 +196,7 @@ func TestAttachNode(t *testing.T) {
 	//
 	//.  *** AttachNode.  ****
 	//
-	errS := AttachNode(cUID, pUID, sortk)
+	errS := AttachNode2(cUID, pUID, sortk)
 	if errS != nil {
 		if len(errS) > 0 {
 			for _, v := range errS {
@@ -347,7 +347,7 @@ func TestAttachxNodeExisting(t *testing.T) {
 	//
 	//.  *** AttachNode.  ****
 	//
-	errS := AttachNode(cUID, pUID, sortk)
+	errS := AttachNode2(cUID, pUID, sortk)
 	if len(errS) > 0 {
 		for _, e := range errS {
 			fmt.Println("error: ", e.Error())

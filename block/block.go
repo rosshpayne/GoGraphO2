@@ -58,6 +58,10 @@ type DataItem struct {
 	Bl bool
 	B  []byte
 	//
+	// node type - listed in GSI so value can be associated with type for "has" operator
+	//
+	Ty string
+	//
 	// List (ordered set of any type but constrainted to a single type in DynaGraph)
 	//
 	LS  []string
@@ -96,6 +100,11 @@ func (dgv *DataItem) GetSortK() string {
 func (dgv *DataItem) GetS() string {
 	return dgv.S
 }
+
+func (dgv *DataItem) GetTy() string {
+	return dgv.Ty
+}
+
 func (dgv *DataItem) GetI() int64 {
 	i := int64(dgv.N)
 	return i
@@ -330,7 +339,7 @@ type TyAttrD struct {
 	Name string // Attribute Identfier
 	DT   string // Attribute Data - derived. ??
 	C    string // Attribute short identifier
-	Ty   string // For abstract attribute types the type it respresents e.g "Person"
+	Ty   string // For abstract attribute the type it respresents e.g "Person"
 	P    string // data partition (aka shard) containing attribute
 	N    bool   // true: nullable (attribute may not exist) false: not nullable
 	Pg   bool   // true: propagate scalar data to parent

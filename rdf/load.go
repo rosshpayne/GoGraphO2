@@ -436,14 +436,6 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	//
 	// unmarshal attr into NV -except Nd types, handle in next for
 	//
-	// 	type NV struct {
-	// 	Sortk  string    // dynamodb sortk value  P#:C (for scalar) P#G#:C (for Nd)
-	// 	SName  NdShortNm //  node alias name
-	// 	Name   string    // predicate name == type attribute name
-	// 	DT     string    // datatype N,S,Bl,B, LN,LS,LBL,LB, Nd, SN,SS,SBl, SB
-	// 	Value  interface{}
-	// 	TyName string // Node type
-	// }
 	var addTy = true
 	for k, v := range attr {
 		//

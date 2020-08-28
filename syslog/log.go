@@ -3,6 +3,7 @@ package syslog
 import (
 	"fmt"
 	"log"
+	//	"math"
 	"os"
 )
 
@@ -35,8 +36,11 @@ func openLogFile() *os.File {
 	return logf
 }
 
+//var logit int
+
 func Log(prefix string, s string, panic ...bool) {
 
+	//	if math.Mod(float64(logit), 10) == 0 {
 	Logr.SetPrefix(prefix)
 	Logr.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 	if len(panic) != 0 && panic[0] {
@@ -44,6 +48,7 @@ func Log(prefix string, s string, panic ...bool) {
 		return
 	}
 	Logr.Print(s)
+	//	}
 
 }
 

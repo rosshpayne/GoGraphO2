@@ -4926,3 +4926,29 @@ DB: 2020/08/14 10:10:16.056503 FetchNode:consumed capacity for Query  {
 }. ItemCount 10  Duration: 3.491859ms
 Unlock: 2020/08/14 10:10:16.058522 ******* IN UNLOCK NC ********************
 Unlock: 2020/08/14 10:10:16.058533 Success RUnlock()
+DB:2020/08/27 05:08:47 log.go:19: ===============================================================================
+AttachNode2:2020/08/27 05:08:47.643800 Start: attach  "JTX96oaPRyac3OJUGyZX+w==" to "XZwH0GatSpG5x4PSlc/xdA==" 
+DB: 2020/08/27 05:08:47.753189 NodeExists: consumed capacity for GetItem: {
+  CapacityUnits: 0.5,
+  TableName: "DyGraph"
+}  Duration: 109.267891ms
+DB: 2020/08/27 05:08:47.759280 UpdateEvent: consumed updateitem capacity: <nil>, Duration: 5.971075ms
+FetchNode: 2020/08/27 05:08:47.759403  node: 5lFOnTStSYWqmi8S6FDFDQ== subKey: A#
+DB: 2020/08/27 05:08:47.763395 FetchNode:consumed capacity for Query  {
+  CapacityUnits: 0.5,
+  TableName: "DyGraph"
+}. ItemCount 0  Duration: 3.92981ms
+fetchItems: 2020/08/27 05:08:47.763411 +++  Cache FetchItems for sortk A# UID: [5lFOnTStSYWqmi8S6FDFDQ==] 
+FetchNode: 2020/08/27 05:08:47.763416  node: 5lFOnTStSYWqmi8S6FDFDQ== subKey: A#
+DB: 2020/08/27 05:08:47.767264 FetchNode:consumed capacity for Query  {
+  CapacityUnits: 0.5,
+  TableName: "DyGraph"
+}. ItemCount 0  Duration: 3.80414ms
+Cache: 2020/08/27 05:08:47.768318 in GetType: no A#T entry in NodeCache
+fetchItems: 2020/08/27 05:08:47.769646 +++  Cache FetchItems for sortk A# UID: [5lFOnTStSYWqmi8S6FDFDQ==] 
+FetchNode: 2020/08/27 05:08:47.769666  node: 5lFOnTStSYWqmi8S6FDFDQ== subKey: A#
+DB: 2020/08/27 05:08:47.773188 FetchNode:consumed capacity for Query  {
+  CapacityUnits: 0.5,
+  TableName: "DyGraph"
+}. ItemCount 0  Duration: 3.472774ms
+Cache: 2020/08/27 05:08:47.773210 in GetType: no A#T entry in NodeCache

@@ -24,7 +24,7 @@ type Line struct {
 
 // channel type
 type Node struct {
-	ID     NdShortNm
+	ID     NdShortNm // blank node id, may not be that short
 	TyName string
 	Lines  []Line
 	Err    []error // used by verification process to record any errors

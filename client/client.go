@@ -68,15 +68,16 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		tUID   util.UID
 		itemId int
 		nd     *cache.NodeCache // pass locked nodecache
+		pTy    blk.TyAttrBlock
 	}
 
 	var (
-		eID     util.UID
-		pnd     *cache.NodeCache
-		ctyName string
-		ok      bool
-		err     error
-		wg      sync.WaitGroup
+		eID              util.UID
+		pnd              *cache.NodeCache
+		cTyName, pTyName string
+		ok               bool
+		err              error
+		wg               sync.WaitGroup
 	)
 
 	gc := cache.NewCache()
@@ -112,7 +113,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	// 	}
 	// }
 	// create channels used to pass target UID for propagation and errors
-	xch := make(chan chPayload)
+	xch := make(chan chPayload, 1)
 	defer close(xch)
 	errch := make(chan error, 1) // buffered so allowed to return
 	defer close(errch)
@@ -154,39 +155,89 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 			errch <- fmt.Errorf("AttachNode: error fetching child scalar data: %w", err)
 			return
 		}
-		if ctyName, ok = cnd.GetType(); !ok {
+		//
+		// get type of child node from A#T sortk e.g "Person"
+		//
+		if cTyName, ok = cnd.GetType(); !ok {
 			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Error in GetType"))
 			errch <- cache.NoNodeTypeDefinedErr
 			return
 		}
+		//
+		// get type details from type table for child node
+		//
 		var cty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
-		if cty, err = cache.FetchType(ctyName); err != nil {
+		if cty, err = cache.FetchType(cTyName); err != nil {
 			errch <- err
+			return
+		}
+		fmt.Printf("cty: %#v\n", cty)
+		//
+		//***************  wait for payload from cocurrent routine ****************
+		//
+		var payload chPayload
+		// prevent panic on closed channel by using bool test on channel.
+		if payload, ok = <-xch; !ok {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: Channel xch prematurely closed and drained "))
+			errch <- fmt.Errorf("AttachNode: Channel xch prematurely closed and drained")
+			return
+		}
+		tUID := payload.tUID
+		pnd = payload.nd
+		defer pnd.Unlock()
+		id := payload.itemId
+		pty := payload.pTy // parent type
+		if tUID == nil {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("errored: target UID is nil.. "))
+			errch <- fmt.Errorf("AttachNode: Got a target UID of nil")
 			return
 		}
 		//
 		// build NVclient based on Type info - either all scalar types or only those  declared in IncP attruibte for the attachment type define in sortk
 		//
 		var cnv ds.ClientNV
-		// find attachment data type from sortK eg. A#G#:S , S is the attachment data type
+		//
+		// find attachment data type from sortK eg. A#G#:S
+		// here S is simply the abreviation for the Ty field which defines the child type  e.g 	"Person"
+		//
 		s := strings.Split(sortK, "#")
 
-		attachTy := s[len(s)-1][1:]
-		fmt.Printf("\nggf attachTy: %s %s\n", s[len(s)-1], attachTy)
-		for _, v := range cty {
-			if v.C == attachTy {
-				// grab only explicitly declared scalars from IncP
+		attachPoint := s[len(s)-1][1:]
+		fmt.Printf("\nggf attachTy: %s %s\n", s[len(s)-1], attachPoint)
+		//
+		// find attachment point in parent type based on sortk input
+		//
+		for _, v := range pty {
+
+			if v.C == attachPoint {
+				//
+				// parent attachment point attribute found
+				//
+				// is a IncP defined in the type definition. This will define the child attributes to propagate (short names used)
+				//
 				if len(v.IncP) > 0 {
-					for _, ip := range v.IncP {
-						for _, v := range cty {
-							if v.C == ip {
-								nv := &ds.NV{Name: v.Name}
-								cnv = append(cnv, nv)
+
+					for _, ps := range v.IncP {
+						var found bool
+						for _, cs := range cty {
+							if cs.C == ps {
+								switch cs.DT {
+								case "I", "F", "Bl", "S":
+								}
+								// found assoicated child scalar attribute
+								found = true
+								cnv = append(cnv, &ds.NV{Name: cs.Name})
 							}
 						}
+						if !found {
+							errch <- fmt.Errorf(fmt.Sprintf("AttachNode: Child scalar attribute not found based on parent IncP value, %q", ps))
+							return
+						}
 					}
+
 				} else {
-					// grab all scalars
+
+					// grab all scalars from child type
 					for _, v := range cty {
 						switch v.DT {
 						// scalar types to be propagated
@@ -211,25 +262,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 			errch <- fmt.Errorf("AttachNode: Unmarshal error : %s", err)
 			return
 		}
-		//
-		// **** wait for target UID *******
-		//
-		var payload chPayload
-		// prevent panic on closed channel by using bool test on channel.
-		if payload, ok = <-xch; !ok {
-			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: Channel xch prematurely closed and drained "))
-			errch <- fmt.Errorf("AttachNode: Channel xch prematurely closed and drained")
-			return
-		}
-		tUID := payload.tUID
-		pnd = payload.nd
-		defer pnd.Unlock()
-		id := payload.itemId
-		if tUID == nil {
-			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("errored: target UID is nil.. "))
-			errch <- fmt.Errorf("AttachNode: Got a target UID of nil")
-			return
-		}
+
 		//
 		// ConfigureUpred() has primed the target propagation block with cUID and XF Inuse flag. Ready for propagation of Scalar data.
 		// lock pUID if it is the target of the data propagation.
@@ -280,14 +313,22 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
 		return addErr(err)
 	}
-	// if ptyName, ok = pnd.GetType(); !ok {
-	// 	return cache.NoNodeTypeDefinedErr
-	// }
-	// fmt.Println(ptyName)
 	//
-	// Configure parent uid-predicate block (basis of sortk value) used to determine target for propagating child scaling data.
-	// This may involve creating overflow blocks. No child scalar data is propagated at this stage,
-	// but child UID and/or XF flag are saved to the uid-pred block.
+	// get type of child node from A#T sortk e.g "Person"
+	//
+	if pTyName, ok = pnd.GetType(); !ok {
+		syslog.Log("AttachNode: main ", fmt.Sprintf("Error in GetType"))
+		errch <- cache.NoNodeTypeDefinedErr
+		return addErr(err)
+	}
+	//
+	// get type details from type table for child node
+	//
+	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
+	if pty, err = cache.FetchType(pTyName); err != nil {
+		errch <- err
+		return addErr(err)
+	}
 	//
 	targetUID, id, err := pnd.ConfigureUpred(sortK, pUID, cUID)
 	if err != nil {
@@ -302,7 +343,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	//
 	// get concurrent goroutine to write event items
 	//
-	pass := chPayload{tUID: targetUID, itemId: id, nd: pnd}
+	pass := chPayload{tUID: targetUID, itemId: id, nd: pnd, pTy: pty}
 	xch <- pass
 
 	wg.Wait()
@@ -323,6 +364,351 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 					addErr(e...)
 				} else {
 					return AttachNode(cUID, pUID, sortK, e_, wg_, lmtr)
+				}
+
+			} else {
+				addErr(e)
+			}
+
+		default:
+		}
+	}
+	if len(errS) > 0 {
+		return errS
+	}
+	return nil
+}
+
+func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
+	//
+	// update data cache to reflect child node attached to parent. This involves
+	// 1. append chid UID to the associated parent uid-predicate, parent e.g. sortk A#G#:S
+	// 2. propagate child scalar data to associated uid-predicate (parent's 'G' type) G#:S#:A etc..
+	//
+	//func AttachNode(cUID, pUID util.UID, sortK string, wg_ *sync.WaitGroup) []error { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
+	//
+	// update data cache to reflect child node attached to parent. This involves
+	// 1. append chid UID to the associated parent uid-predicate, parent e.g. sortk A#G#:S
+	// 2. propagate child scalar data to associated uid-predicate (parent's 'G' type) G#:S#:A etc..
+	//
+
+	var errS []error
+
+	var addErr = func(e ...error) []error {
+		errS = append(errS, e...)
+		return errS
+	}
+
+	type chPayload struct {
+		tUID   util.UID
+		itemId int
+		nd     *cache.NodeCache // pass locked nodecache
+		pTy    blk.TyAttrBlock
+	}
+
+	var (
+		eID              util.UID
+		pnd              *cache.NodeCache
+		cTyName, pTyName string
+		ok               bool
+		err              error
+		wg               sync.WaitGroup
+	)
+
+	gc := cache.NewCache()
+	//
+	// log Event via defer
+	//
+	defer func() func() {
+		t0 := time.Now()
+		return func() {
+			t1 := time.Now()
+			if err != nil {
+				db.LogEventFail(eID, t1.Sub(t0).String(), err) // TODO : this should also create a CW log event
+			} else {
+				db.LogEventSuccess(eID, t1.Sub(t0).String())
+			}
+		}
+	}()()
+	//
+	// this API deals only in UID that are known to exist - hence NodeExists() not necessary
+	//
+	syslog.Log("AttachNode2:", fmt.Sprintf("Start: attach  %q to %q ", cUID.String(), pUID.String()))
+	if ok, err := db.NodeExists(cUID); !ok {
+		if err == nil {
+			return addErr(fmt.Errorf("Child node UUID %q does not exist:", cUID))
+		} else {
+			return addErr(fmt.Errorf("Error in validating child node %w", err))
+		}
+	}
+	if ok, err := db.NodeExists(pUID, sortK); !ok {
+		if err == nil {
+			return addErr(fmt.Errorf("Parent node and/or attachment predicate for UUID %q does not exist", pUID))
+		} else {
+			return addErr(fmt.Errorf("Error in validating parent node %w", err))
+		}
+	}
+	// create channels used to pass target UID for propagation and errors
+	xch := make(chan chPayload, 1)
+	defer close(xch)
+	errch := make(chan error, 1) // buffered so allowed to return
+	defer close(errch)
+	//
+	// NOOP condition aka CEG - Concurrent event gatekeeper. Add edge only if it doesn't already exist (in one atomic unit) that can be used to protect against identical concurrent (or otherwise) attachnode events.
+	//
+	// TODO: fix bugs in edgeExists algorithm - see bug list
+	if ok, err := db.EdgeExists(cUID, pUID, sortK, db.ADD); ok {
+		fmt.Println("Error: Edge exists : ", err.Error())
+		if errors.Is(err, db.ErrConditionalCheckFailed) {
+			return addErr(gerr.NodesAttached)
+		}
+		return addErr(err)
+	}
+	//
+	// log Event
+	//
+	// going straight to db is safe provided its part of a FetchNode lock and all updates to the "R" predicate are performed within the FetchNode lock.
+	ev := event.AttachNode{CID: cUID, PID: pUID, SK: sortK}
+	eID, err = eventNew(ev)
+	if err != nil {
+		return addErr(err)
+	}
+	//
+	wg.Add(1)
+	//
+	go func() {
+		defer wg.Done()
+		//
+		// Grab child scalar data and lock child  node. Unlocked in UnmarshalCache and defer.(?? no need for cUID lock after Unmarshal - I think?)  ALL SCALARS SHOUD BEGIN WITH sortk "A#"
+		//
+		syslog.Log("AttachNode: gr1 ", fmt.Sprintf("FetchForUpdate: for child    %s", cUID.String()))
+		cnd, err := gc.FetchForUpdate(cUID, "A#")
+		defer cnd.Unlock("ON cUID for AttachNode second goroutine..") // note unmarshalCache nolonger release the lock
+		if err != nil {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("AttachNode: error fetching child scalar data: %s", err.Error()))
+			errch <- fmt.Errorf("AttachNode: error fetching child scalar data: %w", err)
+			return
+		}
+		//
+		// get type of child node from sortk A#T  e.g "Person"
+		//
+		if cTyName, ok = cnd.GetType(); !ok {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Error in GetType"))
+			errch <- cache.NoNodeTypeDefinedErr
+			return
+		}
+		//
+		// get type details from type table for child node
+		//
+		var cty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
+		if cty, err = cache.FetchType(cTyName); err != nil {
+			errch <- err
+			return
+		}
+		fmt.Printf("cty: %#v\n", cty)
+		//
+		// ***************  wait for payload from cocurrent routine ****************
+		//
+		var payload chPayload
+		// prevent panic on closed channel by using bool test on channel.
+		if payload, ok = <-xch; !ok {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: Channel xch prematurely closed and drained "))
+			errch <- fmt.Errorf("AttachNode: Channel xch prematurely closed and drained")
+			return
+		}
+		// assign payload contents to vars
+		tUID := payload.tUID
+		id := payload.itemId
+		pnd = payload.nd
+		pty := payload.pTy // parent type
+		defer pnd.Unlock()
+
+		if tUID == nil {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("errored: target UID is nil.. "))
+			errch <- fmt.Errorf("AttachNode: Got a target UID of nil")
+			return
+		}
+		//
+		// build NVclient based on Type info - either all scalar types or only those  declared in IncP attruibte for the attachment type define in sortk
+		//
+		var cnv ds.ClientNV
+		//
+		// find attachment data type from sortK eg. A#G#:S
+		// here S is simply the abreviation for the Ty field which defines the child type  e.g 	"Person"
+		//
+		//
+		// find attachment point in parent type based on sortk input
+		//
+		s := strings.Split(sortK, "#")
+		attachPoint := s[len(s)-1][1:]
+		fmt.Printf("\nggf attachTy: %s %s\n", s[len(s)-1], attachPoint)
+
+		for _, v := range pty {
+
+			if v.C == attachPoint {
+				//
+				// parent attachment point attribute found
+				//
+				// is a IncP defined in the type definition. This will define the child attributes to propagate (short names used)
+				//
+				if len(v.IncP) > 0 {
+
+					for _, ps := range v.IncP {
+						var found bool
+						for _, cs := range cty {
+							if cs.C == ps {
+								switch cs.DT {
+								case "I", "F", "Bl", "S":
+								}
+								// found assoicated child scalar attribute
+								found = true
+								cnv = append(cnv, &ds.NV{Name: cs.Name})
+							}
+						}
+						if !found {
+							errch <- fmt.Errorf(fmt.Sprintf("AttachNode: Child scalar attribute not found based on parent IncP value, %q", ps))
+							return
+						}
+					}
+
+				} else {
+
+					// grab all scalars from child type
+					for _, v := range cty {
+						switch v.DT {
+						// scalar types to be propagated
+						case "I", "F", "Bl", "S": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
+							if v.Pg {
+								// scalar type has propagation enabled
+								nv := &ds.NV{Name: v.Name}
+								cnv = append(cnv, nv)
+							}
+						}
+					}
+				}
+			}
+		}
+		fmt.Printf("\nfff  nv : %#v\n", cnv)
+		//
+		// if there are scalars to propagate
+		//
+		if len(cnv) > 0 {
+			//
+			// copy cache data into cnv and unlock child node.
+			//
+			err = cnd.UnmarshalCache(cnv)
+			if err != nil {
+				syslog.Log("AttachNode: main ", fmt.Sprintf("Errored: Unmarshall errored... %s", err.Error()))
+				errch <- fmt.Errorf("AttachNode: Unmarshal error : %s", err)
+				return
+			}
+			//
+			// ConfigureUpred() has primed the target propagation block with cUID and XF Inuse flag. Ready for propagation of Scalar data.
+			// lock pUID if it is the target of the data propagation.
+			// for overflow blocks the entry in the Nd of the uid-pred is set to InUse which syncs access.
+
+			for _, t := range cty {
+
+				for _, v := range cnv {
+
+					if t.Name == v.Name { //&& v.Value != nil {
+
+						id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
+						if err != nil {
+							errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err) //TODO: understand goroutine errch <- ??
+							//gc.UnlockNode(tUID)
+							return // triggers wg.Done()
+						}
+						break
+					}
+				}
+			}
+		}
+		// reverse edge is not cached so deal directly with database
+		// no cache or db locking as the update is a atomic set-add
+		err = db.UpdateReverseEdge(cUID, pUID, tUID, sortK, id)
+		if err != nil {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf(" puidLocked UNLOCK a %s", err.Error()))
+			errch <- err
+			return
+		}
+		//
+		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id)
+		if err != nil {
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
+			errch <- err
+		}
+
+		// select {
+		// 	case <-ctx.Done():
+
+		// }
+	}()
+	//
+	// fetch parent node to find its type. This will lock parent node for update (no shared locks). Explicit unlocked in defer
+	//
+	syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
+	//	pnd, err = gc.FetchForUpdate(pUID, sortK)
+	idx := strings.IndexByte(sortK, '#')
+	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1])
+	if err != nil {
+		pnd.Unlock()
+		syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
+		return addErr(err)
+	}
+	//
+	// get type of child node from A#T sortk e.g "Person"
+	//
+	if pTyName, ok = pnd.GetType(); !ok {
+		syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Error in GetType"))
+		errch <- cache.NoNodeTypeDefinedErr
+		return addErr(err)
+	}
+	//
+	// get type details from type table for child node
+	//
+	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
+	if pty, err = cache.FetchType(pTyName); err != nil {
+		errch <- err
+		return addErr(err)
+	}
+	//
+	// send results to concurrent routine
+	//
+	targetUID, id, err := pnd.ConfigureUpred(sortK, pUID, cUID)
+	if err != nil {
+		pnd.Unlock()
+		err := fmt.Errorf("AttachNode: Error in configuring upd-pred block for propagation of child data: %w", err)
+		// TODO: consider using a Cancel Context
+		xch <- chPayload{}
+		wg.Wait()
+		<-errch
+		return addErr(err)
+	}
+	//
+	// get concurrent goroutine to write event items
+	//
+	pass := chPayload{tUID: targetUID, itemId: id, nd: pnd, pTy: pty}
+	xch <- pass
+
+	wg.Wait()
+	//
+	// two goroutines can result in upto two errors
+	//
+	for i := 0; i < 2; i++ {
+		select {
+		case e := <-errch:
+
+			if errors.Is(e, db.ErrItemSizeExceeded) {
+				// Note: this error should note occur. I have changed from using the 400K dynamodb inbuilt item size limit to trigger a new
+				// UID item for propagation to using the SIZE attribute limit as a conditional update.
+				// recover from error and rerun operation
+				e := recoverItemSizeErr(gc, pUID, cUID, targetUID, sortK)
+
+				if len(e) > 0 {
+					addErr(e...)
+				} else {
+					return AttachNode2(cUID, pUID, sortK)
 				}
 
 			} else {

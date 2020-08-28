@@ -59,6 +59,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			//slog.Log("rdfuuid: ", fmt.Sprintf("Request received.. %#v", req))
 			if uid, ok = nodeUID[req.SName]; !ok {
 				if req.SName == "__" {
+					// for dummy uid-pred entry - when node is first created
 					uid = []byte(req.SName)
 				} else {
 					uid, err = util.MakeUID()
