@@ -172,7 +172,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 		case l = <-registerCh: // change the ceiling by passing in Limiter struct. As struct is a non-ref type, l is a copy of struct passed into channel. Ref typs, spmfc - slice, pointer, map, func, channel
 
 			rLimit[l.r] = l
-			rCnt[r] = 0
+			rCnt[l.r] = 0
 
 		case r = <-rAskCh:
 

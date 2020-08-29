@@ -27,7 +27,9 @@ const (
 	// there will be in cases of high concurrency - ie. lots of child nodes being attached at once.
 	OvFlBlocksGrowBy = 3 // prod value : 100
 	//
-	//	UIDsPerOflwItem  - determines the max size of an overflow item. The bigger the size the more RCUs required to append new child data to each attribute (Nd etc). However it its too small
-	// then it wastes space.
+	// OvfwItemLimit - max number of children per Overflow item.  Value should maximise the space consumed in 4KB blocks to improve efficiency of a RCU but should limit
+	// the number of RCU's required to access an individual child item during insert (an append operation), and update/delete.`
+	// The limit is checked using the dynamodb SIZE function during insert of the child item into the overflow item.
 	OvfwItemLimit = 3 // Prod 100 to 500.
+
 )

@@ -16,16 +16,27 @@ var Logr *log.Logger
 func SetLogger(logr *log.Logger) {
 	if Logr == nil && logr != nil {
 		Logr = logr
-		Logr.Println("===============================================================================")
+		Logr.Println("====================== SetLogger ===============================================")
 	}
 	// TODO: error here (logr is nil)
+}
+
+//var logit int
+var loggingOn bool
+
+func Off() {
+	loggingOn = false
+}
+func On() {
+	loggingOn = true
 }
 
 func init() {
 	logf := openLogFile()
 	logr := log.New(logf, "DB:", logrFlags)
 	SetLogger(logr)
-
+	Logr.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	On()
 }
 
 func openLogFile() *os.File {
@@ -36,13 +47,14 @@ func openLogFile() *os.File {
 	return logf
 }
 
-//var logit int
-
 func Log(prefix string, s string, panic ...bool) {
+
+	if !loggingOn {
+		return
+	}
 
 	//	if math.Mod(float64(logit), 10) == 0 {
 	Logr.SetPrefix(prefix)
-	Logr.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 	if len(panic) != 0 && panic[0] {
 		Logr.Panic(s)
 		return
