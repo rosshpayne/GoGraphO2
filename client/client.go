@@ -458,7 +458,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	//
 	// TODO: fix bugs in edgeExists algorithm - see bug list
 	if ok, err := db.EdgeExists(cUID, pUID, sortK, db.ADD); ok {
-		fmt.Println("Error: Edge exists : ", err.Error())
+		syslog.Log("AttachNode2:", fmt.Sprintf("Error: Edge exists : ", err.Error()))
 		if errors.Is(err, db.ErrConditionalCheckFailed) {
 			return addErr(gerr.NodesAttached)
 		}
@@ -482,6 +482,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		// Grab child scalar data and lock child  node. Unlocked in UnmarshalCache and defer.(?? no need for cUID lock after Unmarshal - I think?)  ALL SCALARS SHOUD BEGIN WITH sortk "A#"
 		//
 		syslog.Log("AttachNode: gr1 ", fmt.Sprintf("FetchForUpdate: for child    %s", cUID.String()))
+
 		cnd, err := gc.FetchForUpdate(cUID, "A#")
 		defer cnd.Unlock("ON cUID for AttachNode second goroutine..") // note unmarshalCache nolonger release the lock
 		if err != nil {
@@ -505,7 +506,6 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 			errch <- err
 			return
 		}
-		fmt.Printf("cty: %#v\n", cty)
 		//
 		// ***************  wait for payload from cocurrent routine ****************
 		//
@@ -525,7 +525,6 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 
 		if tUID == nil {
 			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("errored: target UID is nil.. "))
-			errch <- fmt.Errorf("AttachNode: Got a target UID of nil")
 			return
 		}
 		//
@@ -541,7 +540,6 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		//
 		s := strings.Split(sortK, "#")
 		attachPoint := s[len(s)-1][1:]
-		fmt.Printf("\nggf attachTy: %s %s\n", s[len(s)-1], attachPoint)
 
 		for _, v := range pty {
 
@@ -588,7 +586,6 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 				}
 			}
 		}
-		fmt.Printf("\nfff  nv : %#v\n", cnv)
 		//
 		// if there are scalars to propagate
 		//
@@ -606,6 +603,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 			// ConfigureUpred() has primed the target propagation block with cUID and XF Inuse flag. Ready for propagation of Scalar data.
 			// lock pUID if it is the target of the data propagation.
 			// for overflow blocks the entry in the Nd of the uid-pred is set to InUse which syncs access.
+			// propagation data is not cached - so call db api directly
 
 			for _, t := range cty {
 
@@ -615,6 +613,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 
 						id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
 						if err != nil {
+							// TODO: rollback propagation data.
 							errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err) //TODO: understand goroutine errch <- ??
 							//gc.UnlockNode(tUID)
 							return // triggers wg.Done()
@@ -632,57 +631,72 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 			errch <- err
 			return
 		}
-		//
-		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id)
-		if err != nil {
-			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
-			errch <- err
-		}
+		// now a defer func
+		// err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id)
+		// if err != nil {
+		// 	syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
+		// 	errch <- err
+		// }
 
 		// select {
 		// 	case <-ctx.Done():
 
 		// }
 	}()
+
+	setAvailable := func(tUID util.UID, id int) {
+		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id)
+		if err != nil {
+			syslog.Log("AttachNode: main ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
+		}
+		syslog.Log("AttachNode: main ", "defer successfully executed: SetUpredAvailable")
+	}
+
 	//
 	// fetch parent node to find its type. This will lock parent node for update (no shared locks). Explicit unlocked in defer
 	//
 	syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
-	//	pnd, err = gc.FetchForUpdate(pUID, sortK)
+
 	idx := strings.IndexByte(sortK, '#')
+
 	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1])
 	if err != nil {
 		pnd.Unlock()
 		syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
+		xch <- chPayload{}
+		wg.Wait()
 		return addErr(err)
 	}
 	//
 	// get type of child node from A#T sortk e.g "Person"
 	//
 	if pTyName, ok = pnd.GetType(); !ok {
-		syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Error in GetType"))
-		errch <- cache.NoNodeTypeDefinedErr
-		return addErr(err)
+		syslog.Log("AttachNode: main ", fmt.Sprintf("Error in GetType"))
+		xch <- chPayload{}
+		wg.Wait()
+		return addErr(cache.NoNodeTypeDefinedErr)
 	}
 	//
 	// get type details from type table for child node
 	//
 	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
 	if pty, err = cache.FetchType(pTyName); err != nil {
-		errch <- err
+		xch <- chPayload{}
+		wg.Wait()
 		return addErr(err)
 	}
 	//
-	// send results to concurrent routine
+	// ConfigureUpred selects target for propagation of scalar data and marks it inUse. Adds cUID to Nd/Overflowblock.
 	//
 	targetUID, id, err := pnd.ConfigureUpred(sortK, pUID, cUID)
 	if err != nil {
+		// undo inUse state set by ConfigureUpred
+		setAvailable(targetUID, id)
 		pnd.Unlock()
 		err := fmt.Errorf("AttachNode: Error in configuring upd-pred block for propagation of child data: %w", err)
 		// TODO: consider using a Cancel Context
 		xch <- chPayload{}
 		wg.Wait()
-		<-errch
 		return addErr(err)
 	}
 	//
@@ -692,6 +706,8 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	xch <- pass
 
 	wg.Wait()
+	//
+	setAvailable(targetUID, id)
 	//
 	// two goroutines can result in upto two errors
 	//

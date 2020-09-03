@@ -56,6 +56,13 @@ type DBSysErr struct {
 	err     error  // aws database error
 }
 
+func (e DBSysErr) Unwrap() error {
+	return e.err
+}
+
+func (e DBSysErr) Error() string {
+	return fmt.Sprintf("Sytem error in %s of %s. %s", e.api, e.routine, e.err.Error())
+}
 func newDBSysErr(rt string, api string, err error) error {
 
 	var aerr awserr.Error
@@ -77,14 +84,6 @@ func newDBSysErr(rt string, api string, err error) error {
 	syserr := DBSysErr{routine: rt, api: api, err: err}
 	logerr(syserr)
 	return syserr
-}
-
-func (e DBSysErr) Unwrap() error {
-	return e.err
-}
-
-func (e DBSysErr) Error() string {
-	return fmt.Sprintf("Sytem error in %s of %s. %s", e.api, e.routine, e.err.Error())
 }
 
 type DBNoItemFound struct {

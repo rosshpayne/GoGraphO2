@@ -77,6 +77,17 @@
             	    "Pg" : { "BOOL" : true }
           }}
      },
+          {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "Genre" }, 
+            	    "Atr" : { "S" : "genre.film" },
+            	    "Ty" : { "S": "[Film]"}, 
+                    "C" : { "S": "F" },
+            	    "P" : { "S" : "A" },
+            	  "IncP" : {"SS" :["N"]}
+          }}
+     },
     {    
           "PutRequest" : {
           "Item" : {

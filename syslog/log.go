@@ -3,17 +3,55 @@ package syslog
 import (
 	"fmt"
 	"log"
-	//	"math"
+	//      "math"
 	"os"
+	"strconv"
 )
 
 const (
 	logrFlags = log.LstdFlags | log.Lshortfile
 )
 
+type MyLogger struct {
+	on   bool
+	logr *log.Logger
+}
+
+func (l *MyLogger) On() {
+	l.on = true
+}
+
+func (l *MyLogger) Off() {
+	l.on = false
+}
+
+func (l *MyLogger) Log(s string) {
+
+	if !l.on {
+		return
+	}
+
+	l.logr.Print(s)
+}
+
+// create a private logger = typically used within a routine
+func New(prefix string, f string, i int) *MyLogger {
+	f += "_" + strconv.Itoa(i) + ".log"
+	f = "/home/ec2-user/environment/project/DynamoGraph/logs/" + f
+	logf, err := os.OpenFile(f, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+	logr := log.New(logf, prefix, logrFlags)
+	logr.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	mylogr := MyLogger{on: true, logr: logr}
+	return &mylogr
+}
+
+// global logger - accessible from any routine
 var Logr *log.Logger
 
-func SetLogger(logr *log.Logger) {
+func SetLogger(logr *log.Logger) { // TODO: does this need to be exposed?
 	if Logr == nil && logr != nil {
 		Logr = logr
 		Logr.Println("====================== SetLogger ===============================================")
@@ -40,7 +78,7 @@ func init() {
 }
 
 func openLogFile() *os.File {
-	logf, err := os.OpenFile("DyG.sys.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	logf, err := os.OpenFile("/home/ec2-user/environment/project/DynamoGraph/logs/DyG.sys.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -53,14 +91,14 @@ func Log(prefix string, s string, panic ...bool) {
 		return
 	}
 
-	//	if math.Mod(float64(logit), 10) == 0 {
+	//      if math.Mod(float64(logit), 10) == 0 {
 	Logr.SetPrefix(prefix)
 	if len(panic) != 0 && panic[0] {
 		Logr.Panic(s)
 		return
 	}
 	Logr.Print(s)
-	//	}
+	//      }
 
 }
 

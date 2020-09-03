@@ -21,6 +21,8 @@ func LogEvent(eventData event.Event) error {
 		eventTy string
 	)
 	//
+	return nil
+
 	switch x := eventData.(type) {
 
 	case event.AttachNode:
@@ -56,11 +58,13 @@ func LogEvent(eventData event.Event) error {
 }
 
 func LogEventSuccess(eID util.UID, duration string) error {
-	return UpdateEvent(eID, "C", duration)
+	return nil
+	//	return UpdateEvent(eID, "C", duration)
 }
 
 func LogEventFail(eID util.UID, duration string, err error) error {
-	return UpdateEvent(eID, "F", duration, err)
+	return nil
+	//	return UpdateEvent(eID, "F", duration, err)
 }
 
 func UpdateEvent(eID util.UID, status string, duration string, errEv ...error) error {
@@ -69,6 +73,8 @@ func UpdateEvent(eID util.UID, status string, duration string, errEv ...error) e
 		EID []byte
 		SEQ int
 	}
+	return nil
+
 	upd := expression.Set(expression.Name("Status"), expression.Value(status))
 	upd = upd.Set(expression.Name("Dur"), expression.Value(duration))
 	if len(errEv) > 0 {

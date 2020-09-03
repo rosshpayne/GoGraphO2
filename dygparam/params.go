@@ -13,7 +13,7 @@ const (
 	// node with substantial scalar data this parameter should be corresponding small (< 5) to minimise the space consumed
 	// within the parent block. The more space consumed by the embedded child node data the more RCUs required to read the parent Node data,
 	// which will be an overhead in circumstances where child data is not required.
-	EmbeddedChildNodes = 20 // prod value: 20
+	EmbeddedChildNodes = 8 // prod value: 20
 	// Overflow block
 	//	AvailableOvflBlocks = 1 // prod value: 5
 	//
@@ -30,6 +30,6 @@ const (
 	// OvfwItemLimit - max number of children per Overflow item.  Value should maximise the space consumed in 4KB blocks to improve efficiency of a RCU but should limit
 	// the number of RCU's required to access an individual child item during insert (an append operation), and update/delete.`
 	// The limit is checked using the dynamodb SIZE function during insert of the child item into the overflow item.
-	OvfwItemLimit = 3 // Prod 100 to 500.
+	OvfwItemLimit = 5 // Prod 100 to 500.
 
 )

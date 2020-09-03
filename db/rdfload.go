@@ -15,11 +15,12 @@ import (
 	"github.com/DynamoGraph/util"
 
 	"github.com/DynamoGraph/rdf.m/reader"
+	"github.com/DynamoGraph/rdf.m/result"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+	//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 )
 
 func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error) {
@@ -487,13 +488,17 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 	return nil
 }
 
-func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
+func SavePersons(batch []*reader.PersonT, tyBlock blk.TyAttrBlock, tyName string, lmtr grmgr.Limiter, wg *sync.WaitGroup) {
 
 	var (
 		av   map[string]*dynamodb.AttributeValue
 		err  error
 		iCnt int
 	)
+
+	defer wg.Done()
+	lmtr.StartR()
+	defer lmtr.EndR()
 
 	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
 		for k, v := range av {
@@ -508,20 +513,14 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 			}
 		}
 	}
-	found := false
-	for _, v := range reader.Person {
-		if v.Name == "Orson Welles" {
-			found = true
-			fmt.Printf("Orson found in SavePersons..%#v\n", v)
-		}
-	}
-	if !found {
-		return fmt.Errorf("Orson NOT found in SavePersons..\n"), iCnt
-	}
 
-	fmt.Println("\nSavePersons........")
+	res := result.New("Person")
+	resDir := result.New("Director")
+	resAct := result.New("Actor")
+	resBoth := result.New("Actor-Director")
+
 	i := 0
-	for _, v := range reader.Person {
+	for _, v := range batch {
 		//
 		// load type item
 		//
@@ -537,18 +536,9 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 			//
 			// ****** load directors only
 			//
-			if v.Name == "Orson Welles" {
-				fmt.Println("SavePersons: Orson found")
-			}
-			if v.Ty&1 != 1 {
-				if v.Name == "Orson Welles" {
-					fmt.Println("SavePersons: Orson not saved")
-				}
-				continue
-			}
-			if v.Name == "Orson Welles" {
-				fmt.Println("SavePersons: Orson saved")
-			}
+			// if v.Ty&1 != 1 {
+			// 	continue
+			// }
 			//
 			// create dummy uid-pred entries if required
 			//
@@ -572,8 +562,8 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 				a := Item{PKey: v.Uid, SortK: "A#G#:" + ty.C, Nd: uid, XF: xf, Id: id}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					fmt.Printf("XX %s: %s", "Error: failed to marshal type definition \n", err.Error())
-					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+					syslog(fmt.Sprintf(" %s: %s", "Error: failed to marshal type definition \n", err.Error()))
+					return
 				}
 				convertSet2list(av)
 				iCnt++
@@ -586,7 +576,8 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 				t1 := time.Now()
 				syslog(fmt.Sprintf("SavePersons: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 				if err != nil {
-					return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+					syslog(fmt.Sprintf("Error: PutItem, %s", err.Error()))
+					return
 				}
 
 			} else {
@@ -600,11 +591,12 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyName}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+						syslog(fmt.Sprintf("Error: failed to marshal type definition : %s", err.Error()))
+						return
 					}
 
 					t0 := time.Now()
-					iCnt++
+
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
 						TableName:              aws.String("DyGraph"),
 						Item:                   av,
@@ -613,7 +605,17 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					t1 := time.Now()
 					syslog(fmt.Sprintf("SavePersons: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+						syslog(fmt.Sprintf("Error: PutItem, %s", err.Error()))
+						return
+					}
+
+					switch v.Ty {
+					case 1:
+						resDir.Cnt++
+					case 2:
+						resAct.Cnt++
+					case 3:
+						resBoth.Cnt++
 					}
 				}
 				//
@@ -643,7 +645,8 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					a := Item{PKey: v.Uid, SortK: genSortK(), S: v.Name, P: "Name", Ty: tyName, T: int(v.Ty), Id: string(v.Id)}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+						syslog(fmt.Sprintf("MarshalMap Error: failed to marshal type definition ", err.Error()))
+						return
 					}
 
 					t0 := time.Now()
@@ -654,16 +657,23 @@ func SavePersons(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
 					t1 := time.Now()
-					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					syslog(fmt.Sprintf("SavePersons: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+						syslog(fmt.Sprintf("PutItem Error: ", err.Error()))
+						return
 					}
 				}
 			}
 		}
 	}
-	fmt.Println("SavePersons: ", i)
-	return nil, iCnt
+
+	res.Cnt = resDir.Cnt + resAct.Cnt - resBoth.Cnt
+
+	result.Log <- res
+	result.Log <- resDir
+	result.Log <- resAct
+	result.Log <- resBoth
+
 }
 
 func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
@@ -674,7 +684,21 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 		iCnt int
 	)
 
+	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
+		for k, v := range av {
+			if k == "Nd" {
+				if len(v.BS) > 0 {
+					v.L = make([]*dynamodb.AttributeValue, len(v.BS), len(v.BS))
+					for i, u := range v.BS {
+						v.L[i] = &dynamodb.AttributeValue{B: u}
+					}
+					v.BS = nil
+				}
+			}
+		}
+	}
 	fmt.Println("SaveGenres........")
+	res := result.New("Genre")
 	//	i := 0
 	for _, v := range reader.Genre {
 		//
@@ -701,7 +725,7 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 				a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyName}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+					return fmt.Errorf(" %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
 				}
 
 				t0 := time.Now()
@@ -712,10 +736,11 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
 				t1 := time.Now()
-				syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+				syslog(fmt.Sprintf("SaveGenres: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 				if err != nil {
 					return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
 				}
+				res.Cnt++
 			}
 			//
 			// load scalar items
@@ -755,26 +780,74 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
 				t1 := time.Now()
-				syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+				syslog(fmt.Sprintf("SaveGenres: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 				if err != nil {
 					return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
 				}
 			}
+			//
+			// uid-preds for genre
+			//
+			for _, ty := range tyBlock {
+
+				if len(ty.Ty) != 0 {
+
+					type Item struct {
+						PKey  []byte
+						SortK string
+						Nd    [][]byte
+						XF    []int
+						Id    []int
+					}
+					// convert node blank name to UID
+					xf := make([]int, 1, 1)
+					xf[0] = blk.ChildUID
+					id := make([]int, 1, 1)
+					id[0] = 0
+					uid := make([][]byte, 1, 1)
+					uid[0] = []byte("__")
+
+					a := Item{PKey: v.Uid, SortK: "A#G#:" + ty.C, Nd: uid, XF: xf, Id: id}
+					av, err = dynamodbattribute.MarshalMap(a)
+					if err != nil {
+						return fmt.Errorf("SavePerformance: Error failed to marshal type definition, %s ", err.Error()), iCnt
+					}
+					convertSet2list(av)
+					iCnt++
+					t0 := time.Now()
+					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
+						TableName:              aws.String("DyGraph"),
+						Item:                   av,
+						ReturnConsumedCapacity: aws.String("TOTAL"),
+					})
+					t1 := time.Now()
+					syslog(fmt.Sprintf("SaveGenres: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					if err != nil {
+						return fmt.Errorf("SaveGenres:  Error in PutItem, %s", err.Error()), iCnt
+					}
+				}
+			}
 		}
 	}
+	result.Log <- res
+
 	return nil, iCnt
 }
 
-func SaveCharacters(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
+func SaveCharacters(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, lmtr grmgr.Limiter, wg *sync.WaitGroup) {
 
 	var (
 		av  map[string]*dynamodb.AttributeValue
 		err error
 	)
+	defer wg.Done()
+	lmtr.StartR()
+	defer lmtr.EndR()
 
 	fmt.Println("SaveCharacters........")
 	iCnt := 0
-	for _, v := range reader.Movie {
+	res := result.New("Characters")
+	for _, v := range batch {
 
 		for _, p := range v.Performance {
 
@@ -804,8 +877,8 @@ func SaveCharacters(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					a := Item{PKey: c.Uid, SortK: "A#T", Ty: tyName}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						fmt.Println("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
-						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+						syslog(fmt.Sprintf("SaveCharacters: Error: failed to marshal type definition, %s", err.Error()))
+						return
 					}
 
 					t0 := time.Now()
@@ -815,11 +888,12 @@ func SaveCharacters(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
 					t1 := time.Now()
-					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					syslog(fmt.Sprintf("SaveCharacters: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						fmt.Println("XX Error: PutItem, %s", err.Error())
-						return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+						syslog(fmt.Sprintf("SaveCharacters: Error in PutItem, %s", err.Error()))
+						return
 					}
+					res.Cnt++
 				}
 				//
 				// load scalar items
@@ -848,7 +922,8 @@ func SaveCharacters(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					a := Item{PKey: c.Uid, SortK: genSortK(), S: c.Name, P: "Name", Ty: tyName, Id: string(c.Id)}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+						syslog(fmt.Sprintf("SaveCharacters: Error in MarshalMap, %s ", err.Error()))
+						return
 					}
 
 					t0 := time.Now()
@@ -858,24 +933,31 @@ func SaveCharacters(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
 					t1 := time.Now()
-					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					syslog(fmt.Sprintf("SaveCharacters: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+						syslog(fmt.Sprintf("SaveCharacters: Error in PutItem, %s", err.Error()))
+						return
 					}
 				}
 			}
 		}
 	}
-	return nil, iCnt
+
+	result.Log <- res
+
 }
 
-func SavePerformances(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
+func SavePerformances(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, lmtr grmgr.Limiter, wg *sync.WaitGroup) {
 
 	var (
 		av   map[string]*dynamodb.AttributeValue
 		err  error
 		iCnt int
 	)
+	defer wg.Done()
+	lmtr.StartR()
+	defer lmtr.EndR()
+
 	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
 		for k, v := range av {
 			if k == "Nd" {
@@ -890,8 +972,8 @@ func SavePerformances(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 		}
 	}
 	fmt.Println("SavePerformances........")
-
-	for _, v := range reader.Movie {
+	res := result.New("Performance")
+	for _, v := range batch {
 
 		for _, p := range v.Performance {
 			//
@@ -908,8 +990,8 @@ func SavePerformances(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 				a := Item{PKey: p.Uid, SortK: "A#T", Ty: tyName, Id: string(p.Id)}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					fmt.Println("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
-					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+					syslog(fmt.Sprintf("SavePerformances: Error failed to marshal type definition. %s ", err.Error()))
+					return
 				}
 
 				t0 := time.Now()
@@ -920,12 +1002,16 @@ func SavePerformances(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
 				t1 := time.Now()
-				syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+				syslog(fmt.Sprintf("SavePerformances: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 				if err != nil {
-					fmt.Println("XX Error: PutItem, %s", err.Error())
-					return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+					syslog(fmt.Sprintln("SavePerformances: Error in PutItem, %s", err.Error()))
+					return
 				}
+				res.Cnt++
 			}
+			//
+			// uid-preds for film
+			//
 			for _, ty := range tyBlock {
 				if len(ty.Ty) != 0 {
 
@@ -947,8 +1033,8 @@ func SavePerformances(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					a := Item{PKey: p.Uid, SortK: "A#G#:" + ty.C, Nd: uid, XF: xf, Id: id}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						fmt.Printf("XX %s: %s", "Error: failed to marshal type definition \n", err.Error())
-						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+						syslog(fmt.Sprintf("SavePerformance: Error failed to marshal type definition, %s ", err.Error()))
+						return
 					}
 					convertSet2list(av)
 					iCnt++
@@ -959,24 +1045,30 @@ func SavePerformances(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
 					t1 := time.Now()
-					syslog(fmt.Sprintf("SavePersons: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					syslog(fmt.Sprintf("SavePerformances: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+						syslog(fmt.Sprintf("SavePerformance:  Erro in PutItem, %s", err.Error()))
+						return
 					}
 				}
 			}
 		}
 	}
-	return nil, iCnt
+
+	result.Log <- res
 }
 
-func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
+func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, lmtr grmgr.Limiter, wg *sync.WaitGroup) {
 
 	var (
 		av   map[string]*dynamodb.AttributeValue
 		err  error
 		iCnt int
 	)
+	defer wg.Done()
+	lmtr.StartR()
+	defer lmtr.EndR()
+
 	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
 		for k, v := range av {
 			if k == "Nd" {
@@ -1001,8 +1093,9 @@ func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 	}
 	var a Item
 
-	fmt.Println("SaveMovies........")
-	for _, v := range reader.Movie {
+	fmt.Println("SaveMovies........", len(batch))
+	res := result.New("Film")
+	for _, v := range batch {
 		//
 		// load type item
 		//
@@ -1012,11 +1105,12 @@ func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 				SortK string
 				Ty    string
 			}
+
 			a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyName}
 			av, err = dynamodbattribute.MarshalMap(a)
 			if err != nil {
-				fmt.Printf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
-				return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+				syslog(fmt.Sprintf("SaveMovies: Error failed to marshal type definition, %s ", err.Error()))
+				return
 			}
 			iCnt++
 			t0 := time.Now()
@@ -1026,11 +1120,12 @@ func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 				ReturnConsumedCapacity: aws.String("TOTAL"),
 			})
 			t1 := time.Now()
-			syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+			syslog(fmt.Sprintf("SaveMovies: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 			if err != nil {
-				fmt.Printf("XX Error: PutItem, %s", err.Error())
-				return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+				syslog(fmt.Sprintf("SaveMovies:  Error in PutItem, %s", err.Error()))
+				return
 			}
+			res.Cnt++
 		}
 
 		for _, ty := range tyBlock {
@@ -1055,8 +1150,8 @@ func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 				a := Item{PKey: v.Uid, SortK: "A#G#:" + ty.C, Nd: uid, XF: xf, Id: id}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					fmt.Printf("XX %s: %s", "Error: failed to marshal type definition \n", err.Error())
-					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+					syslog(fmt.Sprintf("SaveMovies: Error failed to marshal type definition, %s", err.Error()))
+					return
 				}
 				iCnt++
 				convertSet2list(av)
@@ -1067,9 +1162,10 @@ func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
 				t1 := time.Now()
-				syslog(fmt.Sprintf("yy SaveMovies: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+				syslog(fmt.Sprintf("SaveMovies: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 				if err != nil {
-					return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+					syslog(fmt.Sprintf("SaveMovies:  Error in PutItem, %s", err.Error()))
+					return
 				}
 			} else {
 				//
@@ -1095,8 +1191,8 @@ func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						fmt.Printf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
-						return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
+						syslog(fmt.Sprintf("SaveMovies: Error failed to marshal type definition %s", err.Error()))
+						return
 					}
 					iCnt++
 					t0 := time.Now()
@@ -1108,48 +1204,48 @@ func SaveMovies(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					t1 := time.Now()
 					syslog(fmt.Sprintf("SaveMovies scalar: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						fmt.Printf("XX Error: PutItem, %s", err.Error())
-						return fmt.Errorf("XX Error: PutItem, %s", err.Error()), iCnt
+						syslog(fmt.Sprintf("SaveMovies: Error inPutItem, %s", err.Error()))
+						return
 					}
 				}
 			}
 		}
 	}
-	return nil, iCnt
+	result.Log <- res
 }
 
-func Orson(s string) {
-	syslog(fmt.Sprintf("db.Orson check if exists  - %s  ", s))
-	filt := expression.Name("Id").Equal(expression.Value("13523357566899103591"))
-	expr, err := expression.NewBuilder().WithFilter(filt).Build()
-	if err != nil {
-		fmt.Println(err)
-	}
+// func Orson(s string) {
+// 	syslog(fmt.Sprintf("db.Orson check if exists  - %s  ", s))
+// 	filt := expression.Name("Id").Equal(expression.Value("13523357566899103591"))
+// 	expr, err := expression.NewBuilder().WithFilter(filt).Build()
+// 	if err != nil {
+// 		fmt.Println(err)
+// 	}
 
-	input := &dynamodb.ScanInput{
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-		FilterExpression:          expr.Filter(),
-		ProjectionExpression:      expr.Projection(),
-		TableName:                 aws.String("DyGraph"),
-	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+// 	input := &dynamodb.ScanInput{
+// 		ExpressionAttributeNames:  expr.Names(),
+// 		ExpressionAttributeValues: expr.Values(),
+// 		FilterExpression:          expr.Filter(),
+// 		ProjectionExpression:      expr.Projection(),
+// 		TableName:                 aws.String("DyGraph"),
+// 	}
+// 	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 
-	//
-	syslog("db.Orson check if exists about to scan  ")
-	t0 := time.Now()
-	result, err := dynSrv.Scan(input)
-	t1 := time.Now()
-	if err != nil {
-		syslog(fmt.Sprintf("db.Orson scan error - %s", err.Error()))
-		return
-	}
-	//
-	syslog(fmt.Sprintf("Orson: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
-	if int(*result.Count) == 0 {
-		syslog("Orson -  NOT FOUND....")
-		return
-	}
-	syslog("db.Orson FOUND.....")
+// 	//
+// 	syslog("db.Orson check if exists about to scan  ")
+// 	t0 := time.Now()
+// 	result, err := dynSrv.Scan(input)
+// 	t1 := time.Now()
+// 	if err != nil {
+// 		syslog(fmt.Sprintf("db.Orson scan error - %s", err.Error()))
+// 		return
+// 	}
+// 	//
+// 	syslog(fmt.Sprintf("Orson: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
+// 	if int(*result.Count) == 0 {
+// 		syslog("Orson -  NOT FOUND....")
+// 		return
+// 	}
+// 	syslog("db.Orson FOUND.....")
 
-}
+// }

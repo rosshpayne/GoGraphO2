@@ -70,7 +70,6 @@ type GraphCache struct {
 var GraphC GraphCache
 
 func NewCache() *GraphCache {
-	fmt.Println("NewCache: len : ", len(GraphC.cache))
 	return &GraphC
 }
 
@@ -146,7 +145,6 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		for i := len(di.Nd); i > 0; i-- {
 			if bytes.Equal(di.Nd[i-1], cUID) {
 				di.XF[i-1] = blk.ChildUID
-				syslog("tuid=puid: ABOUT TO SET UID_PREP AS AVAILABLE. in db")
 				err = db.SaveUpredState(di, cUID, blk.ChildUID, 'U', i-1)
 				if err != nil {
 					return err
@@ -162,7 +160,6 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 			if bytes.Equal(di.Nd[i-1], targetUID) {
 				di.XF[i-1] = blk.OvflBlockUID
 				di.Id[i-1] = id
-				syslog("tuid != puid: ABOUT TO SET UID_PREP AS AVAILABLE. in db")
 				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, 'U', i-1)
 				if err != nil {
 					return err
@@ -203,23 +200,21 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 	if nc == nil {
 		return ErrCacheEmpty
 	}
-	fmt.Println("** UnmarshalCache ", len(GraphC.cache))
 	var (
 		ty     string
 		attrDT string
 		ok     bool
 		err    error
 	)
-	for k := range nc.m {
-		fmt.Println(" key: ", k)
-	}
+	// for k := range nc.m {
+	// 	fmt.Println(" key: ", k)
+	// }
 	if ty, ok = nc.GetType(); !ok {
 		return NoNodeTypeDefinedErr
 	}
 	if _, err = FetchType(ty); err != nil {
 		return err
 	}
-	fmt.Println("TyAttrC size ", len(TyAttrC))
 
 	genAttrKey := func(attr string) (string, error) {
 		var (
@@ -237,7 +232,6 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 			for i := 0; i < len(attr_); i++ {
 				// check type exists
 				x := TyAttrC[ty+":"+attr_[0]]
-				fmt.Printf("x: %#v\n", x.Ty)
 				if _, ok := TyC[x.Ty]; !ok {
 					return "", fmt.Errorf("Type %q not defined", x.Ty)
 				}
@@ -254,7 +248,7 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 			if aty.DT != "Nd" {
 				attrDT = "UL" + aty.DT
 			}
-			fmt.Println(" attrDT, ty : ", attrDT, ty)
+
 		} else {
 			//
 			// node only attribute
@@ -292,7 +286,6 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 		// field name repesents a scalar. It has a type that we use to generate a sortk (predicate) G#:<uid-pred>#:<pred-scalar-type-abreviation>
 		//
 		attrKey, err := genAttrKey(a.Name)
-		fmt.Println("*** ", a.Name, attrKey, attrDT)
 		if err != nil {
 			return err
 		}
@@ -505,8 +498,8 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				xfall = append(xfall, xf)
 
 				// data from overflow blocks
-				for i, v := range OfUIDs {
-					fmt.Println("OfUIDs: ", i, util.UID(v).String())
+				for _, v := range OfUIDs {
+
 					nuid, err := nc.gc.FetchNode(util.UID(v))
 					if err != nil {
 						return err
@@ -531,11 +524,9 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				}
 
 				a.Value = allcuid
-				fmt.Println("a.Value...: ", a.Value)
 				a.State = xfall
 				// share state amongst all propgated datat type
 				State = xfall
-				fmt.Printf("******************************************* state:%d %d %#v ", len(State), len(State[0]), State)
 
 			default:
 				panic(fmt.Errorf("Unsupported data type %q", attrDT))
@@ -568,8 +559,6 @@ func (d *NodeCache) UnmarshalValue(attr string, i interface{}) error {
 	if _, err := FetchType(ty); err != nil {
 		return err
 	}
-
-	fmt.Printf("UnmarshalValue: TyAttrC size %#v\n ", len(TyAttrC), TyAttrC)
 
 	if aty, ok = TyAttrC[ty+":"+attr]; !ok {
 		panic(fmt.Errorf("Attribute %q not found in type %q", attr, ty))
@@ -646,7 +635,6 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 	var (
 		aty blk.TyAttrD
 	)
-	fmt.Println("TyAttrC size ", len(TyAttrC))
 
 	genAttrKey := func(attr string) string {
 		if aty, ok = TyAttrC[ty+":"+attr]; !ok {
@@ -674,7 +662,6 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 			// match attribute descriptor
 			if v.SortK == attrKey {
 				//fmt.Printf("v = %#v\n", v.SortK)
-				fmt.Println(aty, attrKey)
 				// we now know the attribute data type, populate interface value with attribute data
 				switch x := aty.DT; x {
 				case "I": // int
@@ -689,27 +676,22 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 				// 	valueField.SetBool(v.GetB())
 				case "LS": // list string
 					valueOf_ := reflect.ValueOf(v.GetLS())
-					fmt.Println("In LS: Kind(): ", valueOf_.Kind(), valueOf_.Type().Elem(), valueOf_.Len()) //  slice string 4
 					newSlice := reflect.MakeSlice(field.Type, 0, 0)
 					valueField.Set(reflect.AppendSlice(newSlice, valueOf_))
 				case "LF": // list float
 					valueOf_ := reflect.ValueOf(v.GetLF())
-					fmt.Println("In LF: Kind(): ", valueOf_.Kind(), valueOf_.Type().Elem(), valueOf_.Len()) //  slice string 4
 					newSlice := reflect.MakeSlice(field.Type, 0, 0)
 					valueField.Set(reflect.AppendSlice(newSlice, valueOf_))
 				case "LI": // list int
 					valueOf_ := reflect.ValueOf(v.GetLI())
-					fmt.Println("In LI: Kind(): ", valueOf_.Kind(), valueOf_.Type().Elem(), valueOf_.Len(), field.Type) //  slice string 4
 					newSlice := reflect.MakeSlice(field.Type, 0, 0)
 					valueField.Set(reflect.AppendSlice(newSlice, valueOf_))
 				case "LB": // List []byte
 					valueOf_ := reflect.ValueOf(v.GetLB())
-					fmt.Println("In LB: Kind(): ", valueOf_.Kind(), valueOf_.Type().Elem(), valueOf_.Len()) //  slice string 4
 					newSlice := reflect.MakeSlice(field.Type, 0, 0)
 					valueField.Set(reflect.AppendSlice(newSlice, valueOf_))
 				case "LBl": // List bool
 					valueOf_ := reflect.ValueOf(v.GetLB())
-					fmt.Println("In LBl: Kind(): ", valueOf_.Kind(), valueOf_.Type().Elem(), valueOf_.Len()) //  slice string 4
 					newSlice := reflect.MakeSlice(field.Type, 0, 0)
 					valueField.Set(reflect.AppendSlice(newSlice, valueOf_))
 				// case "Nd": // List []byte
@@ -846,7 +828,6 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 	}
 	//
 	if len(availOfUids) <= param.OvFlBlocksGrowBy && ovflBlocks < param.MaxOvFlBlocks {
-		fmt.Println("++ len(availOfUids) <= OvFlBlocksGrowBy && ovflBlocks < MaxOvFlBlocks")
 		//
 		// create a Overflow UID and subsequent block
 		//
@@ -855,7 +836,7 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 			return nil, 0, fmt.Errorf("Failed to make UID: %s", err.Error())
 		}
 		//
-		// update cache
+		// add new Overlfow block - append to exising Nd, Xf, Id. These have their equivalents in Dynamo as List types.
 		//
 		di.Nd = append(di.Nd, ouid)
 		di.XF = append(di.XF, blk.OvflBlockUID)
@@ -886,7 +867,6 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 	//
 
 	if ovflBlocks == param.MaxOvFlBlocks && len(availOfUids) == 0 {
-		fmt.Println("** ovflBlocks == MaxOvFlBlocks && len(availOfUids) == 0")
 		// only mode now is appending to existing overflow blocks creating new overflow items as item size limit exceeded.
 		for i, v := range di.XF {
 			if v == blk.OvflItemFull {
@@ -899,7 +879,7 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 		return pn.ConfigureUpred(sortK, pUID, cUID, rsvCnt[0])
 	}
 	//
-	// choose and overflow to use - must be available
+	// choose an overflow to use - must be available
 	//
 	tUID = availOfUids[len(availOfUids)-1]
 	// get current Id for tUID
@@ -938,7 +918,7 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 
 	}
 	//
-	// preservce all cache changes to db
+	// preserve all cache changes to db
 	//
 	db.SaveCompleteUpred(di)
 

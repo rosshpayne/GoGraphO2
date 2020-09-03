@@ -18,7 +18,7 @@ type Ceiling = int
 //
 // register gRoutine start
 //
-var StartCh = make(chan Routine)
+var StartCh = make(chan Routine, 1)
 
 type rCntMap map[Routine]Ceiling
 
@@ -31,7 +31,7 @@ var rWait rWaitMap
 //
 // Channels
 //
-var EndCh = make(chan Routine)
+var EndCh = make(chan Routine, 1)
 var rAskCh = make(chan Routine)
 
 //
@@ -191,7 +191,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 				if caught {
 					break
 				}
-				time.Sleep(5 * time.Microsecond)
+				time.Sleep(8 * time.Microsecond)
 			}
 
 			if rCnt[r] < rLimit[r].c {

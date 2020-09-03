@@ -341,14 +341,13 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 			}
 		}
 	}
-	fmt.Println("S************************ SaveCompleteUpred         ***************")
 	// update all elements in XF, Id, Nd
 	upd = expression.Set(expression.Name("XF"), expression.Value(di.XF))
 	upd = upd.Set(expression.Name("Id"), expression.Value(di.Id))
 	upd = upd.Set(expression.Name("Nd"), expression.Value(di.Nd))
 	expr, err = expression.NewBuilder().WithUpdate(upd).Build()
 	if err != nil {
-		return newDBExprErr("SaveUpredState", "", "", err)
+		return newDBExprErr("SaveCompleteUpred", "", "", err)
 	}
 	values = expr.Values()
 	// convert expression values result from binary Set to binary List
@@ -359,7 +358,7 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 	pkey := pKey{PKey: di.PKey, SortK: di.SortK}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
-		return newDBMarshalingErr("SaveUpredState", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)
+		return newDBMarshalingErr("SaveCompleteUpred", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)
 	}
 	//
 	update := &dynamodb.UpdateItemInput{
@@ -375,15 +374,15 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 		uio, err := dynSrv.UpdateItem(update)
 		t1 := time.Now()
 		if err != nil {
-			return newDBSysErr("SaveUpredState", "UpdateItem", err)
+			return newDBSysErr("SaveCompleteUpred", "UpdateItem", err)
 		}
-		syslog(fmt.Sprintf("SaveUpredState:consumed capacity for Query  %s.  Duration: %s", uio.ConsumedCapacity, t1.Sub(t0)))
+		syslog(fmt.Sprintf("SaveCompleteUpred:consumed capacity for Query  %s.  Duration: %s", uio.ConsumedCapacity, t1.Sub(t0)))
 
 	}
 	return nil
 }
 
-// SavePropagateState writes the cache entries for ND,XF values to storage
+// SaveUpredState writes the cache entries for ND,XF values to storage
 // The cache attributes have just been appended, now its time to save them..
 //func SaveUpredState(di *blk.DataItem) error { //
 func SaveUpredState(di *blk.DataItem, uid util.UID, status int, changeType byte, idx ...int) error {
@@ -431,16 +430,18 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, changeType byte,
 		entry := "XF[" + strconv.Itoa(idx[0]) + "]"
 		upd = expression.Set(expression.Name(entry), expression.Value(status))
 
-	case 'A': // Append
-		v := make([]int, 1, 1)
-		v[0] = di.XF[len(di.XF)-1] //status
-		i := make([]int, 1, 1)
-		i[0] = di.Id[len(di.Id)-1]
-		u := make([][]byte, 1, 1)
-		u[0] = di.Nd[len(di.Nd)-1]
-		upd = expression.Set(expression.Name("XF"), expression.ListAppend(expression.Name("XF"), expression.Value(v)))
-		upd = expression.Set(expression.Name("Id"), expression.ListAppend(expression.Name("Id"), expression.Value(i)))
-		upd = upd.Set(expression.Name("Nd"), expression.ListAppend(expression.Name("Nd"), expression.Value(u)))
+	// case 'A': // Append - //TODO redundant code I believe.   Appending new overflow UIDs is done int the cache not herel see ConfigureUpred()
+	// 	v := make([]int, 1, 1)
+	// 	v[0] = di.XF[len(di.XF)-1] //status
+	// 	i := make([]int, 1, 1)
+	// 	i[0] = di.Id[len(di.Id)-1]
+	// 	u := make([][]byte, 1, 1)
+	// 	u[0] = di.Nd[len(di.Nd)-1]
+	// 	upd = expression.Set(expression.Name("XF"), expression.ListAppend(expression.Name("XF"), expression.Value(v)))
+	// 	upd = expression.Set(expression.Name("Id"), expression.ListAppend(expression.Name("Id"), expression.Value(i)))
+	// 	upd = upd.Set(expression.Name("Nd"), expression.ListAppend(expression.Name("Nd"), expression.Value(u)))
+	default:
+		panic(fmt.Errorf("SaveUpredState - changeType not supported"))
 	}
 	expr, err = expression.NewBuilder().WithUpdate(upd).Build()
 	if err != nil {
@@ -658,7 +659,7 @@ func SaveChildUIDtoOvflBlock(cUID, tUID util.UID, sortk string, id int) error { 
 	v := make([][]byte, 1, 1)
 	v[0] = []byte(cUID)
 	upd = expression.Set(expression.Name("Nd"), expression.ListAppend(expression.Name("Nd"), expression.Value(v)))
-	cond := expression.Name("XF").Size().LessThanEqual(expression.Value(param.OvfwItemLimit)) //OvfwNdLimit))
+	cond := expression.Name("XF").Size().LessThanEqual(expression.Value(param.OvfwItemLimit))
 	//
 	// add associated flag values
 	//
@@ -691,10 +692,6 @@ func SaveChildUIDtoOvflBlock(cUID, tUID util.UID, sortk string, id int) error { 
 		uio, err := dynSrv.UpdateItem(input)
 		t1 := time.Now()
 		if err != nil {
-			// if errors.Is(err, ErrConditionalCheckFailed) {
-			// 	fmt.Println("db error: make a new error for ", err.Error())
-			// 	return UidPredSizeLimitReached
-			// }
 			return newDBSysErr("SaveChildUIDtoOvflBlock", "UpdateItem", err)
 		}
 		syslog(fmt.Sprintf("SaveChildUIDtoOvflBlock: consumed updateitem capacity: %s, Duration: %s\n", uio.ConsumedCapacity, t1.Sub(t0)))
@@ -1110,7 +1107,6 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 		f[0] = "__NULL__"
 		// populate with dummy item to establish LIST
 		a := ItemLS{PKey: pkey_, SortK: sortk, LS: f, XBl: b}
-		fmt.Printf("LS: %#v\n", a)
 		av, err = dynamodbattribute.MarshalMap(a)
 		if err != nil {
 			return id, fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -1432,7 +1428,6 @@ func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, itemId int) erro
 	//
 	// BS : set of binary values representing puid + tUID + sortk(last entry). Used to determine the tUID the child data saved to.
 	// PBS : set of binary values representing puid + sortk (last entry). Can be used to quickly access of child is attached to parent
-	fmt.Println("UpdateReverseEdge: on ", cuid, tUID)
 
 	pred := func(sk string) string {
 		s_ := strings.SplitAfterN(sk, "#", -1) // A#G#:S#:D#3
@@ -1444,7 +1439,6 @@ func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, itemId int) erro
 	sortk += "#" + strconv.Itoa(itemId)
 	bs := make([][]byte, 1, 1) // representing a binary set.
 	bs[0] = append(puid, []byte(tUID)...)
-	fmt.Println("UpdateReverseEdge : to end ", pred(sortk))
 	bs[0] = append(bs[0], pred(sortk)...) // D#3
 	//
 	//	pbs := make([][]byte, 1, 1) // representing a binary set.
@@ -1665,7 +1659,6 @@ func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 			}
 			return false, err
 		}
-		fmt.Println("UpdateItem did not condition errored")
 	}
 	if action == DELETE {
 		fmt.Println("Action delete...return true")
