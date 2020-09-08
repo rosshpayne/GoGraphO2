@@ -68,7 +68,6 @@ func newDBSysErr(rt string, api string, err error) error {
 	var aerr awserr.Error
 
 	if errors.As(err, &aerr) {
-		fmt.Println(" aerr type error.....")
 		switch aerr.Code() {
 		case "ConditionalCheckFailedException":
 			err = ErrConditionalCheckFailed

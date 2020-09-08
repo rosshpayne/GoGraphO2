@@ -46,7 +46,7 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 	} else {
 		sortk_ = "A#"
 	}
-	slog.Log("FetchForUpdate: ", fmt.Sprintf("** Cache FetchForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk_))
+	//slog.Log("FetchForUpdate: ", fmt.Sprintf("** Cache FetchForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk_))
 	uids := uid.String()
 	e := g.cache[uids]
 
@@ -74,6 +74,7 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 	//
 	// lock e . Note: e can only be acquired from outside of this package via the Fetch* api.
 	//
+	slog.Log("FetchForUpdate: ", fmt.Sprintf("** About to lock  Key Value: [%s]   sortk: %s", uid.String(), sortk_))
 	e.Lock()
 	//if e != nil && e.NodeCache == nil || e == nil {
 	// node cache has been cleared. Start again.

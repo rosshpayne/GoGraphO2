@@ -38,8 +38,8 @@
         }
     ],
     "ProvisionedThroughput": {
-                "ReadCapacityUnits": 100, 
-                "WriteCapacityUnits": 200
+                "ReadCapacityUnits": 3500, 
+                "WriteCapacityUnits": 3500
     },
     "GlobalSecondaryIndexes": [
         { "IndexName": "P_N", 
@@ -79,7 +79,7 @@
             }, 
             "ProvisionedThroughput": {
                 "ReadCapacityUnits": 2, 
-                "WriteCapacityUnits": 200
+                "WriteCapacityUnits": 3500
             }
         },
         { "IndexName": "P_B", 

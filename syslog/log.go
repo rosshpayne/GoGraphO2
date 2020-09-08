@@ -12,6 +12,10 @@ const (
 	logrFlags = log.LstdFlags | log.Lshortfile
 )
 
+const (
+	Force = true
+)
+
 type MyLogger struct {
 	on   bool
 	logr *log.Logger
@@ -25,8 +29,12 @@ func (l *MyLogger) Off() {
 	l.on = false
 }
 
-func (l *MyLogger) Log(s string) {
+func (l *MyLogger) Log(s string, force ...bool) {
 
+	if len(force) > 0 && force[0] {
+		l.logr.Print(s)
+		return
+	}
 	if !l.on {
 		return
 	}

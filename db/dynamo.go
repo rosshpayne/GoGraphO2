@@ -43,10 +43,11 @@ type gsiResult struct {
 
 var dynSrv *dynamodb.DynamoDB
 
-func logerr(e error, panic ...bool) {
-	if len(panic) > 0 && panic[0] {
+func logerr(e error, panic_ ...bool) {
+
+	if len(panic_) > 0 && panic_[0] {
 		slog.Log("DB: ", e.Error(), true)
-		return
+		panic(e)
 	}
 	slog.Log("DB: ", e.Error())
 }
@@ -72,8 +73,6 @@ func init() {
 	//LoadDataDictionary()
 }
 
-//ilona4u denniz09 Gialiann S_Mailleee Karenkitty lulacum69 helenfetish Laylas_universe Little_Flower Baby_Brunette23 aileen_williams flowerbrtsxml Kaileeshy 4candychris Kleasure koquetry Roxperience Annemanifique
-// Sugar_Blast viola_1 silentmary mewwew  linapearl  blon_d_wine sonya_kelsey
 // Load Data Dictionary (DD) into memory
 //
 // TODO: create table DyGTypes and populate
@@ -385,7 +384,7 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 // SaveUpredState writes the cache entries for ND,XF values to storage
 // The cache attributes have just been appended, now its time to save them..
 //func SaveUpredState(di *blk.DataItem) error { //
-func SaveUpredState(di *blk.DataItem, uid util.UID, status int, changeType byte, idx ...int) error {
+func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx ...int) error {
 	//
 	var (
 		err    error
@@ -393,9 +392,6 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, changeType byte,
 		upd    expression.UpdateBuilder
 		values map[string]*dynamodb.AttributeValue
 	)
-	if changeType == 'U' && len(idx) == 0 {
-		return fmt.Errorf("SaveUpredState: change type U must specify an index argument")
-	}
 
 	convertSet2List := func() {
 		// fix to possible sdk error/issue for Binary ListAppend operations. SDK builds
@@ -423,26 +419,9 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, changeType byte,
 			}
 		}
 	}
-
-	switch changeType {
-
-	case 'U': // Update
-		entry := "XF[" + strconv.Itoa(idx[0]) + "]"
-		upd = expression.Set(expression.Name(entry), expression.Value(status))
-
-	// case 'A': // Append - //TODO redundant code I believe.   Appending new overflow UIDs is done int the cache not herel see ConfigureUpred()
-	// 	v := make([]int, 1, 1)
-	// 	v[0] = di.XF[len(di.XF)-1] //status
-	// 	i := make([]int, 1, 1)
-	// 	i[0] = di.Id[len(di.Id)-1]
-	// 	u := make([][]byte, 1, 1)
-	// 	u[0] = di.Nd[len(di.Nd)-1]
-	// 	upd = expression.Set(expression.Name("XF"), expression.ListAppend(expression.Name("XF"), expression.Value(v)))
-	// 	upd = expression.Set(expression.Name("Id"), expression.ListAppend(expression.Name("Id"), expression.Value(i)))
-	// 	upd = upd.Set(expression.Name("Nd"), expression.ListAppend(expression.Name("Nd"), expression.Value(u)))
-	default:
-		panic(fmt.Errorf("SaveUpredState - changeType not supported"))
-	}
+	// modify the target element in the XF List type.
+	entry := "XF[" + strconv.Itoa(idx[0]) + "]"
+	upd = expression.Set(expression.Name(entry), expression.Value(status))
 	expr, err = expression.NewBuilder().WithUpdate(upd).Build()
 	if err != nil {
 		return newDBExprErr("SaveUpredState", "", "", err)

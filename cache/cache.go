@@ -145,7 +145,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		for i := len(di.Nd); i > 0; i-- {
 			if bytes.Equal(di.Nd[i-1], cUID) {
 				di.XF[i-1] = blk.ChildUID
-				err = db.SaveUpredState(di, cUID, blk.ChildUID, 'U', i-1)
+				err = db.SaveUpredState(di, cUID, blk.ChildUID, i-1)
 				if err != nil {
 					return err
 				}
@@ -160,7 +160,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 			if bytes.Equal(di.Nd[i-1], targetUID) {
 				di.XF[i-1] = blk.OvflBlockUID
 				di.Id[i-1] = id
-				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, 'U', i-1)
+				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, i-1)
 				if err != nil {
 					return err
 				}
