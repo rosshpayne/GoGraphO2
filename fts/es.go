@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/DynamoGraph/util"
@@ -68,7 +69,8 @@ func LoadFTSIndex(es *esv7.Client) error {
 		err    error
 		result *dynamodb.ScanOutput
 		input  *dynamodb.ScanInput
-		t0, t1 time.Time
+		t1, t3 time.Time
+		c      int
 	)
 	type itemT struct {
 		P    string
@@ -101,12 +103,12 @@ func LoadFTSIndex(es *esv7.Client) error {
 		fmt.Println(result.ConsumedCapacity)
 		//
 		if int(*result.Count) == 0 {
-			//newDBNoItemFound(rt string, pk string, sk string, api string, err error)
-			return err
+			fmt.Println("EOF")
+			break
 		}
 		var item itemT
-		fmt.Println("LastEvaluatedKey: ", result.LastEvaluatedKey)
-		for i, v := range result.Items {
+		//fmt.Println("LastEvaluatedKey: ", result.LastEvaluatedKey)
+		for _, v := range result.Items {
 
 			err = dynamodbattribute.UnmarshalMap(v, &item)
 			if err != nil {
@@ -114,40 +116,45 @@ func LoadFTSIndex(es *esv7.Client) error {
 				fmt.Println(err.Error())
 				return err
 			}
-			fmt.Printf("%d  %s %s %q\n", i, item.P, item.S, util.UID(item.PKey).String())
-		}
-		if len(result.LastEvaluatedKey) == 0 {
-			fmt.Println("empty lastEvaluatedKEy.....")
-			break
-		}
-		//
-		esDoc.P = item.P
-		esDoc.S = item.S
+			//fmt.Printf("%d  %s %s %q\n", i, item.P, item.S, util.UID(item.PKey).ToString())
 
-		esdoc, err := json.Marshal(&esDoc)
-		if err != nil {
-			return err
-		}
-		t0 = time.Now()
-		req := esapi.IndexRequest{
-			Index:      "DyG",                        // Index name
-			Body:       bytes.NewReader(esdoc),       // Document body
-			DocumentID: util.UID(item.PKey).String(), // Document ID
-			Refresh:    "true",                       // Refresh
-		}
-		t1 = time.Now()
-		{
-
-			res, err := req.Do(context.Background(), es)
-			t3 := time.Now()
-			if err != nil {
-				log.Fatalf("Error getting response: %s", err)
+			if len(result.LastEvaluatedKey) == 0 {
+				fmt.Println("empty lastEvaluatedKEy.....------------------------------------------------------")
+				break
 			}
-			//defer res.Body.Close()
+			//
+			esDoc.P = item.P
+			esDoc.S = item.S
 
-			log.Println(res, "duration IndexRequest: ", t1.Sub(t0), "  req.Do() ", t3.Sub(t1))
+			esdoc, err := json.Marshal(&esDoc)
+			if err != nil {
+				return err
+			}
+			//fmt.Println("save to ES: docId: ", util.UID(item.PKey).ToString())
+			req := esapi.IndexRequest{
+				Index:      "dyg",                          // Index name
+				Body:       bytes.NewReader(esdoc),         // Document body
+				DocumentID: util.UID(item.PKey).ToString(), // Document ID
+				Refresh:    "true",                         // Refresh
+			}
+			t1 = time.Now()
+			{
+				res, err := req.Do(context.Background(), es)
+				t3 = time.Now()
+				if err != nil {
+					log.Fatalf("Error getting response: %s", err)
+				}
+				//defer res.Body.Close()
+				if res.StatusCode != 200 {
+					log.Fatal("Bad response: %v", res)
+				}
+				c++
+				if math.Mod(float64(c), 50.0) == 0 {
+					log.Printf("%d   Duration: %s\n", c, t3.Sub(t1))
+				}
+				res.Body.Close()
 
-			res.Body.Close()
+			}
 		}
 
 	}

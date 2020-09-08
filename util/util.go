@@ -20,9 +20,18 @@ func MakeUID() (UID, error) {
 	return uuibin, nil
 }
 
-// convert UID to base64 string
+// convert UID binary to base64 string
 func (u UID) String() string {
 	return base64.StdEncoding.EncodeToString(u)
+}
+
+// convert UID biary to string format "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+func (u UID) ToString() string {
+	uuid, err := uuid.FromBytes(u)
+	if err != nil {
+		panic(err)
+	}
+	return uuid.String()
 }
 
 func (uid UID) Encodeb64() UIDb64 {
