@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"sync"
 	"time"
 
+	"github.com/DynamoGraph/cache"
 	"github.com/DynamoGraph/util"
+
 	esv7 "github.com/elastic/go-elasticsearch/v7"
 	esapi "github.com/elastic/go-elasticsearch/v7/esapi"
 	//	esv8 "github.com/elastic/go-elasticsearch/v8"
@@ -21,6 +24,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	//	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+)
+
+const (
+	totalSegs = 2
 )
 
 var dynSrv *dynamodb.DynamoDB
@@ -56,71 +63,112 @@ func main() {
 
 	log.Println(es.Info())
 
-	err = LoadFTSIndex(es)
-	if err != nil {
-		fmt.Println(err)
-	}
+	cache.FetchType("Person2")
+
+	LoadFTSIndex(es)
 }
 
-func LoadFTSIndex(es *esv7.Client) error {
+func LoadFTSIndex(es *esv7.Client) {
+	var wg sync.WaitGroup
 
-	var (
-		first  bool
-		err    error
-		result *dynamodb.ScanOutput
-		input  *dynamodb.ScanInput
-		t1, t3 time.Time
-		c      int
-	)
+	wg.Add(totalSegs)
+	for i := int64(0); i < totalSegs; i++ {
+		ii := i
+		go scan(ii, es, &wg)
+	}
+	fmt.Println("Wait for loading to finish....")
+	wg.Wait()
+}
+
+func scan(thread int64, es *esv7.Client, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
 	type itemT struct {
 		P    string
 		S    string
 		PKey []byte
+		Ty   string
 	}
 	type esDocT struct {
 		P string
 		S string
 	}
-	var esDoc esDocT
+
+	var (
+		first  bool = true
+		err    error
+		result *dynamodb.ScanOutput
+		input  *dynamodb.ScanInput
+		t1, t3 time.Time
+		c      int
+		item   itemT
+		esDoc  esDocT
+	)
+
 	for {
 
-		if !first {
+		if first {
+			fmt.Println("top thread: ", thread)
+			first = false
 			input = &dynamodb.ScanInput{
-				Limit: aws.Int64(150),
+				//	Limit: aws.Int64(500), // reads in 20,000 items. Why? supposedly 1Mb.
+				Segment:       aws.Int64(thread),
+				TotalSegments: aws.Int64(totalSegs),
 			}
 		} else {
+			fmt.Println("** top thread: ", thread)
 			input = &dynamodb.ScanInput{
 				ExclusiveStartKey: result.LastEvaluatedKey,
-				Limit:             aws.Int64(150),
+				//			Limit:             aws.Int64(150),
+				Segment:       aws.Int64(thread),
+				TotalSegments: aws.Int64(totalSegs),
 			}
 		}
 		input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 		//
+		t1 = time.Now()
 		result, err = dynSrv.Scan(input)
 		if err != nil {
-			return err
+			fmt.Println(err.Error())
+			return
 		}
-		fmt.Println(result.ConsumedCapacity)
+		t3 = time.Now()
+		fmt.Println(result.ConsumedCapacity, "  Duration: ", t3.Sub(t1), "  thread: ", thread)
 		//
 		if int(*result.Count) == 0 {
-			fmt.Println("EOF")
+			fmt.Println("********** EOF")
 			break
 		}
-		var item itemT
-		//fmt.Println("LastEvaluatedKey: ", result.LastEvaluatedKey)
+		fmt.Printf("thread: %d  load %d %d \n", thread, *result.Count, len(result.Items))
+		fmt.Printf("thread: %d  LastEvaluatedKey: %#v\n", thread, result.LastEvaluatedKey)
+
 		for _, v := range result.Items {
 
 			err = dynamodbattribute.UnmarshalMap(v, &item)
 			if err != nil {
 				fmt.Println("Got error unmarshalling:")
 				fmt.Println(err.Error())
-				return err
+				return
 			}
 			//fmt.Printf("%d  %s %s %q\n", i, item.P, item.S, util.UID(item.PKey).ToString())
 
-			if len(result.LastEvaluatedKey) == 0 {
-				fmt.Println("empty lastEvaluatedKEy.....------------------------------------------------------")
-				break
+			_, err := cache.FetchType(item.Ty)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+			//
+			// check if datatype is string. If not ignore.
+			//
+			c++
+			if v, ok := cache.TyAttrC[item.Ty+":"+item.P]; ok {
+
+				if v.DT != "S" {
+					continue
+				}
+				//	fmt.Printf("thread:  %d  type:attribute: %s  dataType: %s\n", thread, item.Ty+":"+item.P, v.DT)
+			} else {
+				fmt.Printf("Error - data inconsistency.  Type %q not defined or attribute %q not defined for type\n", item.Ty, item.P)
 			}
 			//
 			esDoc.P = item.P
@@ -128,7 +176,8 @@ func LoadFTSIndex(es *esv7.Client) error {
 
 			esdoc, err := json.Marshal(&esDoc)
 			if err != nil {
-				return err
+				fmt.Println(err.Error())
+				return
 			}
 			//fmt.Println("save to ES: docId: ", util.UID(item.PKey).ToString())
 			req := esapi.IndexRequest{
@@ -145,19 +194,23 @@ func LoadFTSIndex(es *esv7.Client) error {
 					log.Fatalf("Error getting response: %s", err)
 				}
 				//defer res.Body.Close()
-				if res.StatusCode != 200 {
+				if res.StatusCode > 205 {
 					log.Fatal("Bad response: %v", res)
 				}
 				c++
-				if math.Mod(float64(c), 50.0) == 0 {
-					log.Printf("%d   Duration: %s\n", c, t3.Sub(t1))
+				if math.Mod(float64(c), 100.0) == 0 {
+					log.Printf("thread: %d    %d   Duration: %s.   %s  %s\n", thread, c, t3.Sub(t1), item.P, item.S)
 				}
 				res.Body.Close()
 
 			}
-		}
 
+		}
+		if len(result.LastEvaluatedKey) == 0 {
+			fmt.Printf("thread: %d  empty lastEvaluatedKEy....read %d \n", thread, c)
+			break
+		}
 	}
-	return nil
+	fmt.Printf("thread: %d  *** Exit Load routine\n", thread)
 
 }

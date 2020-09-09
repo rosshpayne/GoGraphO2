@@ -337,7 +337,7 @@ type TyIBlock []TyItem
 // type attribute block, derived from TyItem
 type TyAttrD struct {
 	Name string // Attribute Identfier
-	DT   string // Attribute Data - derived. ??
+	DT   string // Attribute Data Type - derived. ??
 	C    string // Attribute short identifier
 	Ty   string // For abstract attribute the type it respresents e.g "Person"
 	P    string // data partition (aka shard) containing attribute
