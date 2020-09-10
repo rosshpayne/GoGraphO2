@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"runtime"
 	"strings"
 	"sync"
@@ -130,8 +131,8 @@ func Load(f io.Reader) error {
 		}
 		bsizeOrig := bSize
 		bSize = 100
-		//	for c, i := 0, 0; i < len(persons)-1; i += bSize {
-		for i := 0; i < len(persons)-1; i += bSize {
+		for c, i := 0, 0; i < len(persons)-1; i += bSize {
+			//for i := 0; i < len(persons)-1; i += bSize {
 
 			golimiter.Ask()
 			<-golimiter.RespCh()
@@ -141,13 +142,12 @@ func Load(f io.Reader) error {
 				hw = len(persons)
 			}
 
-			//	if math.Mod(float64(c), 4) == 0 {
-			wg.Add(1)
-			fmt.Printf("Save range for persons: %d - %d \n", i, hw)
-			go db.SavePersons(persons[i:hw], ty, "Person2", golimiter, &wg)
-			// }
-			//	c++
-
+			if math.Mod(float64(c), 4) == 0 {
+				wg.Add(1)
+				fmt.Printf("Save range for persons: %d - %d \n", i, hw)
+				go db.SavePersons(persons[i:hw], ty, "Person2", golimiter, &wg)
+			}
+			c++
 		}
 		wg.Wait()
 		t1 = time.Now()

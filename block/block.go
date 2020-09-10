@@ -29,6 +29,7 @@ const (
 	S                   // string
 	Bl                  // bool
 	B                   // []byte
+	DT                  // DateTime
 	//
 	// List (ordered set of any type but constrainted to a single type in DynaGraph)
 	//
@@ -57,6 +58,7 @@ type DataItem struct {
 	S  string
 	Bl bool
 	B  []byte
+	DT string // DateTime
 	//
 	// node type - listed in GSI so value can be associated with type for "has" operator
 	//
@@ -113,7 +115,7 @@ func (dgv *DataItem) GetF() float64 {
 	return dgv.N
 }
 func (dgv *DataItem) GetDT() time.Time {
-	t, _ := time.Parse(time.RFC3339, dgv.S)
+	t, _ := time.Parse(time.RFC3339, dgv.DT)
 	return t
 }
 func (dgv *DataItem) GetB() []byte {
@@ -259,6 +261,7 @@ type OverflowItem struct {
 	LN  []float64
 	LB  [][]byte
 	LBl []bool
+	LDT []string // DateTime
 	// flags
 	XBl []bool
 }
@@ -280,39 +283,39 @@ type IndexBlock []*Index
 //
 // ClientNV from AttachNode is persisted using this struct
 //
-type StreamCnv struct {
-	PKey  []byte // ClientNV UID (not node UID)
-	SortK string // predicate
-	//attrName string
-	//
-	// scalar value to propagate
-	//
-	N  float64 // numbers are represented by strings and converted on the fly to dynamodb number
-	S  string
-	Bl bool
-	B  []byte
-}
+// type StreamCnv struct {
+// 	PKey  []byte // ClientNV UID (not node UID)
+// 	SortK string // predicate
+// 	//attrName string
+// 	//
+// 	// scalar value to propagate
+// 	//
+// 	N  float64 // numbers are represented by strings and converted on the fly to dynamodb number
+// 	S  string
+// 	Bl bool
+// 	B  []byte
+// }
 
-func (nv *StreamCnv) GetB() []byte {
-	return nv.B
-}
-func (nv *StreamCnv) GetBl() bool {
-	return nv.Bl
-}
-func (nv *StreamCnv) GetDT() time.Time {
-	t, _ := time.Parse(time.RFC3339, nv.S)
-	return t
-}
-func (nv *StreamCnv) GetS() string {
-	return nv.S
-}
-func (nv *StreamCnv) GetI() int64 {
-	i := int64(nv.N)
-	return i
-}
-func (nv *StreamCnv) GetF() float64 {
-	return nv.N
-}
+// func (nv *StreamCnv) GetB() []byte {
+// 	return nv.B
+// }
+// func (nv *StreamCnv) GetBl() bool {
+// 	return nv.Bl
+// }
+// func (nv *StreamCnv) GetDT() time.Time {
+// 	t, _ := time.Parse(time.RFC3339, nv.DT)
+// 	return t
+// }
+// func (nv *StreamCnv) GetS() string {
+// 	return nv.S
+// }
+// func (nv *StreamCnv) GetI() int64 {
+// 	i := int64(nv.N)
+// 	return i
+// }
+// func (nv *StreamCnv) GetF() float64 {
+// 	return nv.N
+// }
 
 //
 // type dictionary
@@ -337,7 +340,7 @@ type TyIBlock []TyItem
 // type attribute block, derived from TyItem
 type TyAttrD struct {
 	Name string // Attribute Identfier
-	DT   string // Attribute Data Type - derived. ??
+	DT   string // Attribute Data Type - derived. ?? S,DT,N etc
 	C    string // Attribute short identifier
 	Ty   string // For abstract attribute the type it respresents e.g "Person"
 	P    string // data partition (aka shard) containing attribute

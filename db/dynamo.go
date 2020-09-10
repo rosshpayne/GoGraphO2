@@ -1091,6 +1091,23 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 			return id, fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
 		}
 
+	case "LDT":
+		type ItemLDT struct {
+			PKey  []byte
+			SortK string
+			LDT   []string
+			XBl   []bool
+		}
+		// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
+		f := make([]string, 1, 1)
+		f[0] = "__NULL__"
+		// populate with dummy item to establish LIST
+		a := ItemLDT{PKey: pkey_, SortK: sortk, LDT: f, XBl: b}
+		av, err = dynamodbattribute.MarshalMap(a)
+		if err != nil {
+			return id, fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
+		}
+
 	case "LB":
 		type ItemLI struct {
 			PKey  []byte
@@ -1278,7 +1295,25 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 		} else {
 			v := make([]string, 1, 1)
 			v[0] = x
-			fmt.Println("value = ", v)
+			upd = expression.Set(expression.Name(lty), expression.ListAppend(expression.Name(lty), expression.Value(v)))
+		}
+		upd = upd.Set(expression.Name("XBl"), expression.ListAppend(expression.Name("XBl"), expression.Value(null)))
+		expr, err = expression.NewBuilder().WithUpdate(upd).Build()
+		if err != nil {
+			return id, newDBExprErr("PropagateChildData", "", "", err)
+		}
+
+	case "LDT":
+
+		if value == nil {
+			value = "__NULL__"
+		}
+		if x, ok := value.(time.Time); !ok {
+			logerr(fmt.Errorf("data type must be a time"), true)
+		} else {
+			v := make([]string, 1, 1)
+			v[0] = x.String()
+			fmt.Println("LDT                     ......            value = ", lty, v[0])
 			upd = expression.Set(expression.Name(lty), expression.ListAppend(expression.Name(lty), expression.Value(v)))
 		}
 		upd = upd.Set(expression.Name("XBl"), expression.ListAppend(expression.Name("XBl"), expression.Value(null)))

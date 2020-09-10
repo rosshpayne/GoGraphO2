@@ -54,7 +54,7 @@ func (c ClientNV) MarshalJSON() {
 			s.WriteString(s64)
 			s.WriteString(`"}`)
 
-		case string: // S
+		case string: // S, DT
 
 			s.WriteString(`{ "`)
 			s.WriteString(v.Name)

@@ -222,7 +222,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 						for _, cs := range cty {
 							if cs.C == ps {
 								switch cs.DT {
-								case "I", "F", "Bl", "S":
+								case "I", "F", "Bl", "S", "DT":
 								}
 								// found assoicated child scalar attribute
 								found = true
@@ -241,7 +241,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 					for _, v := range cty {
 						switch v.DT {
 						// scalar types to be propagated
-						case "I", "F", "Bl", "S": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
+						case "I", "F", "Bl", "S", "DT": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
 							if v.Pg {
 								// scalar type has propagation enabled
 								nv := &ds.NV{Name: v.Name}
@@ -556,7 +556,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 						for _, cs := range cty {
 							if cs.C == ps {
 								switch cs.DT {
-								case "I", "F", "Bl", "S":
+								case "I", "F", "Bl", "S", "DT":
 								}
 								// found assoicated child scalar attribute
 								found = true
@@ -575,7 +575,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 					for _, v := range cty {
 						switch v.DT {
 						// scalar types to be propagated
-						case "I", "F", "Bl", "S": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
+						case "I", "F", "Bl", "S", "DT": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
 							if v.Pg {
 								// scalar type has propagation enabled
 								nv := &ds.NV{Name: v.Name}

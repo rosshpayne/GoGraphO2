@@ -157,6 +157,27 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				return fmt.Errorf(" Value is not an Int ")
 			}
 
+		case "DT": // DateTime
+
+			type Item struct {
+				PKey  []byte
+				SortK string
+				DT    string
+				P     string
+				Ty    string // node type
+			}
+			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
+			if dt, ok := nv.Value.(time.Time); ok {
+				// populate with dummy item to establish LIST
+				a := Item{PKey: UID, SortK: nv.Sortk, DT: dt.String(), P: nv.Name, Ty: nv.Ty}
+				av, err = dynamodbattribute.MarshalMap(a)
+				if err != nil {
+					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
+				}
+			} else {
+				return fmt.Errorf(" Value is not an String ")
+			}
+
 		case "ty": // node DyG type ??? more explanation
 
 			type Item struct {
@@ -627,9 +648,9 @@ func SavePersons(batch []*reader.PersonT, tyBlock blk.TyAttrBlock, tyName string
 						SortK string
 						S     string
 						P     string
-						Id    string // original id from 1million.rdf
-						Ty    string // node type
-						T     int
+						//		Id    string // original id from 1million.rdf
+						Ty string // node type
+						T  int
 					}
 
 					genSortK := func() string {
@@ -642,7 +663,7 @@ func SavePersons(batch []*reader.PersonT, tyBlock blk.TyAttrBlock, tyName string
 						return s.String()
 					}
 
-					a := Item{PKey: v.Uid, SortK: genSortK(), S: v.Name, P: "Name", Ty: tyName, T: int(v.Ty), Id: string(v.Id)}
+					a := Item{PKey: v.Uid, SortK: genSortK(), S: v.Name, P: "Name", Ty: tyName, T: int(v.Ty)} //, Id: string(v.Id)}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						syslog(fmt.Sprintf("MarshalMap Error: failed to marshal type definition ", err.Error()))
@@ -751,9 +772,9 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					SortK string
 					S     string
 					P     string
-					Id    string
-					Ty    string // node type
-					T     int
+					//			Id    string
+					Ty string // node type
+					T  int
 				}
 
 				genSortK := func() string {
@@ -766,7 +787,7 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) (error, int) {
 					return s.String()
 				}
 
-				a := Item{PKey: v.Uid, SortK: genSortK(), S: v.Name, P: "Name", Ty: tyName, Id: string(v.Id)}
+				a := Item{PKey: v.Uid, SortK: genSortK(), S: v.Name, P: "Name", Ty: tyName} //, Id: string(v.Id)}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()), iCnt
@@ -905,8 +926,8 @@ func SaveCharacters(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName stri
 						SortK string
 						S     string
 						P     string
-						Id    string
-						Ty    string // node type
+						//	Id    string
+						Ty string // node type
 					}
 
 					genSortK := func() string {
@@ -919,7 +940,7 @@ func SaveCharacters(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName stri
 						return s.String()
 					}
 
-					a := Item{PKey: c.Uid, SortK: genSortK(), S: c.Name, P: "Name", Ty: tyName, Id: string(c.Id)}
+					a := Item{PKey: c.Uid, SortK: genSortK(), S: c.Name, P: "Name", Ty: tyName} //, Id: string(c.Id)}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						syslog(fmt.Sprintf("SaveCharacters: Error in MarshalMap, %s ", err.Error()))
@@ -985,9 +1006,9 @@ func SavePerformances(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName st
 					PKey  []byte
 					SortK string
 					Ty    string
-					Id    string
+					//		Id    string
 				}
-				a := Item{PKey: p.Uid, SortK: "A#T", Ty: tyName, Id: string(p.Id)}
+				a := Item{PKey: p.Uid, SortK: "A#T", Ty: tyName} //, Id: string(p.Id)}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					syslog(fmt.Sprintf("SavePerformances: Error failed to marshal type definition. %s ", err.Error()))
@@ -1087,11 +1108,19 @@ func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, 
 		SortK string
 		S     string
 		P     string
-		Id    string
-		Ty    string // node type
-		T     int
+		//	Id    string
+		Ty string // node type
+		T  int
 	}
-	var a Item
+	type ItemDT struct {
+		PKey  []byte
+		SortK string
+		DT    string
+		P     string
+		//	Id    string
+		Ty string // node type
+		T  int
+	}
 
 	fmt.Println("SaveMovies........", len(batch))
 	res := result.New("Film")
@@ -1182,14 +1211,15 @@ func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, 
 						s.WriteString(ty.C)
 						return s.String()
 					}
-					switch ty.Name {
-					case "Name":
-						a = Item{PKey: v.Uid, SortK: genSortK(), S: v.Name[0], P: ty.Name, Ty: tyName, Id: string(v.Id)}
-					case "Initial_Release_Date":
-						a = Item{PKey: v.Uid, SortK: genSortK(), S: v.Ird, P: ty.Name, Ty: tyName, Id: string(v.Id)}
+					switch ty.DT {
+					case "S":
+						a := Item{PKey: v.Uid, SortK: genSortK(), S: v.Name[0], P: ty.Name, Ty: tyName} //, Id: string(v.Id)}
+						av, err = dynamodbattribute.MarshalMap(a)
+					case "DT":
+						// Ordinarily this should be driven from type info, but hardwire ird as DT type (as that's is definition in type table)
+						a := ItemDT{PKey: v.Uid, SortK: genSortK(), DT: v.Ird, P: ty.Name, Ty: tyName} //, Id: string(v.Id)}
+						av, err = dynamodbattribute.MarshalMap(a)
 					}
-
-					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						syslog(fmt.Sprintf("SaveMovies: Error failed to marshal type definition %s", err.Error()))
 						return

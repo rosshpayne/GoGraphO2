@@ -57,10 +57,11 @@ type PerformanceT struct {
 type performanceMap map[IID]PerformanceT
 
 type MovieT struct {
-	Id          IID
-	Uid         util.UID
-	Name        []string
-	Ird         string
+	Id   IID
+	Uid  util.UID
+	Name []string
+	Ird  string
+	//	Ird         time.Time. - ignore time datatype for loading purposes. treat as Time only when required otherwise stick to string.
 	Genre       []IID
 	Director    []IID
 	Performance []*PerformanceT
@@ -486,9 +487,9 @@ func (rn *RDFReader) loadMovies() error {
 				// Load ALL movies
 				//
 				i++
-				// if i > 120 {
-				// 	return nil
-				// }
+				if i > 120 {
+					return nil
+				}
 				fmt.Println("LoadMovie: ", i)
 				uid, err := util.MakeUID()
 				if err != nil {

@@ -306,7 +306,7 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				a.Value = v.GetS()
 			case "Bl": // bool
 				a.Value = v.GetBl()
-			case "DT":
+			case "DT": // DateTime - stored as string
 				a.Value = v.GetDT()
 
 			// Sets
@@ -605,6 +605,7 @@ func (d *NodeCache) UnmarshalValue(attr string, i interface{}) error {
 
 }
 
+// UnmarshalMap is an exmaple of reflect usage. Not used in main program.
 func (d *NodeCache) UnmarshalMap(i interface{}) error {
 	if d == nil {
 		return ErrCacheEmpty
@@ -672,6 +673,8 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 					valueField.SetString(v.GetS())
 				case "Bl": // bool
 					valueField.SetBool(v.GetBl())
+				// case "DT": // bool
+				// 	valueField.SetString(v.GetDT())
 				// case "B": // binary []byte
 				// 	valueField.SetBool(v.GetB())
 				case "LS": // list string
