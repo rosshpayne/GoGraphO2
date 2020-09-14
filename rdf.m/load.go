@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"runtime"
 	"strings"
 	"sync"
@@ -116,10 +115,43 @@ func Load(f io.Reader) error {
 	//
 	golimiter := grmgr.New("batch", cpus)
 	//
+	//
+	// save Movies
+	//
+	//slog.On()
+	{
+		t0 = time.Now()
+		ty, err := cache.FetchType("Film")
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Type is: %#v\n", ty)
+		for i := 0; i < len(movies)-1; i += bSize {
+			ii := i
+
+			golimiter.Ask()
+			<-golimiter.RespCh()
+
+			wg.Add(1)
+			hw := ii + bSize
+			if ii+bSize > len(movies) {
+				hw = len(movies)
+			}
+
+			syslog(fmt.Sprintf("batch range for movies: %d - %d ", i, hw))
+			go db.SaveMovies(movies[ii:hw], ty, "Film", golimiter, &wg)
+
+		}
+	}
+	wg.Wait()
+	t1 = time.Now()
+	slog.On()
+	syslog(fmt.Sprintf("Save time for Movies : %s\n", t1.Sub(t0)))
+	slog.Off()
+	//
 	syslog(fmt.Sprintf("Concurrent Goroutine limit set to: ", cpus))
 	slog.Off()
 	{
-		var cnt int
 		fmt.Printf("\nSavePersons - %d\n", len(persons))
 		//
 		// save Persons
@@ -131,8 +163,8 @@ func Load(f io.Reader) error {
 		}
 		bsizeOrig := bSize
 		bSize = 100
-		for c, i := 0, 0; i < len(persons)-1; i += bSize {
-			//for i := 0; i < len(persons)-1; i += bSize {
+		//for c, i := 0, 0; i < len(persons)-1; i += bSize {
+		for i := 0; i < len(persons)-1; i += bSize {
 
 			golimiter.Ask()
 			<-golimiter.RespCh()
@@ -142,17 +174,17 @@ func Load(f io.Reader) error {
 				hw = len(persons)
 			}
 
-			if math.Mod(float64(c), 4) == 0 {
-				wg.Add(1)
-				fmt.Printf("Save range for persons: %d - %d \n", i, hw)
-				go db.SavePersons(persons[i:hw], ty, "Person2", golimiter, &wg)
-			}
-			c++
+			//if math.Mod(float64(c), 4) == 0 {
+			wg.Add(1)
+			fmt.Printf("Save range for persons: %d - %d \n", i, hw)
+			go db.SavePersons(persons[i:hw], ty, "Person2", golimiter, &wg)
+			// }
+			// c++
 		}
 		wg.Wait()
 		t1 = time.Now()
 		slog.On()
-		syslog(fmt.Sprintf("Save time for Persons (%d): %s\n", cnt, t1.Sub(t0)))
+		syslog(fmt.Sprintf("Save time for Persons: %s\n", t1.Sub(t0)))
 		bSize = bsizeOrig
 		slog.Off()
 		t0 = time.Now()
@@ -192,7 +224,7 @@ func Load(f io.Reader) error {
 		wg.Wait()
 		t1 = time.Now()
 		slog.On()
-		syslog(fmt.Sprintf("Save time for Characters (%d): %s\n", cnt, t1.Sub(t0)))
+		syslog(fmt.Sprintf("Save time for Characters: %s\n", t1.Sub(t0)))
 		slog.Off()
 		t0 = time.Now()
 		ty, err = cache.FetchType("Performance")
@@ -222,38 +254,9 @@ func Load(f io.Reader) error {
 
 		t1 = time.Now()
 		slog.On()
-		syslog(fmt.Sprintf("Save time for Performances (%d): %s\n", cnt, t1.Sub(t0)))
+		syslog(fmt.Sprintf("Save time for Performances: %s\n", t1.Sub(t0)))
 		slog.Off()
-		t0 = time.Now()
-		ty, err = cache.FetchType("Film")
-		if err != nil {
-			return err
-		}
-		//
-		// save Movies
-		//
-		for i := 0; i < len(movies)-1; i += bSize {
-			ii := i
 
-			golimiter.Ask()
-			<-golimiter.RespCh()
-
-			wg.Add(1)
-			hw := ii + bSize
-			if ii+bSize > len(movies) {
-				hw = len(movies)
-			}
-
-			syslog(fmt.Sprintf("batch range for movies: %d - %d ", i, hw))
-			go db.SaveMovies(movies[ii:hw], ty, "Film", golimiter, &wg)
-
-		}
-		wg.Wait()
-
-		t1 = time.Now()
-		slog.On()
-		syslog(fmt.Sprintf("Save time for Movies (%d): %s\n", cnt, t1.Sub(t0)))
-		slog.Off()
 	}
 
 	//

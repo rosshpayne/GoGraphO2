@@ -41,7 +41,10 @@ type gsiResult struct {
 //   DD:   datetime    conversion: string -> time.Time
 //  all the other datatypes do not need to be converted.
 
-var dynSrv *dynamodb.DynamoDB
+var (
+	dynSrv    *dynamodb.DynamoDB
+	tyShortNm map[string]string
+)
 
 func logerr(e error, panic_ ...bool) {
 
@@ -70,13 +73,17 @@ func init() {
 
 	dynSrv = dynamodbSrv()
 	//
-	//LoadDataDictionary()
+	//
+	err := loadTypeShortNames()
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Load Data Dictionary (DD) into memory
 //
 // TODO: create table DyGTypes and populate
-func LoadDataDictionary() (blk.TyIBlock, error) {
+func loadDataDictionary() (blk.TyIBlock, error) {
 
 	expr, err := expression.NewBuilder().Build()
 	if err != nil {
@@ -108,6 +115,121 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 
 	return dd, nil
 
+}
+
+func GetTyShortNm(ty string) (string, bool) {
+	s, ok := tyShortNm[ty]
+	return s, ok
+}
+
+func GetTyLongNm(ty string) (string, bool) {
+	var found bool
+	for k, v := range tyShortNm {
+		if ty == v {
+			found = true
+			return k, true
+		}
+	}
+	if !found {
+		return "", false
+	}
+	return "", false
+}
+
+func loadTypeShortNames() error {
+
+	type sNames struct {
+		Atr    string // shortName
+		LongNm string
+	}
+
+	syslog(fmt.Sprintf("db.loadTypeShortNames "))
+	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#T"))
+	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
+	if err != nil {
+		return newDBExprErr("loadTypeShortNames", "", "", err)
+	}
+	//
+	input := &dynamodb.QueryInput{
+		KeyConditionExpression:    expr.KeyCondition(),
+		FilterExpression:          expr.Filter(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	}
+	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	//
+	t0 := time.Now()
+	result, err := dynSrv.Query(input)
+	t1 := time.Now()
+	if err != nil {
+		return newDBSysErr("loadTypeShortNames", "Query", err)
+	}
+	syslog(fmt.Sprintf("loadTypeShortNames: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
+	if int(*result.Count) == 0 {
+		return newDBNoItemFound("loadTypeShortNames", "", "", "Query")
+	}
+	//
+	// Unmarshal result into
+	//
+	items := make([]sNames, *result.Count, *result.Count)
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &items)
+	if err != nil {
+		return newDBUnmarshalErr("loadTypeShortNames", "", "", "UnmarshalListOfMaps", err)
+	}
+	//
+	// populate map
+	//
+	tyShortNm = make(map[string]string)
+	for _, v := range items {
+		tyShortNm[v.LongNm] = v.Atr
+	}
+	return nil
+}
+
+// Has return list of types containing the attribute
+func Has(attrNm string) ([]string, error) {
+
+	type tyNameItem struct {
+		Nm string
+	}
+	syslog(fmt.Sprintf("db.Has "))
+	keyC := expression.KeyEqual(expression.Key("Atr"), expression.Value(attrNm))
+	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
+	if err != nil {
+		return nil, newDBExprErr("Has", "", "", err)
+	}
+	//
+	input := &dynamodb.QueryInput{
+		KeyConditionExpression:    expr.KeyCondition(),
+		FilterExpression:          expr.Filter(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	}
+	input = input.SetTableName("DyGTypes").SetIndexName("Atr-Nm-index").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	//
+	t0 := time.Now()
+	result, err := dynSrv.Query(input)
+	t1 := time.Now()
+	if err != nil {
+		return nil, newDBSysErr("Has", "Query", err)
+	}
+	syslog(fmt.Sprintf("Has: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
+	if int(*result.Count) == 0 {
+		return nil, newDBNoItemFound("Has", "", "", "Query")
+	}
+	ty := make([]string, *result.Count, *result.Count)
+	item := make([]tyNameItem, *result.Count, *result.Count)
+
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &item)
+	if err != nil {
+		return nil, newDBUnmarshalErr("Has", "", "", "UnmarshalList", err)
+	}
+	//
+	for i, v := range item {
+		ty[i] = v.Nm
+
+	}
+	return ty, nil
 }
 
 //TODO: move to table DyGTypes

@@ -725,7 +725,8 @@ func (d *NodeCache) GetType() (tyN string, ok bool) { // TODO: source type from 
 		syslog("in GetType: no A#T entry in NodeCache")
 		return "", ok
 	}
-	return di.GetTy(), true
+	ty, _ := db.GetTyLongNm(di.GetTy())
+	return ty, true
 }
 
 // SetOvflBlkFull sets in cache and database the state of the overflow block UID
@@ -1004,13 +1005,13 @@ func init() {
 	FacetC = make(map[Ty_Attr][]FacetTy)
 }
 
-func LoadDataDictionary(ty Ty) {
-	// use dedicated table (DyGTy) to store types
-	_, err := db.LoadDataDictionary()
-	if err != nil {
-		panic(err)
-	}
-}
+// func LoadDataDictionary(ty Ty) {
+// 	// use dedicated table (DyGTy) to store types
+// 	_, err := db.LoadDataDictionary()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// }
 
 // FetchType returns a slice of attributes belonging to the type and populates two pkg map variables  TyC, TyAttrC
 // TODO: make FetchType a method of TyC (?). What are the advantages if its a method? Cannot think of any.
@@ -1021,6 +1022,13 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 	// cache  vaiable: var TyC TyCache
 	//
 	// check Type Cache (Map) (TyC): key: Type Name
+	if _, ok := db.GetTyShortNm(ty); !ok {
+		if longTy, ok := db.GetTyLongNm(ty); !ok {
+			return nil, fmt.Errorf("FetchType: error %q type not found", ty)
+		} else {
+			ty = longTy
+		}
+	}
 	if ty, ok := TyC[ty]; ok { // ty= Person
 		return ty, nil
 	}

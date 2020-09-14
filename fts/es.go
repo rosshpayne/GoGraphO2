@@ -158,7 +158,7 @@ func scan(thread int64, es *esv7.Client, wg *sync.WaitGroup) {
 				fmt.Println(err.Error())
 			}
 			//
-			// check if datatype is string. If not ignore.
+			// check if datatype is string. If not ignore. NOTE: this is redundant now as datatime has own DT attribute
 			//
 			c++
 			if v, ok := cache.TyAttrC[item.Ty+":"+item.P]; ok {
