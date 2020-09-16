@@ -20,16 +20,16 @@ type operator = string
 // Note that, NOT binds more tightly than AND which binds more tightly than OR.
 
 func (e *Expression) Execute() bool {
-	Walk(e)
+	walk(e)
 	return e.getResult()
 }
 
-func Walk(e operand) {
+func walk(e operand) {
 
 	if e, ok := e.(*Expression); ok {
 
-		Walk(e.left)
-		Walk(e.right)
+		walk(e.left)
+		walk(e.right)
 
 		switch e.opr {
 		case token.AND:
@@ -164,4 +164,3 @@ func (c *Expression) addParent(n *Expression) *Expression {
 	fmt.Printf("\n++++++++++++++++++++++++++ addParent  %s on %s \n\n", n.opr, c.opr)
 	return n
 }
-

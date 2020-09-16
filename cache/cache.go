@@ -41,13 +41,14 @@ type SortKey = string
 
 //type block map[SortKey]*blk.DataItem
 
+// data associated with a single node
 type NodeCache struct {
 	sync.RWMutex // used for querying the cache data items
 	m            map[SortKey]*blk.DataItem
 	Uid          util.UID
 	ffuEnabled   bool // true for fetch-for-update operations
 	locked       bool
-	gc           *GraphCache
+	gc           *GraphCache // point back to graph-cache
 }
 
 type entry struct {
@@ -59,7 +60,7 @@ type Rentry struct {
 	sync.RWMutex
 }
 
-// [UID]NodeCache
+// graph cache consisting of all nodes loaded into memory
 type GraphCache struct {
 	sync.RWMutex
 	cache  map[util.UIDb64s]*entry
@@ -125,19 +126,37 @@ func (n *NodeCache) GetDataItem(sortk string) (*blk.DataItem, bool) {
 
 // }
 
-// SetUpredAvailable called from client as part of AttachNode operation
+// SetUpredAvailable called from client as part of AttachNode operation SetUpredState
 // targetUID is the propagation block that contains the child scalar data.
-func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.UID, id int) error {
+// id - overflow block id
+// cnt - increment counter by 0 (if errored) or 1 (if node attachment successful)
+func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.UID, id int, cnt int) error {
 	var (
-		found bool
-		err   error
+		attachAttrNm string
+		found        bool
+		err          error
 	)
 	syslog(fmt.Sprintf("In SetUpredAvailable: pUid, tUID:  %s %s %s", pUID, targetUID, sortK))
+	//
+	// TyAttrC populated in NodeAttach(). Get Name of attribute that is the attachment point, based on sortk
+	//
+	i := strings.IndexByte(sortK, ':')
+	for _, v := range TyAttrC {
+		if v.C == sortK[i+1:] {
+			attachAttrNm = v.Name
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf(fmt.Sprintf("Error in SetUpredAvailable. Attach point attribute not found in type map for sortk %q", sortK))
+	}
 	//
 	// cache: update pUID block with latest propagation state; targetUID, XF state
 	//
 	di := nc.m[sortK]
 
+	found = false
 	// if target UID is the parent node UID
 	if bytes.Equal(pUID, targetUID) {
 		// target is current parent UID block
@@ -145,7 +164,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		for i := len(di.Nd); i > 0; i-- {
 			if bytes.Equal(di.Nd[i-1], cUID) {
 				di.XF[i-1] = blk.ChildUID
-				err = db.SaveUpredState(di, cUID, blk.ChildUID, i-1)
+				err = db.SaveUpredState(di, cUID, blk.ChildUID, i-1, cnt, attachAttrNm)
 				if err != nil {
 					return err
 				}
@@ -160,7 +179,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 			if bytes.Equal(di.Nd[i-1], targetUID) {
 				di.XF[i-1] = blk.OvflBlockUID
 				di.Id[i-1] = id
-				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, i-1)
+				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, i-1, cnt, attachAttrNm)
 				if err != nil {
 					return err
 				}

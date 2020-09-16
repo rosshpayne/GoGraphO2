@@ -273,7 +273,7 @@ func Load(f io.Reader) error {
 	// t1 = time.Now()
 	// syslog(fmt.Sprintf("XX Finished attaching Film-Director nodes,  duration : %s", t1.Sub(t0)))
 
-	slog.On()
+	//slog.On()
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
 		ii := i
@@ -294,7 +294,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachMovie2Director_,  duration : %s", t1.Sub(t0)))
-	slog.On()
+	slog.Off()
 
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
@@ -315,7 +315,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachMovie2Genres,  duration : %s", t1.Sub(t0)))
-	slog.On()
+	slog.Off()
 
 	bsizeorig := bSize
 	bSize = 20
@@ -338,7 +338,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachGenre2Movies,  duration : %s", t1.Sub(t0)))
-	slog.On()
+	slog.Off()
 	bSize = bsizeorig
 
 	t0 = time.Now()
@@ -361,7 +361,7 @@ func Load(f io.Reader) error {
 
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachMovie2Performance,  duration : %s", t1.Sub(t0)))
-	slog.On()
+	slog.Off()
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
 		ii := i
@@ -381,7 +381,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachPerformance2Character duration : %s", t1.Sub(t0)))
-	slog.On()
+	slog.Off()
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
 		ii := i

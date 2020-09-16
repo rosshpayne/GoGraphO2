@@ -292,7 +292,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 			return
 		}
 		//
-		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id)
+		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id, 1)
 		if err != nil {
 			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
 			errch <- err
@@ -507,7 +507,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 			return
 		}
 		//
-		// ***************  wait for payload from cocurrent routine ****************
+		// ***************  wait for payload from main routine ****************
 		//
 		var payload chPayload
 		// prevent panic on closed channel by using bool test on channel.
@@ -591,7 +591,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		//
 		if len(cnv) > 0 {
 			//
-			// copy cache data into cnv and unlock child node.
+			// unmarshal cache data into cnv and unlock child node.
 			//
 			err = cnd.UnmarshalCache(cnv)
 			if err != nil {
@@ -631,25 +631,15 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 			errch <- err
 			return
 		}
-		// now a defer func
-		// err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id)
-		// if err != nil {
-		// 	syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
-		// 	errch <- err
-		// }
 
-		// select {
-		// 	case <-ctx.Done():
-
-		// }
 	}()
 
-	setAvailable := func(tUID util.UID, id int) {
-		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id)
+	setAvailable := func(tUID util.UID, id int, cnt int) {
+		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id, cnt)
 		if err != nil {
 			syslog.Log("AttachNode: main ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
 		}
-		syslog.Log("AttachNode: main ", "defer successfully executed: SetUpredAvailable")
+		syslog.Log("AttachNode: main ", fmt.Sprintf("SetUpredAvailable succesful %d %d ", id, cnt))
 	}
 
 	//
@@ -691,7 +681,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	targetUID, id, err := pnd.ConfigureUpred(sortK, pUID, cUID)
 	if err != nil {
 		// undo inUse state set by ConfigureUpred
-		setAvailable(targetUID, id)
+		setAvailable(targetUID, id, 0)
 		pnd.Unlock()
 		err := fmt.Errorf("AttachNode: Error in configuring upd-pred block for propagation of child data: %w", err)
 		// TODO: consider using a Cancel Context
@@ -707,7 +697,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 
 	wg.Wait()
 	//
-	setAvailable(targetUID, id)
+	setAvailable(targetUID, id, 1)
 	//
 	// two goroutines can result in upto two errors
 	//

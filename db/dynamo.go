@@ -426,7 +426,7 @@ type pKey struct {
 	SortK string
 }
 
-// SaveCompleteUpred saves all Nd & Xf & Id values. See SaveUpredState which saves an individual UID state.
+// SaveCompleteUpred saves all Nd & Xf & Id values. See SaveUpredAvailability which saves an individual UID state.
 func SaveCompleteUpred(di *blk.DataItem) error {
 	//
 	var (
@@ -503,10 +503,8 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 	return nil
 }
 
-// SaveUpredState writes the cache entries for ND,XF values to storage
-// The cache attributes have just been appended, now its time to save them..
-//func SaveUpredState(di *blk.DataItem) error { //
-func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx ...int) error {
+// SaveUpredAvailability writes availability state of the uid-pred to storage
+func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx int, cnt int, attrNm string) error {
 	//
 	var (
 		err    error
@@ -542,11 +540,14 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx ...int) erro
 		}
 	}
 	// modify the target element in the XF List type.
-	entry := "XF[" + strconv.Itoa(idx[0]) + "]"
+	//syslog(fmt.Sprintf("SaveUpredAvailable: %d %d %d ", status, idx, cnt))
+	entry := "XF[" + strconv.Itoa(idx) + "]"
 	upd = expression.Set(expression.Name(entry), expression.Value(status))
+	upd = upd.Set(expression.Name("P"), expression.Value(attrNm))
+	upd = upd.Add(expression.Name("N"), expression.Value(cnt))
 	expr, err = expression.NewBuilder().WithUpdate(upd).Build()
 	if err != nil {
-		return newDBExprErr("SaveUpredState", "", "", err)
+		return newDBExprErr("SaveUpredAvailable", "", "", err)
 	}
 	values = expr.Values()
 	// convert expression values result from binary Set to binary List
@@ -557,7 +558,7 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx ...int) erro
 	pkey := pKey{PKey: di.PKey, SortK: di.SortK}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
-		return newDBMarshalingErr("SaveUpredState", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)
+		return newDBMarshalingErr("SaveUpredAvailable", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)
 	}
 	//
 	update := &dynamodb.UpdateItemInput{
@@ -573,9 +574,9 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx ...int) erro
 		uio, err := dynSrv.UpdateItem(update)
 		t1 := time.Now()
 		if err != nil {
-			return newDBSysErr("SaveUpredState", "UpdateItem", err)
+			return newDBSysErr("SaveUpredAvailable", "UpdateItem", err)
 		}
-		syslog(fmt.Sprintf("SaveUpredState:consumed capacity for Query  %s.  Duration: %s", uio.ConsumedCapacity, t1.Sub(t0)))
+		syslog(fmt.Sprintf("SaveUpredAvailable:consumed capacity for Query  %s.  Duration: %s", uio.ConsumedCapacity, t1.Sub(t0)))
 
 	}
 	return nil
@@ -914,7 +915,6 @@ func newUIDTarget(tUID util.UID, sortk string, id int) (map[string]*dynamodb.Att
 		SortK string
 		Nd    [][]byte
 		XF    []int
-		Cnt   int
 	}
 
 	nilItem := []byte("0")
@@ -931,7 +931,7 @@ func newUIDTarget(tUID util.UID, sortk string, id int) (map[string]*dynamodb.Att
 	s.WriteByte('#')
 	s.WriteString(strconv.Itoa(id))
 	//
-	a := TargetItem{PKey: tUID, SortK: s.String(), Nd: nilUID, XF: xf, Cnt: 1}
+	a := TargetItem{PKey: tUID, SortK: s.String(), Nd: nilUID, XF: xf}
 	av, err := dynamodbattribute.MarshalMap(a)
 	if err != nil {
 		return nil, fmt.Errorf("newUIDTarget: ", err.Error())
@@ -975,11 +975,11 @@ func AddUIDPropagationTarget(tUID util.UID, sortk string, id int) error {
 		ReturnConsumedCapacity: aws.String("TOTAL"),
 	})
 	t1 := time.Now()
-	syslog(fmt.Sprintf("newUIDTarget: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+	syslog(fmt.Sprintf("AddUIDPropagationTarget: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 	if err != nil {
-		return newDBSysErr("newUIDTarget", "PutItem", err)
+		return newDBSysErr("AddUIDPropagationTarget", "PutItem", err)
 	}
-	syslog(fmt.Sprintf("newUIDTarget: consumed updateitem capacity: %s, Duration: %s\n", ret.ConsumedCapacity, t1.Sub(t0)))
+	syslog(fmt.Sprintf("AddUIDPropagationTarget: consumed updateitem capacity: %s, Duration: %s\n", ret.ConsumedCapacity, t1.Sub(t0)))
 
 	return nil
 }
@@ -1461,31 +1461,29 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 			return id, newDBExprErr("PropagateChildData", "", "", err)
 		}
 
-	case "Nd":
-		xf := make([]int, 1)
-		id_ := make([]int, 1)
-		if bytes.Equal(pUID, tUID) {
-			xf[0] = blk.ChildUID
-		} else {
-			xf[0] = blk.OvflBlockUID
-			id_[0] = 1
-		}
-		if x, ok := value.([]byte); !ok {
-			logerr(fmt.Errorf("data type must be a byte slice"), true)
-		} else {
-			v := make([][]byte, 1)
-			v[0] = x
-			upd = expression.Set(expression.Name("Nd"), expression.ListAppend(expression.Name("Nd"), expression.Value(v)))
-		}
-		upd = upd.Set(expression.Name("XF"), expression.ListAppend(expression.Name("XF"), expression.Value(xf)))
-		upd = upd.Set(expression.Name("Id"), expression.ListAppend(expression.Name("Id"), expression.Value(id_)))
-		// increment count of nodes
-		upd = upd.Add(expression.Name("cnt"), expression.Value(1))
-		//
-		expr, err = expression.NewBuilder().WithUpdate(upd).Build()
-		if err != nil {
-			return id, newDBExprErr("PropagateChildData", "", "", err)
-		}
+		// case "Nd":
+		// 	xf := make([]int, 1)
+		// 	id_ := make([]int, 1)
+		// 	if bytes.Equal(pUID, tUID) {
+		// 		xf[0] = blk.ChildUID
+		// 	} else {
+		// 		xf[0] = blk.OvflBlockUID
+		// 		id_[0] = 1
+		// 	}
+		// 	if x, ok := value.([]byte); !ok {
+		// 		logerr(fmt.Errorf("data type must be a byte slice"), true)
+		// 	} else {
+		// 		v := make([][]byte, 1)
+		// 		v[0] = x
+		// 		upd = expression.Set(expression.Name("Nd"), expression.ListAppend(expression.Name("Nd"), expression.Value(v)))
+		// 	}
+		// 	upd = upd.Set(expression.Name("XF"), expression.ListAppend(expression.Name("XF"), expression.Value(xf)))
+		// 	upd = upd.Set(expression.Name("Id"), expression.ListAppend(expression.Name("Id"), expression.Value(id_)))
+		// 	//
+		// 	expr, err = expression.NewBuilder().WithUpdate(upd).Build()
+		// 	if err != nil {
+		// 		return id, newDBExprErr("PropagateChildData", "", "", err)
+		// 	}
 
 	}
 	values = expr.Values()
@@ -1674,7 +1672,10 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 	return nil
 }
 
-// EdgeExists acts as a sentinel or CEG - Concurrent event gatekeeper, to the AttachNode and DetachNode operations. It guarantees the event (operation + data) can only run once.
+// EdgeExists acts as a sentinel or CEG - Concurrent event gatekeeper, to the AttachNode and DetachNode operations.
+// It guarantees the event (operation + data) can only run once.
+// Rather than check parent is attached to child, ie. for cUID in pUID uid-pred which may contain millions of UIDs spread over multiple overflow blocks more efficient
+// to check child is attached to parent in cUID's #R attribute.
 // Solution: specify field "BS" and  query condition 'contains(PBS,puid+"f")'          where f is the abreviation for friend predicate in type Person
 //           if update errors then node is not attached to that parent-node-predicate, so nothing to delete
 //

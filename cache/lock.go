@@ -72,7 +72,8 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 		<-e.ready
 	}
 	//
-	// lock e . Note: e can only be acquired from outside of this package via the Fetch* api.
+	// lock e to prevent updates from other routines. Must explicitly Unlock() from client.
+	//  Note: e can only be acquired from outside of this package via the Fetch* api.
 	//
 	slog.Log("FetchForUpdate: ", fmt.Sprintf("** About to lock  Key Value: [%s]   sortk: %s", uid.String(), sortk_))
 	e.Lock()
