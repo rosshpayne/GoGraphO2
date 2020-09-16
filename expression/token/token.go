@@ -1,5 +1,9 @@
 package token
 
+import (
+	"strings"
+)
+
 type TokenType string
 type TokenCat string
 
@@ -20,7 +24,7 @@ const (
 	ENUM      = "Enum"
 	LIST      = "List"
 	BOOLEAN   = "Boolean"
-	OBJECT    = "Object"
+	FILTER    = "filter"
 
 	// Category
 	VALUE    = "VALUE"
@@ -34,11 +38,16 @@ const (
 	MULTIPLY = "*"
 	DIVIDE   = "/"
 
+	ATSIGN = "@"
+
 	// Boolean operators
 
 	AND = "AND"
 	OR  = "OR"
 	NOT = "NOT"
+
+	TRUE  = "true"
+	FALSE = "false"
 
 	LPAREN   = "("
 	RPAREN   = ")"
@@ -55,6 +64,15 @@ const (
 
 	BOM = "BOM"
 
+	// functions
+
+	EQ         = "eq"
+	LE         = "le"
+	GE         = "ge"
+	LT         = "lt"
+	GT         = "gt"
+	ALLOFTERMS = "allofterms"
+
 	// Keywords
 
 )
@@ -66,18 +84,34 @@ type Pos struct {
 
 // Token is exposed via token package so lexer can create new instanes of this type as required.
 type Token struct {
-	Type    TokenType
-	Literal string // string value of token - rune, string, int, float, bool
-	Loc     Pos    // start position of token
-	Illegal bool
+	Cat          TokenCat
+	Type         TokenType
+	IsScalarType bool
+	Literal      string // string value of token - rune, string, int, float, bool
+	Loc          Pos    // start position of token
+	Illegal      bool
 }
 
 var keywords = map[string]struct {
 	Type TokenType
-}{}
+}{
+	"id":         {ID},
+	"and":        {AND},
+	"or":         {OR},
+	"not":        {NOT},
+	"filter":     {FILTER},
+	"eq":         {EQ},
+	"lt":         {LT},
+	"le":         {LE},
+	"gt":         {GT},
+	"ge":         {GE},
+	"allofterms": {ALLOFTERMS},
+	"true":       {TRUE},
+	"false":      {FALSE},
+}
 
-func LookupIdent(ident string) (TokenType, TokenCat, bool) {
-	if tok, ok := keywords[ident]; ok {
+func LookupIdent(ident string) TokenType {
+	if tok, ok := keywords[strings.ToLower(ident)]; ok {
 		return tok.Type
 	}
 	return IDENT

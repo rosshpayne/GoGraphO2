@@ -149,7 +149,7 @@ func Load(f io.Reader) error {
 	syslog(fmt.Sprintf("Save time for Movies : %s\n", t1.Sub(t0)))
 	slog.Off()
 	//
-	syslog(fmt.Sprintf("Concurrent Goroutine limit set to: ", cpus))
+	syslog(fmt.Sprintf("Concurrent Goroutine limit set to: %d", cpus))
 	slog.Off()
 	{
 		fmt.Printf("\nSavePersons - %d\n", len(persons))
@@ -273,7 +273,7 @@ func Load(f io.Reader) error {
 	// t1 = time.Now()
 	// syslog(fmt.Sprintf("XX Finished attaching Film-Director nodes,  duration : %s", t1.Sub(t0)))
 
-	slog.Off()
+	slog.On()
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
 		ii := i
@@ -294,7 +294,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachMovie2Director_,  duration : %s", t1.Sub(t0)))
-	slog.Off()
+	slog.On()
 
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
@@ -315,7 +315,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachMovie2Genres,  duration : %s", t1.Sub(t0)))
-	slog.Off()
+	slog.On()
 
 	bsizeorig := bSize
 	bSize = 20
@@ -338,7 +338,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachGenre2Movies,  duration : %s", t1.Sub(t0)))
-	slog.Off()
+	slog.On()
 	bSize = bsizeorig
 
 	t0 = time.Now()
@@ -361,7 +361,7 @@ func Load(f io.Reader) error {
 
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachMovie2Performance,  duration : %s", t1.Sub(t0)))
-	slog.Off()
+	slog.On()
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
 		ii := i
@@ -381,7 +381,7 @@ func Load(f io.Reader) error {
 	t1 = time.Now()
 	slog.On()
 	syslog(fmt.Sprintf("Finished AttachPerformance2Character duration : %s", t1.Sub(t0)))
-	slog.Off()
+	slog.On()
 	t0 = time.Now()
 	for i := 0; i < len(movies)-1; i += bSize {
 		ii := i
@@ -454,7 +454,7 @@ func AttachMovie2Director_(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limiter
 				//
 				t0 = time.Now()
 				var err []error
-				err = client.AttachNode2(reader.Person[d].Uid, v.Uid, "A#G#:D")
+				err = client.AttachNode2(reader.Person[d].Uid, v.Uid, "A#G#:fd")
 
 				t1 = time.Now()
 				if err != nil {
@@ -470,7 +470,7 @@ func AttachMovie2Director_(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limiter
 				// attach film -> director
 				//
 				t0 = time.Now()
-				err = client.AttachNode2(v.Uid, reader.Person[d].Uid, "A#G#:D")
+				err = client.AttachNode2(v.Uid, reader.Person[d].Uid, "A#G#:df")
 				t1 = time.Now()
 
 				if err != nil {
@@ -528,7 +528,8 @@ func AttachMovie2Genres(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limiter, i
 				errs = append(errs, fmt.Errorf(fmt.Sprintf("v.Id is empty for movie %s", v.Name[0])))
 			}
 			if _, ok := reader.Genre[gId]; !ok {
-				errs = append(errs, fmt.Errorf(fmt.Sprintf("movie genre %s is not defined for movie %s", reader.Genre[gId], v.Name[0])))
+				//errs = append(errs, fmt.Errorf(fmt.Sprintf("movie genre %s is not defined for movie %s", reader.Genre[gId], v.Name[0])))
+				errs = append(errs, fmt.Errorf(fmt.Sprintf("movie genre %s is not defined for movie %s", reader.Genre[gId].Name, v.Name[0])))
 			}
 			if len(errs) == errLen {
 
@@ -538,7 +539,7 @@ func AttachMovie2Genres(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limiter, i
 
 				//reader.Genre[gId].Lock()
 
-				err = client.AttachNode2(reader.Genre[gId].Uid, v.Uid, "A#G#:G")
+				err = client.AttachNode2(reader.Genre[gId].Uid, v.Uid, "A#G#:fg")
 
 				t1 = time.Now()
 				if err != nil {
@@ -618,7 +619,7 @@ func AttachGenre2Movies(batch genresT, wg *sync.WaitGroup, lmtr grmgr.Limiter, i
 	// type GenreMvMap map[string(IID)][]*MovieT // genre->movie
 	for _, v := range batch {
 
-		fmt.Printf("genre batch item: %s, %#v\n", *v)
+		fmt.Printf("genre batch item: %s\n", v.Name)
 
 		for _, movie := range reader.GenreMovies[string(v.Id)] {
 
@@ -628,7 +629,7 @@ func AttachGenre2Movies(batch genresT, wg *sync.WaitGroup, lmtr grmgr.Limiter, i
 			var err []error
 			logr.Log(fmt.Sprintf("AttachNode2: film->genre    GenreUID:  %s   Film.Uid:  %s ", reader.Genre[v.Id].Uid, movie.Uid))
 
-			err = client.AttachNode2(movie.Uid, reader.Genre[v.Id].Uid, "A#G#:F")
+			err = client.AttachNode2(movie.Uid, reader.Genre[v.Id].Uid, "A#G#:gf")
 
 			t1 = time.Now()
 			if err != nil {
@@ -686,14 +687,14 @@ func AttachMovie2Performances(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limi
 				errs = append(errs, fmt.Errorf(fmt.Sprintf("v.Uid is empty for movie %s", v.Name[0])))
 			}
 			if p.Uid == nil {
-				errs = append(errs, fmt.Errorf(fmt.Sprintf("p.Uid is nil for movie %s performance %s", v.Name[0]), p.Id))
+				errs = append(errs, fmt.Errorf(fmt.Sprintf("p.Uid is nil for movie %s performance %s", v.Name[0], p.Id)))
 			}
 			if len(errs) == errLen {
 
 				t0 = time.Now()
 				iCnt++
 				var err []error
-				err = client.AttachNode2(p.Uid, v.Uid, "A#G#:P")
+				err = client.AttachNode2(p.Uid, v.Uid, "A#G#:fp")
 				t1 = time.Now()
 				if err != nil {
 					for _, e := range err {
@@ -753,7 +754,7 @@ func AttachPerformance2Character(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.L
 				t0 = time.Now()
 				iCnt++
 				var err []error
-				err = client.AttachNode2(p.Character.Uid, p.Uid, "A#G#:C")
+				err = client.AttachNode2(p.Character.Uid, p.Uid, "A#G#:pc")
 				t1 = time.Now()
 				if err != nil {
 					for _, e := range err {
@@ -813,7 +814,7 @@ func AttachPerformance2Actor(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limit
 				errs = append(errs, fmt.Errorf(fmt.Sprintf("p.Actor is is nil for movie->performane  %s -> %s", v.Name[0], p.Id)))
 			}
 			if _, ok := reader.Person[p.Actor]; !ok {
-				errs = append(errs, fmt.Errorf(fmt.Sprintf("p.Actor IID  %q does not exist in Person map  %s -> %s", p.Actor)))
+				errs = append(errs, fmt.Errorf(fmt.Sprintf("p.Actor IID  %q does not exist in Person map", p.Actor)))
 			}
 
 			if len(errs) == errLen {
@@ -821,7 +822,7 @@ func AttachPerformance2Actor(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limit
 				iCnt++
 				var err []error
 				reader.Person[p.Actor].Lock()
-				err = client.AttachNode2(reader.Person[p.Actor].Uid, p.Uid, "A#G#:A")
+				err = client.AttachNode2(reader.Person[p.Actor].Uid, p.Uid, "A#G#:pa")
 				reader.Person[p.Actor].Unlock()
 
 				t1 = time.Now()
@@ -838,7 +839,7 @@ func AttachPerformance2Actor(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limit
 				t0 = time.Now()
 				iCnt++
 				reader.Person[p.Actor].Lock()
-				err = client.AttachNode2(p.Uid, reader.Person[p.Actor].Uid, "A#G#:A")
+				err = client.AttachNode2(p.Uid, reader.Person[p.Actor].Uid, "A#G#:ap")
 				reader.Person[p.Actor].Unlock()
 
 				t1 = time.Now()
@@ -868,7 +869,14 @@ func AttachPerformance2Actor(batch moviesT, wg *sync.WaitGroup, lmtr grmgr.Limit
 
 func Attach() {
 	// "fiN4O0iiQnyWzdXiBz5fJw==" to "AYn+rLELT2CRqz3pjG2W5g=="
-	cUID := util.UIDb64("fiN4O0iiQnyWzdXiBz5fJw==").Decode()
-	pUID := util.UIDb64("AYn+rLELT2CRqz3pjG2W5g==").Decode()
-	client.AttachNode2(cUID, pUID, "A#G#:G")
+	// 	Sin City                 zZzBODJyRI26u3/b/hFjmw==
+	// Quinton Torintino bI5MrgBoTb6Qqt5uf7gz6A==
+
+	cUID := util.UIDb64("bI5MrgBoTb6Qqt5uf7gz6A==").Decode()
+	pUID := util.UIDb64("zZzBODJyRI26u3/b/hFjmw==").Decode()
+	errs := client.AttachNode2(cUID, pUID, "A#G#:fd")
+
+	for _, e := range errs {
+		fmt.Println(e.Error())
+	}
 }

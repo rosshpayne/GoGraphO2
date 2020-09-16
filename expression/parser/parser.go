@@ -6,8 +6,8 @@ import (
 	_ "os"
 	"strings"
 
-	"github.com/DynamoGraph/lexer"
-	"github.com/DynamoGraph/token"
+	"github.com/DynamoGraph/expression/lexer"
+	"github.com/DynamoGraph/expression/token"
 )
 
 const (
@@ -17,18 +17,25 @@ const (
 	defaultDoc = "DefaultDoc"
 )
 
-type Parser struct {
-	l *lexer.Lexer
+type (
+	Parser struct {
+		l *lexer.Lexer
 
-	extend bool
+		extend bool
 
-	abort     bool
-	stmtType  string
-	curToken  *token.Token
-	peekToken *token.Token
+		abort     bool
+		stmtType  string
+		CurToken  *token.Token
+		PeekToken *token.Token
 
-	perror []error
-}
+		perror []error
+	}
+)
+
+var (
+//	enumRepo      ast.EnumRepo
+
+)
 
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
@@ -72,7 +79,7 @@ func (p *Parser) addErr(s string) error {
 	return e
 }
 
-func (p *Parser) nextToken(s ...string) {
+func (p *Parser) NextToken(s ...string) {
 	p.CurToken = p.PeekToken
 
 	p.PeekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword etc.
@@ -85,19 +92,3 @@ func (p *Parser) nextToken(s ...string) {
 		}
 	}
 }
-
-func (p *Parser) parseQuery() {
-
-	p.parseOpen().p.parseName(stmt, opt).parseVariables(stmt, opt).parseFunction(stmt, opt).parseFilter(stmt, opt).parseSelectionSet(stmt).parseClose()
-
-}
-
-func (p *Parser) parseQuery() {
-
-	if p.curToken != token.LBRACE {
-		p.addErr(fmt.Sprintf("Expected { got %s", p.curToken.Literal))
-	}
-
-}
-
-func (p *Parser) parseName()
