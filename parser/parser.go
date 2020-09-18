@@ -72,7 +72,7 @@ func (p *Parser) addErr(s string) error {
 	return e
 }
 
-func (p *Parser) nextToken(s ...string) {
+func (p *Parser) NextToken(s ...string) {
 	p.CurToken = p.PeekToken
 
 	p.PeekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword etc.
@@ -87,6 +87,9 @@ func (p *Parser) nextToken(s ...string) {
 }
 
 func (p *Parser) parseQuery() {
+
+	stmt := &ast.QueryStmt{Type: op}
+	p.root = stmt //TODO - what is this??
 
 	p.parseOpen().p.parseName(stmt, opt).parseVariables(stmt, opt).parseFunction(stmt, opt).parseFilter(stmt, opt).parseSelectionSet(stmt).parseClose()
 

@@ -209,10 +209,10 @@ func NewNoTypeDefined(ty string) error {
 	return NoTypeDefined{ty: ty}
 }
 
-// UnmarshalCache, unmarshalls the nodecache into the ds.ClientNV data structure
+// UnmarshalCache, unmarshalls the nodecache into the ds.ClientNV
 // currently it presumes all propagated scalar data must be prefixed with A#.
 // TODO: extend to include G# prefix.
-// nc must have been acquired using either API
+// nc must have been acquired using either
 // * FetchForUpdaate(uid)
 // * FetchNode(uid)
 func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
@@ -220,10 +220,11 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 		return ErrCacheEmpty
 	}
 	var (
-		ty     string
-		attrDT string
-		ok     bool
-		err    error
+		sortk, attrKey string
+		ty             string
+		attrDT         string
+		ok             bool
+		err            error
 	)
 	// for k := range nc.m {
 	// 	fmt.Println(" key: ", k)
@@ -231,38 +232,45 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 	if ty, ok = nc.GetType(); !ok {
 		return NoNodeTypeDefinedErr
 	}
+	// FetchType populates maps, TyAttr, TyC
 	if _, err = FetchType(ty); err != nil {
 		return err
 	}
 
-	genAttrKey := func(attr string) (string, error) {
+	genSortK := func(attr string) (string, error) {
 		var (
-			searchKey string
-			pd        strings.Builder
-			aty       blk.TyAttrD
+			pd  strings.Builder
+			aty blk.TyAttrD
 		)
+
 		attr_ := strings.Split(attr, ":")
 
 		if len(attr_) > 1 {
 			//
-			// child attribute
+			// node to node edge e.g. Siblings:Age, director.film:Revenue, director.film:Performance:Character
+			// parent->child
 			//
-			searchKey = "A#G"
+			pd.WriteString("A#G")
+			// check each attribute in attr for consistency with type definitions.
 			for i := 0; i < len(attr_); i++ {
-				// check type exists
-				x := TyAttrC[ty+":"+attr_[0]]
-				if _, ok := TyC[x.Ty]; !ok {
-					return "", fmt.Errorf("Type %q not defined", x.Ty)
-				}
-				if aty, ok = TyAttrC[x.Ty+":"+attr_[i]]; !ok {
-					return "", fmt.Errorf("Attribute %q does not belong to type %q", attr_[i], x.Ty)
-				}
-				if i == 0 {
-					//	pd.WriteString(aty.P) // item partition
-					pd.WriteString(searchKey)
+				//
+				// check child node type defined e.g. Sibling, which is type "Person"
+				//
+				// first check first attribute (Sibling) exists as an attribute in type, cTy.Ty
+				if aty, ok := TyAttrC[ty+":"+attr_[i]]; !ok {
+					return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr[0], ty)
+				} else {
+					// now check sibling's (child node) type exists
+					if len(aty.Ty) > 0 { // uidpred type
+						if _, ok := TyC[aty.Ty]; !ok {
+							return "", fmt.Errorf("Child node Type %q not defined", aty.Ty)
+						}
+						// shift current attribute, ty, to child node type, aTy
+						ty = aty.Name
+					}
 				}
 				pd.WriteString("#:")
-				pd.WriteString(aty.C) // attribute compressed identifier
+				pd.WriteString(aty.C) // attribute short name
 			}
 			if aty.DT != "Nd" {
 				attrDT = "UL" + aty.DT
@@ -270,11 +278,11 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 
 		} else {
 			//
-			// node only attribute
+			// scalar edge e.g. Age, Siblings
 			//
 			pd.WriteString("A#")
 			if aty, ok = TyAttrC[ty+":"+attr]; !ok {
-				return "", fmt.Errorf("Attribute %q does not belong to type %q", attr, ty)
+				return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
 			}
 			if aty.DT == "Nd" {
 				pd.WriteString("G#:")
@@ -299,12 +307,19 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 		s.WriteString(strconv.Itoa(i))
 		return s.String()
 	}
+	// &ds.NV{Name: "Age"},
+	// &ds.NV{Name: "Name"},
+	// &ds.NV{Name: "DOB"},
+	// &ds.NV{Name: "Cars"},
+	// &ds.NV{Name: "Siblings"},    <== important to define Nd type before references its attributes
+	// &ds.NV{Name: "Siblings:Name"},
+	// &ds.NV{Name: "Siblings:Age"},
 
 	for _, a := range nv { // a.Name = "Age"
 		//
-		// field name repesents a scalar. It has a type that we use to generate a sortk (predicate) G#:<uid-pred>#:<pred-scalar-type-abreviation>
+		// field name repesents a scalar. It has a type that we use to generate a sortk <partition>#G#:<uid-pred>#:<scalarpred-type-abreviation>
 		//
-		attrKey, err := genAttrKey(a.Name)
+		sortk, err = genSortK(a.Name)
 		if err != nil {
 			return err
 		}
@@ -312,8 +327,9 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 		// grab the *blk.DataItem from the cache for the nominated sortk.
 		// we could query the child node to get this data or query the #G data which is its copy of the data
 		//
-		if v, ok := nc.m[attrKey]; ok {
-			// based on data type and whether its a node or uid-pred predicate
+		attrKey = sortk
+		if v, ok := nc.m[sortk]; ok {
+			// based on data type and whether its a node or uid-pred
 			switch attrDT {
 
 			// Scalars
@@ -1043,7 +1059,7 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 	// check Type Cache (Map) (TyC): key: Type Name
 	if _, ok := db.GetTyShortNm(ty); !ok {
 		if longTy, ok := db.GetTyLongNm(ty); !ok {
-			return nil, fmt.Errorf("FetchType: error %q type not found", ty)
+			return nil, fmt.Errorf("FetchType: error %q type not found or short name not defined", ty)
 		} else {
 			ty = longTy
 		}

@@ -307,7 +307,10 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	// fetch parent node to find its type. This will lock parent node for update (no shared locks). Explicit unlocked in defer
 	//
 	syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
-	pnd, err = gc.FetchForUpdate(pUID, sortK)
+	idx := strings.IndexByte(sortK, '#')
+
+	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1])
+	//	pnd, err = gc.FetchForUpdate(pUID, sortK)
 	if err != nil {
 		pnd.Unlock()
 		syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
@@ -317,7 +320,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	// get type of child node from A#T sortk e.g "Person"
 	//
 	if pTyName, ok = pnd.GetType(); !ok {
-		syslog.Log("AttachNode: main ", fmt.Sprintf("Error in GetType"))
+		syslog.Log("AttachNode: main ", fmt.Sprintf("#Error in GetType"))
 		errch <- cache.NoNodeTypeDefinedErr
 		return addErr(err)
 	}
@@ -458,7 +461,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	//
 	// TODO: fix bugs in edgeExists algorithm - see bug list
 	if ok, err := db.EdgeExists(cUID, pUID, sortK, db.ADD); ok {
-		syslog.Log("AttachNode2:", fmt.Sprintf("Error: Edge exists : ", err.Error()))
+		syslog.Log("AttachNode2:", fmt.Sprintf("Error: Edge exists : %s", err.Error()))
 		if errors.Is(err, db.ErrConditionalCheckFailed) {
 			return addErr(gerr.NodesAttached)
 		}

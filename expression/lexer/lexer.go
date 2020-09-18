@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DynamoGraph/expression/token"
+	"github.com/DynamoGraph/expressiona/token"
 )
 
 // Lexer parses an Input string (embedded in token pkg) and returns it as tokens - defined in token package.

@@ -7,13 +7,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/cache"
 	"github.com/DynamoGraph/client"
 	"github.com/DynamoGraph/db"
-	"github.com/DynamoGraph/es"
+	//"github.com/DynamoGraph/es"
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/ds"
 	elog "github.com/DynamoGraph/rdf/errlog"
@@ -87,10 +86,10 @@ func Load(f io.Reader) error { // S P O
 	//
 	// ES test
 	//
-	t0 := time.Now()
-	es.ESTest()
-	t1 := time.Now()
-	fmt.Println("Duration of es.ESTest: ", t1.Sub(t0))
+	// t0 := time.Now()
+	// es.ESTest()
+	// t1 := time.Now()
+	// fmt.Println("Duration of es.ESTest: ", t1.Sub(t0))
 	//
 	// sync.WorkGroups
 	//
@@ -223,6 +222,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 			ii := i
 			ty, err := getType(nodes[ii])
 			if err != nil {
+				fmt.Println("Error in getType.....", err.Error())
 				elog.Add <- err
 			}
 			// first pipeline func. Passes NV data to saveCh and then to database.
@@ -445,6 +445,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		if addTy {
 			// add type of node to NV
 			e := ds.NV{Sortk: "A#T", SName: node.ID, Value: node.TyName, DT: "ty"}
+			fmt.Println("NV: ", e)
 			nv = append(nv, e)
 			addTy = false
 		}
@@ -481,6 +482,9 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	//
 	if len(node.Err) == 0 {
 		slog.Log("unmarshalRDF: ", fmt.Sprintf("send on saveCh: nv: %#v", nv))
+		if len(nv) == 0 {
+			panic(fmt.Errorf("unmarshalRDF: nv is nil "))
+		}
 		saveCh <- nv
 	} else {
 		node.Lines = nil

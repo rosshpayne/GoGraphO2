@@ -1989,6 +1989,7 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 	//
 	idx := "XF[" + strconv.Itoa(cIdx) + "]"
 	upd := expression.Set(expression.Name(idx), expression.Value(blk.UIDdetached))
+	upd = upd.Add(expression.Name("N"), expression.Value(-1))
 	expr, err = expression.NewBuilder().WithUpdate(upd).Build()
 	if err != nil {
 		return newDBExprErr("DetachNode", "", "", err)
