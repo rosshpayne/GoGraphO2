@@ -17,7 +17,7 @@ func TestUnmarshalCache(t *testing.T) {
 	t0 := time.Now()
 	ch := cache.NewCache()
 
-	uidb64 := util.UIDb64("5lFOnTStSYWqmi8S6FDFDQ==")
+	uidb64 := util.UIDb64("GRPs/RUeRiask2dlRBvc5w==")
 	uid := uidb64.Decode()
 	fmt.Printf("uid = [%08b] - %d \n", uid, len(uid))
 	// establish node cache

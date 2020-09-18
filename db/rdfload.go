@@ -199,14 +199,12 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				return fmt.Errorf(" Value is not an String ")
 			}
 
-		case "ty": // node DyG type ??? more explanation
+		case "ty": // node type entry
 
 			type Item struct {
 				PKey  []byte
 				SortK string
-				// S     string
-				// P     string
-				Ty string // node type
+				Ty    string // node type
 			}
 
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
@@ -215,7 +213,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 					syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
 					return
 				}
-				//	a := Item{PKey: UID, SortK: "A#T", S: s, P: s}
 				a := Item{PKey: UID, SortK: "A#T", Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {

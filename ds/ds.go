@@ -252,7 +252,7 @@ func (c ClientNV) MarshalJSON() {
 			s.WriteString(`{ "`)
 			s.WriteString(v.Name)
 			s.WriteString(`" : [ `)
-			fmt.Println("x: ", len(x))
+
 			// for i, v := range x {
 			// 	fmt.Println("X: ", i, v)
 			// }

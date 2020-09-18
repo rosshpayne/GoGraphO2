@@ -232,6 +232,7 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 	if ty, ok = nc.GetType(); !ok {
 		return NoNodeTypeDefinedErr
 	}
+	fmt.Println("ty: ", ty)
 	// FetchType populates maps, TyAttr, TyC
 	if _, err = FetchType(ty); err != nil {
 		return err
@@ -242,7 +243,7 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 			pd  strings.Builder
 			aty blk.TyAttrD
 		)
-
+		fmt.Println("genSortK: attr ", attr)
 		attr_ := strings.Split(attr, ":")
 
 		if len(attr_) > 1 {
@@ -257,8 +258,9 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// check child node type defined e.g. Sibling, which is type "Person"
 				//
 				// first check first attribute (Sibling) exists as an attribute in type, cTy.Ty
-				if aty, ok := TyAttrC[ty+":"+attr_[i]]; !ok {
-					return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr[0], ty)
+				fmt.Println("@genSortK: ", ty+":"+attr_[i])
+				if aty, ok = TyAttrC[ty+":"+attr_[i]]; !ok {
+					return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr[i], ty)
 				} else {
 					// now check sibling's (child node) type exists
 					if len(aty.Ty) > 0 { // uidpred type
@@ -266,14 +268,17 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 							return "", fmt.Errorf("Child node Type %q not defined", aty.Ty)
 						}
 						// shift current attribute, ty, to child node type, aTy
-						ty = aty.Name
+						fmt.Printf("change ty to : %#v\n", aty)
+						ty = aty.Ty
 					}
 				}
 				pd.WriteString("#:")
 				pd.WriteString(aty.C) // attribute short name
+				fmt.Println("WriteString: ", pd.String())
 			}
 			if aty.DT != "Nd" {
 				attrDT = "UL" + aty.DT
+				fmt.Println("attrDT ", attrDT)
 			}
 
 		} else {
@@ -281,6 +286,7 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 			// scalar edge e.g. Age, Siblings
 			//
 			pd.WriteString("A#")
+			fmt.Println("#genSortK: ", ty+":"+attr)
 			if aty, ok = TyAttrC[ty+":"+attr]; !ok {
 				return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
 			}
@@ -374,8 +380,8 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// data from root uid-pred block
 				ls, xf := v.GetULS()
 
-				allLS = append(allLS, ls)
-				allXbl = append(allXbl, xf)
+				allLS = append(allLS, ls[1:])
+				allXbl = append(allXbl, xf[1:])
 				// data from overflow blocks
 
 				for _, v := range OfUIDs {
@@ -406,8 +412,8 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// data from root uid-pred block
 				lf, xf := v.GetULF()
 
-				allLF = append(allLF, lf)
-				allXbl = append(allXbl, xf)
+				allLF = append(allLF, lf[1:])
+				allXbl = append(allXbl, xf[1:])
 				// data from overflow blocks
 				for _, v := range OfUIDs {
 					nuid, err := nc.gc.FetchNode(util.UID(v))
@@ -437,8 +443,8 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// data from root uid-pred block
 				li, xf := v.GetULI()
 
-				allLI = append(allLI, li)
-				allXbl = append(allXbl, xf)
+				allLI = append(allLI, li[1:])
+				allXbl = append(allXbl, xf[1:])
 				// data from overflow blocks
 				for _, v := range OfUIDs {
 					nuid, err := nc.gc.FetchNode(util.UID(v))
@@ -468,8 +474,8 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// data from root uid-pred block
 				lb, xf := v.GetULB()
 
-				allLB = append(allLB, lb)
-				allXbl = append(allXbl, xf)
+				allLB = append(allLB, lb[1:])
+				allXbl = append(allXbl, xf[1:])
 				// data from overflow blocks
 				for _, v := range OfUIDs {
 					nuid, err := nc.gc.FetchNode(util.UID(v))
@@ -498,8 +504,8 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// data from root uid-pred block
 				bl, xf := v.GetULBl()
 
-				allLBl = append(allLBl, bl)
-				allXbl = append(allXbl, xf)
+				allLBl = append(allLBl, bl[1:])
+				allXbl = append(allXbl, xf[1:])
 				// data from overflow blocks
 				for _, v := range OfUIDs {
 					nuid, err := nc.gc.FetchNode(util.UID(v))
