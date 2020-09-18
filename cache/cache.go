@@ -270,6 +270,9 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 						// shift current attribute, ty, to child node type, aTy
 						fmt.Printf("change ty to : %#v\n", aty)
 						ty = aty.Ty
+						if _, err = FetchType(ty); err != nil {
+							return err
+						}
 					}
 				}
 				pd.WriteString("#:")

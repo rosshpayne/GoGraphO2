@@ -297,7 +297,6 @@ func (c ClientNV) MarshalJSON() {
 
 				kk := k.Encodeb64().String()
 				s.WriteString(kk)
-				fmt.Println("xUID ", k.String(), kk)
 				s.WriteByte('"')
 				if i < len(x)-1 {
 					s.WriteByte(',')
