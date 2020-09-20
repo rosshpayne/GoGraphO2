@@ -10,7 +10,7 @@
             "AttributeType": "S"
         }
     ], 
-    "TableName": "DyGTypes", 
+    "TableName": "DyGTypes2", 
     "KeySchema": [
         {
             "AttributeName": "Nm", 
@@ -22,7 +22,28 @@
         }
     ],
     "ProvisionedThroughput": {
-                "ReadCapacityUnits": 1, 
-                "WriteCapacityUnits": 1
-    }
+                "ReadCapacityUnits": 2, 
+                "WriteCapacityUnits": 3
+    },
+    "GlobalSecondaryIndexes": [
+        { "IndexName": "Atr-Nm-index", 
+            "KeySchema": [
+                {
+                    "AttributeName": "Atr", 
+                    "KeyType": "HASH"
+                },
+                {
+                    "AttributeName": "Nm", 
+                    "KeyType": "RANGE"
+                }
+            ], 
+             "Projection": {
+                "ProjectionType": "ALL"
+            }, 
+            "ProvisionedThroughput": {
+                "ReadCapacityUnits": 2, 
+                "WriteCapacityUnits": 2
+            }
+        }
+    ]
 }
