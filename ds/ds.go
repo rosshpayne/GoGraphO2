@@ -13,12 +13,13 @@ import (
 // It is populated in the nodecache.UnmarshalCache method. NV presents the data for query consumption.
 // See MarshalJSON to see it in use.
 type NV struct {
-	Name   string
-	Value  interface{}
+	Name  string
+	Value interface{}
+	//
+	// used by UnmarshalCache
+	//
 	OfUIDs [][]byte // overflow blocks ids
-	//
-	// for Overflow blocks only
-	//
+	// ... for Overflow blocks only
 	State [][]int  // Nd only (propagated child UIDs only)
 	Null  [][]bool // For propagated scalar values only first slice reps Overflow block, second reps each child node in the overflow block
 }

@@ -17,6 +17,7 @@ func TestUnmarshalCache(t *testing.T) {
 	t0 := time.Now()
 	ch := cache.NewCache()
 
+	// TODO fetch data rather than hardwire UID.
 	uidb64 := util.UIDb64("GRPs/RUeRiask2dlRBvc5w==")
 	uid := uidb64.Decode()
 	fmt.Printf("uid = [%08b] - %d \n", uid, len(uid))
@@ -59,25 +60,25 @@ func TestUnmarshalCache(t *testing.T) {
 		}
 	}
 	//
-	for _, v := range a {
-		switch x := v.Value.(type) {
-		case int64:
-			fmt.Printf("%s %d\n", v.Name, x)
-		case []int64:
-			fmt.Printf("++ %s \n", v.Name)
-			for _, r := range x {
-				fmt.Printf("%d\n", r)
-			}
-		case string:
-			fmt.Printf("%s %s\n", v.Name, x)
-		case []string:
-			for _, t := range x {
-				fmt.Printf("[]string. %s %s\n", v.Name, t)
-			}
-		case [][]byte:
-			fmt.Printf("%s %s\n", v.Name, x)
-		}
-	}
+	// for _, v := range a {
+	// 	switch x := v.Value.(type) {
+	// 	case int64:
+	// 		fmt.Printf("%s %d\n", v.Name, x)
+	// 	case []int64:
+	// 		fmt.Printf("++ %s \n", v.Name)
+	// 		for _, r := range x {
+	// 			fmt.Printf("%d\n", r)
+	// 		}
+	// 	case string:
+	// 		fmt.Printf("%s %s\n", v.Name, x)
+	// 	case []string:
+	// 		for _, t := range x {
+	// 			fmt.Printf("[]string. %s %s\n", v.Name, t)
+	// 		}
+	// 	case [][]byte:
+	// 		fmt.Printf("%s %s\n", v.Name, x)
+	// 	}
+	// }
 	a.MarshalJSON()
 
 }

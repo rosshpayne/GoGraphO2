@@ -314,14 +314,22 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	if err != nil {
 		pnd.Unlock()
 		syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
+		// send empty payload so concurrent routine will abort -
+		// not necessary to capture nil payload error from routine as it has a buffer size of 1
+		xch <- chPayload{}
+		wg.Wait()
 		return addErr(err)
 	}
 	//
 	// get type of child node from A#T sortk e.g "Person"
 	//
 	if pTyName, ok = pnd.GetType(); !ok {
+		pnd.Unlock()
 		syslog.Log("AttachNode: main ", fmt.Sprintf("#Error in GetType"))
-		errch <- cache.NoNodeTypeDefinedErr
+		// send empty payload so concurrent routine will abort -
+		// not necessary to capture nil payload error from routine as it has a buffer size of 1
+		xch <- chPayload{}
+		wg.Wait()
 		return addErr(err)
 	}
 	//
@@ -329,7 +337,11 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	//
 	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
 	if pty, err = cache.FetchType(pTyName); err != nil {
-		errch <- err
+		pnd.Unlock()
+		// send empty payload so concurrent routine will abort -
+		// not necessary to capture nil payload error from routine as it has a buffer size of 1
+		xch <- chPayload{}
+		wg.Wait()
 		return addErr(err)
 	}
 	//
@@ -337,10 +349,11 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	if err != nil {
 		pnd.Unlock()
 		err := fmt.Errorf("AttachNode: Error in configuring upd-pred block for propagation of child data: %w", err)
+		// send empty payload so concurrent routine will abort -
+		// not necessary to capture nil payload error from routine as it has a buffer size of 1
 		// TODO: consider using a Cancel Context
 		xch <- chPayload{}
 		wg.Wait()
-		<-errch
 		return addErr(err)
 	}
 	//
@@ -664,6 +677,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	// get type of child node from A#T sortk e.g "Person"
 	//
 	if pTyName, ok = pnd.GetType(); !ok {
+		pnd.Unlock()
 		syslog.Log("AttachNode: main ", fmt.Sprintf("Error in GetType"))
 		xch <- chPayload{}
 		wg.Wait()
@@ -674,6 +688,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	//
 	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
 	if pty, err = cache.FetchType(pTyName); err != nil {
+		pnd.Unlock()
 		xch <- chPayload{}
 		wg.Wait()
 		return addErr(err)

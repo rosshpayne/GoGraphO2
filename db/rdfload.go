@@ -205,6 +205,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				PKey  []byte
 				SortK string
 				Ty    string // node type
+				Ix    string
 			}
 
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
@@ -213,7 +214,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 					syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
 					return
 				}
-				a := Item{PKey: UID, SortK: "A#T", Ty: tyShortNm}
+				a := Item{PKey: UID, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -652,8 +653,9 @@ func SavePersons(batch []*reader.PersonT, tyBlock blk.TyAttrBlock, tyName string
 						PKey  []byte
 						SortK string
 						Ty    string
+						Ix    string
 					}
-					a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm}
+					a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						syslog(fmt.Sprintf("Error: failed to marshal type definition : %s", err.Error()))
@@ -791,8 +793,9 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) {
 					PKey  []byte
 					SortK string
 					Ty    string
+					Ix    string
 				}
-				a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm}
+				a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					syslog(fmt.Sprintf("SaveGenre: Error: failed to marshal type definition %s", err.Error()))
@@ -955,8 +958,9 @@ func SaveCharacters(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName stri
 						PKey  []byte
 						SortK string
 						Ty    string
+						Ix    string
 					}
-					a := Item{PKey: c.Uid, SortK: "A#T", Ty: tyShortNm}
+					a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						syslog(fmt.Sprintf("SaveCharacters: Error: failed to marshal type definition, %s", err.Error()))
@@ -1073,9 +1077,9 @@ func SavePerformances(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName st
 					PKey  []byte
 					SortK string
 					Ty    string
-					//		Id    string
+					Ix    string
 				}
-				a := Item{PKey: p.Uid, SortK: "A#T", Ty: tyShortNm} //, Id: string(p.Id)}
+				a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					syslog(fmt.Sprintf("SavePerformances: Error failed to marshal type definition. %s ", err.Error()))
@@ -1211,9 +1215,9 @@ func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, 
 				PKey  []byte
 				SortK string
 				Ty    string
+				Ix    string
 			}
-
-			a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm}
+			a := Item{PKey: v.Uid, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
 			av, err = dynamodbattribute.MarshalMap(a)
 			if err != nil {
 				syslog(fmt.Sprintf("SaveMovies: Error failed to marshal type definition, %s ", err.Error()))

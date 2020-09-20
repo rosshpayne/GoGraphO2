@@ -24,6 +24,14 @@
         {
             "AttributeName": "S", 
             "AttributeType": "S"
+        },
+        {
+            "AttributeName": "Ty", 
+            "AttributeType": "S"
+        },
+        {
+            "AttributeName": "Ix", 
+            "AttributeType": "S"
         }
     ], 
     "TableName": "DyGraph", 
@@ -90,6 +98,25 @@
                 },
                 {
                     "AttributeName": "B", 
+                    "KeyType": "RANGE"
+                }
+            ], 
+             "Projection": {
+                "ProjectionType": "KEYS_ONLY"
+            }, 
+            "ProvisionedThroughput": {
+                "ReadCapacityUnits": 2, 
+                "WriteCapacityUnits": 2
+            }
+        },
+        { "IndexName": "Ty_Ix", 
+            "KeySchema": [
+                {
+                    "AttributeName": "Ty", 
+                    "KeyType": "HASH"
+                },
+                {
+                    "AttributeName": "Ix", 
                     "KeyType": "RANGE"
                 }
             ], 

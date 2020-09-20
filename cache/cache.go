@@ -243,7 +243,6 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 			pd  strings.Builder
 			aty blk.TyAttrD
 		)
-		fmt.Println("genSortK: attr ", attr)
 		attr_ := strings.Split(attr, ":")
 
 		if len(attr_) > 1 {
@@ -258,7 +257,6 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// check child node type defined e.g. Sibling, which is type "Person"
 				//
 				// first check first attribute (Sibling) exists as an attribute in type, cTy.Ty
-				fmt.Println("@genSortK: ", ty+":"+attr_[i])
 				if aty, ok = TyAttrC[ty+":"+attr_[i]]; !ok {
 					return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr[i], ty)
 				} else {
@@ -267,21 +265,20 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 						if _, ok := TyC[aty.Ty]; !ok {
 							return "", fmt.Errorf("Child node Type %q not defined", aty.Ty)
 						}
-						// shift current attribute, ty, to child node type, aTy
+						// shift current type, ty, to child node type, aTy
 						fmt.Printf("change ty to : %#v\n", aty)
 						ty = aty.Ty
+						// get type data
 						if _, err = FetchType(ty); err != nil {
-							return err
+							return "", err
 						}
 					}
 				}
 				pd.WriteString("#:")
 				pd.WriteString(aty.C) // attribute short name
-				fmt.Println("WriteString: ", pd.String())
 			}
 			if aty.DT != "Nd" {
 				attrDT = "UL" + aty.DT
-				fmt.Println("attrDT ", attrDT)
 			}
 
 		} else {
@@ -289,7 +286,6 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 			// scalar edge e.g. Age, Siblings
 			//
 			pd.WriteString("A#")
-			fmt.Println("#genSortK: ", ty+":"+attr)
 			if aty, ok = TyAttrC[ty+":"+attr]; !ok {
 				return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
 			}
