@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DynamoGraph/expressiona/token"
+	"github.com/DynamoGraph/expression/token"
 )
 
 // Lexer parses an Input string (embedded in token pkg) and returns it as tokens - defined in token package.
@@ -104,7 +104,6 @@ func (l *Lexer) NextToken() *token.Token {
 		tok = l.newToken(token.DIVIDE, l.ch)
 	case '{':
 		tok = l.newToken(token.LBRACE, l.ch)
-		tok.Cat = token.VALUE
 	case '}':
 		tok = l.newToken(token.RBRACE, l.ch)
 	case '(':
@@ -113,11 +112,12 @@ func (l *Lexer) NextToken() *token.Token {
 		tok = l.newToken(token.RPAREN, l.ch)
 	case '[':
 		tok = l.newToken(token.LBRACKET, l.ch)
-		tok.Cat = token.VALUE
 	case ']':
 		tok = l.newToken(token.RBRACKET, l.ch)
 	case '=':
 		tok = l.newToken(token.ASSIGN, l.ch)
+	case ':':
+		tok = l.newToken(token.COLON, l.ch)
 	case 0:
 		tok = l.newToken(token.EOF, l.ch)
 		tok.Literal = ""
@@ -171,6 +171,15 @@ func (l *Lexer) readRune() {
 
 }
 
+func (l *Lexer) LexRemaining() string {
+	return l.input[l.rLoc:]
+}
+
+func (l *Lexer) LexSetPos(r, c int) {
+	l.rLoc = r
+	l.cLoc = c
+}
+
 func (l *Lexer) peekRune() rune {
 	if l.rLoc >= len(l.input) {
 		return 0
@@ -183,10 +192,10 @@ func (l *Lexer) peekRune() rune {
 func (l *Lexer) readIdentifier() *token.Token {
 	start := token.Pos{l.Line, l.Col}
 	Loc := l.cLoc
-	for unicode.IsLetter(l.ch) || l.ch == '_' || unicode.IsDigit(l.ch) {
+	for unicode.IsLetter(l.ch) || l.ch == '.' || l.ch == '_' || unicode.IsDigit(l.ch) {
 		l.readRune()
 	}
-	return &token.Token{Cat: token.NONVALUE, Type: token.STRING, Literal: l.input[Loc:l.cLoc], Loc: start}
+	return &token.Token{Type: token.STRING, Literal: l.input[Loc:l.cLoc], Loc: start}
 }
 
 func (l *Lexer) readNumber() *token.Token {
@@ -247,7 +256,7 @@ func (l *Lexer) readNumber() *token.Token {
 		last = l.cLoc + 2 // include rune next to + or -
 		l.readRune()      // read over + -
 	}
-	return &token.Token{Cat: token.VALUE, Type: tokenT, Literal: l.input[sLoc:last], Illegal: illegalT, Loc: start}
+	return &token.Token{Type: tokenT, Literal: l.input[sLoc:last], Illegal: illegalT, Loc: start}
 
 }
 
@@ -284,9 +293,9 @@ func (l *Lexer) readString() *token.Token {
 	var eLoc int
 	if l.del == token.RAWSTRINGDEL {
 		eLoc = 2
-		return &token.Token{Cat: token.VALUE, Type: token.RAWSTRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
+		return &token.Token{Type: token.RAWSTRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
 	}
-	return &token.Token{Cat: token.VALUE, Type: token.STRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
+	return &token.Token{Type: token.STRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
 }
 
 func (l *Lexer) readToEol() {
@@ -301,9 +310,9 @@ func (l *Lexer) readToEol() {
 
 func (l *Lexer) newToken(tokenType token.TokenType, ch rune, Loc ...token.Pos) *token.Token {
 	if len(Loc) > 0 {
-		return &token.Token{Cat: token.NONVALUE, Type: tokenType, Literal: string(ch), Loc: Loc[0]}
+		return &token.Token{Type: tokenType, Literal: string(ch), Loc: Loc[0]}
 	}
-	return &token.Token{Cat: token.NONVALUE, Type: tokenType, Literal: string(ch), Loc: token.Pos{l.Line, l.Col}}
+	return &token.Token{Type: tokenType, Literal: string(ch), Loc: token.Pos{l.Line, l.Col}}
 }
 
 // func (l *Lexer) GetLoc() *token.Pos {

@@ -4,11 +4,12 @@ package expression
 
 import (
 	"fmt"
-
 	"github.com/DynamoGraph/expression/lexer"
 	"github.com/DynamoGraph/expression/parser"
 	"github.com/DynamoGraph/expression/token"
 )
+
+// @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))
 
 const (
 	LPAREN uint8 = 1
@@ -23,18 +24,12 @@ func New(input string) *Expression {
 	type state struct {
 		opr token.TokenType
 	}
-
-	const (
-		EQ  = "eq"
-		LE  = "le"
-		ALL = "allofterms"
-		ANY = "anyofterms"
-	)
+	return &Expression{}
 
 	var (
 		tok         *token.Token
-		loperand    *dGfunc
-		roperand    *dGfunc
+		loperand    *filterFunc
+		roperand    *filterFunc
 		operandL    bool            // put next INT in numL
 		extendRight bool            // Used when a higher precedence operation detected. Assigns the latest Expression to the right operand of the current Expression.
 		opr         token.TokenType // string
@@ -118,40 +113,28 @@ func New(input string) *Expression {
 			extendRight = true
 			operandL = true
 
-		// case token.RPAREN:
+		case token.RPAREN:
 
-		// 	popState()
+			popState()
 
-		// 	// navigate current Expression e, up to next LPARAM Expression
-		// 	for e = e.parent; e.parent != nil && e.opr != "-"; e = e.parent {
-		// 	}
+			// navigate current Expression e, up to next LPARAM Expression
+			for e = e.parent; e.parent != nil && e.opr != "-"; e = e.parent {
+			}
 
-		// 	if e.parent != nil && e.parent.opr != "-" {
-		// 		// opr_ represents the operator that existed at the associated "(". Sourced from state.
-		// 		if opr_ == "AND" {
-		// 			fmt.Println("opr_ is adjusting to e.parent ", opr_)
-		// 			e = e.parent
-		// 		}
-		// 	}
+			if e.parent != nil && e.parent.opr != "-" {
+				// opr_ represents the operator that existed at the associated "(". Sourced from state.
+				if opr_ == "AND" {
+					fmt.Println("opr_ is adjusting to e.parent ", opr_)
+					e = e.parent
+				}
+			}
 
 		//		case token.TRUE, token.FALSE: // this will be functions that return true/false
-		case EQ, LE, LT, GE, GT, ANY, SOME:
+		case token.FUNC:
 
-			switch tok.Type {
-			case EQ:
-				f = parseEQ()
-			case LE:
-				f = parseLE()
-			case ANY:
-				f = parseANY()
-			case SOME:
-				f = parseSOME()
-			}
+			d := &filterFunc{}
+			p.ParseFunction(&d)
 
-			bl := false
-			if tok.Type == token.TRUE {
-				bl = true
-			}
 			//
 			// look ahead to next operator and check for higher precedence operation
 			//
@@ -178,7 +161,7 @@ func New(input string) *Expression {
 					if e == nil {
 						e, en = en, nil
 					} else {
-						e = e.addParent(en)
+						e = e.extendRight(en)
 					}
 				}
 				// all higher precedence operations or explicit (), perform an "extendRight" to create a new branch in the graph.
@@ -189,12 +172,12 @@ func New(input string) *Expression {
 
 			if operandL {
 
-				loperand = &dGfunc{value: bl}
+				loperand = d
 				operandL = false
 
 			} else {
 
-				roperand = &dGfunc{value: bl}
+				roperand = d
 
 				if loperand != nil {
 					en, opr = makeExpr(loperand, opr, roperand)
@@ -256,6 +239,12 @@ func New(input string) *Expression {
 		if tok.Type == token.EOF {
 			break
 		}
+
+	}
+	if e == nil {
+		// not boolean expression just a bool - create a dummy expression
+		e, _ = makeExpr(loperand, token.AND, &filterFunc{value: true})
+		return e
 
 	}
 	return findRoot(e)

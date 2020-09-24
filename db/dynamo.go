@@ -42,8 +42,7 @@ type gsiResult struct {
 //  all the other datatypes do not need to be converted.
 
 var (
-	dynSrv    *dynamodb.DynamoDB
-	tyShortNm map[string]string
+	dynSrv *dynamodb.DynamoDBLoadTypeShortNames
 )
 
 func logerr(e error, panic_ ...bool) {
@@ -73,11 +72,6 @@ func init() {
 
 	dynSrv = dynamodbSrv()
 	//
-	//
-	err := loadTypeShortNames()
-	if err != nil {
-		panic(err)
-	}
 }
 
 // Load Data Dictionary (DD) into memory
@@ -117,30 +111,11 @@ func loadDataDictionary() (blk.TyIBlock, error) {
 
 }
 
-func GetTyShortNm(ty string) (string, bool) {
-	s, ok := tyShortNm[ty]
-	return s, ok
-}
+func LoadTypeShortNames() ([]TyNames, error) {
 
-func GetTyLongNm(ty string) (string, bool) {
-	var found bool
-	for k, v := range tyShortNm {
-		if ty == v {
-			found = true
-			return k, true
-		}
-	}
-	if !found {
-		return "", false
-	}
-	return "", false
-}
-
-func loadTypeShortNames() error {
-
-	type sNames struct {
-		Atr    string // shortName
-		LongNm string
+	type TyNames struct {
+		ShortNm string `json:"Atr"`
+		LongNm  string
 	}
 
 	syslog(fmt.Sprintf("db.loadTypeShortNames "))
@@ -171,19 +146,12 @@ func loadTypeShortNames() error {
 	//
 	// Unmarshal result into
 	//
-	items := make([]sNames, *result.Count, *result.Count)
+	items := make([]TyNames, *result.Count, *result.Count)
 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &items)
 	if err != nil {
 		return newDBUnmarshalErr("loadTypeShortNames", "", "", "UnmarshalListOfMaps", err)
 	}
-	//
-	// populate map
-	//
-	tyShortNm = make(map[string]string)
-	for _, v := range items {
-		tyShortNm[v.LongNm] = v.Atr
-	}
-	return nil
+	return items
 }
 
 // Has return list of types containing the attribute

@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	_ "os"
+	"strconv"
 	"strings"
+
+	"github.com/DynamoGraph/expression"
 
 	"github.com/DynamoGraph/gql/ast"
 	"github.com/DynamoGraph/gql/lexer"
@@ -12,7 +15,7 @@ import (
 )
 
 type (
-	gqlFunc map[token.TokenType]gqlf
+	gqlFunc map[token.TokenType]ast.Gqlf
 
 	Parser struct {
 		l *lexer.Lexer
@@ -30,18 +33,20 @@ type (
 
 var (
 	opt bool = true
+
+	rootFunc gqlFunc
 )
 
 //
 func init() {
 
-	rootFunc = make(map[token.TokenType]parseFn)
+	rootFunc = make(gqlFunc)
 	// regiser Parser methods for each statement type
-	registerFn(token.EQ, Eq_)
-	registerFn(token.HAS, Has_)
+	registerFn(token.EQ, eq)
+	registerFn(token.HAS, has)
 }
 
-func register(t token.TokenType, f ast.Gqlfunc) {
+func registerFn(t token.TokenType, f ast.Gqlf) {
 	rootFunc[t] = f
 }
 
@@ -65,14 +70,14 @@ func New(l *lexer.Lexer) *Parser {
 func (p *Parser) loc() *ast.Loc {
 	//l,c  := p.l.Loc()
 	loc := p.curToken.Loc
-	return &ast.Loc{Line: loc.Line, Col: loc.Col}
+	return &ast.Loc{Line: loc.Line, Column: loc.Col}
 }
 
 func (p *Parser) printToken(s ...string) {
 	if len(s) > 0 {
-		fmt.Printf("** Current Token: [%s] %s %s %s %v %s %s [%s]\n", s[0], p.curToken.Type, p.curToken.Literal, p.curToken.Cat, p.curToken.IsScalarType, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
+		fmt.Printf("** Current Token: [%s] %s %s %v %s [%s]\n", s[0], p.curToken.Type, p.curToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	} else {
-		fmt.Println("** Current Token: ", p.curToken.Type, p.curToken.Literal, p.curToken.Cat, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
+		fmt.Println("** Current Token: ", p.curToken.Type, p.curToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	}
 }
 
@@ -98,7 +103,7 @@ func (p *Parser) nextToken(s ...string) {
 
 	p.peekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword etc.
 	if len(s) > 0 {
-		fmt.Printf("** Current Token: [%s] %s %s %s %s %s %s\n", s[0], p.curToken.Type, p.curToken.Literal, p.curToken.Cat, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
+		fmt.Printf("** Current Token: [%s] %s %s %s %s %s\n", s[0], p.curToken.Type, p.curToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	}
 	if p.curToken != nil {
 		if p.curToken.Illegal {
@@ -109,16 +114,18 @@ func (p *Parser) nextToken(s ...string) {
 
 // ===========================================================================================================
 
-func (p *Parser) ParseDocument() []error {
+func (p *Parser) ParseInput() (*ast.RootStmt, []error) { // TODO: turn into ParseDocument
 
 	if p.curToken.Type == token.LBRACE {
 		p.nextToken("read over LBRACE")
 	} else {
-		fmt.Println("document must start with a {")
-		return nil, nil
+		p.addErr("document must start with a {")
+		return nil, p.perror
 	}
 
 	x := p.parseRootStmt()
+
+	return x, p.perror
 
 }
 
@@ -127,7 +134,7 @@ func (p *Parser) parseRootStmt() *ast.RootStmt {
 
 	stmt := &ast.RootStmt{}
 
-	p.parseName(stmt, opt).parseFunction(stmt) //.parseFilter(stmt, opt).parseSelectionSet(stmt)
+	p.parseName(stmt, opt).parseFunction(stmt).parseFilter(stmt) //.parseSelectionSet(stmt)
 
 	if p.hasError() {
 		return nil
@@ -171,7 +178,7 @@ func (p *Parser) parseName(f ast.NameAssigner, optional ...bool) *Parser { // ty
 //    name@en
 //  }
 //}
-func (p *Parser) parseFunction(s stmt) {
+func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 
 	// 	type GQLFunc struct {
 	// 	Name      string      // eq, le, lt, anyofterms, someofterms
@@ -180,7 +187,12 @@ func (p *Parser) parseFunction(s stmt) {
 	// 	Value     interface{} // scalar int, bool, float, string. List of string. List of $var, string.
 	// 	Modifier  string      // count(), val()
 	// }
-	rf := &s.rootFunc
+
+	if p.hasError() {
+		return p
+	}
+
+	rf := &s.RootFunc
 
 	//	tok = p.nextToken()
 
@@ -188,102 +200,130 @@ func (p *Parser) parseFunction(s stmt) {
 	for _, v := range []token.TokenType{token.LPAREN, token.FUNC, token.COLON} {
 		if p.curToken.Type != v {
 			p.addErr(fmt.Sprintf(`Expected a %s got %s instead`, v, p.curToken.Literal))
-			return
+			return p
 		}
 		p.nextToken()
 	}
-
+	//
+	fmt.Printf("1: %#v\n", p.curToken)
 	// eq, lt, gt, has, anyofterms, someofterms...
 	if p.curToken.Type != token.RFUNC {
 		p.addErr(fmt.Sprintf(`Expected a function  got %s instead`, p.curToken.Literal))
-		return
+		return p
 	}
 	switch x := p.curToken.Literal; x {
 	case token.EQ:
 		rf.Name = x
-		rf.F = gqlFunc[x]
+		if f, ok := rootFunc[token.TokenType(x)]; !ok {
+			p.addErr(fmt.Sprintf(`func %q is not registered`, p.curToken.Literal))
+			return p
+		} else {
+			rf.F = f
+		}
 	case token.LT:
 		rf.Name = x
-		rf.F = gqlFunc[x]
+		if f, ok := rootFunc[token.TokenType(x)]; !ok {
+			p.addErr(fmt.Sprintf(`func %q is not registered`, p.curToken.Literal))
+			return p
+		} else {
+			rf.F = f
+		}
 	}
 	p.nextToken() // read over func
 	// (
 	if p.curToken.Type != token.LPAREN {
-		p.addErr(fmt.Sprintf(`Expected (  got %s`, v, p.curToken.Literal))
-		return
+		p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
+		return p
 	}
 	p.nextToken() // read over (
 	switch p.curToken.Type {
 
-	case IDENT:
-		rf.Predicate = p.curTokem.Literal
+	case token.IDENT:
+		rf.Predicate = p.curToken.Literal
+		p.nextToken() // read over identier
 
-	case MFUNC:
-		rf.Modifier = p.curTokem.Literal
+	case token.MFUNC:
+		rf.Modifier = p.curToken.Literal
 		p.nextToken() // read over modifier
 		if p.curToken.Type != token.LPAREN {
-			p.addErr(fmt.Sprintf(`Expected (  got %s`, v, p.curToken.Literal))
-			return
+			p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
+			return p
 		}
-		p.nextToke() // read over ()
+		p.nextToken() // read over (
 		if p.curToken.Type != token.IDENT {
-			p.addErr(fmt.Sprintf(`Expected identifier got %s`, v, p.curToken.Literal))
-			return
+			p.addErr(fmt.Sprintf(`Expected identifier got %s`, p.curToken.Literal))
+			return p
 		}
-		rf.Predicate = p.curTokem.Literal
+		rf.Predicate = p.curToken.Literal
+		p.nextToken() // read over identier
+		p.nextToken() // read over )
 
 	default:
 		p.addErr(fmt.Sprintf(`Expected an identifier or modifer function got %s`, p.curToken.Literal))
-		return
+		return p
 	}
-	p.nextToken() // read over identier
 	// set default language
-	s.Lang = "en"
-	if p.curToken.Type == token.ATSIGN {
-		p.nextToken() // read over @
-		if p.curToken.Type != token.IDENT {
-			p.addErr(fmt.Sprintf(`Expected a language identifer got %s instead`, v, p.curToken.Literal))
-			return
-		}
-		s.Lang = p.curToken.Literal
-		p.nextToken() // read over language
-	}
-	//
-	if p.curToken.Type != token.COMMA {
-		p.addErr(fmt.Sprintf(`Expected a "," got %s instead`, p.curToken.Literal))
-		return
-	}
-	p.nextToken() // read over ,
+	//	s.Lang = "en"
+	// if p.curToken.Type == token.ATSIGN {
+	// 	p.nextToken() // read over @
+	// 	if p.curToken.Type != token.IDENT {
+	// 		p.addErr(fmt.Sprintf(`Expected a language identifer got %s instead`, p.curToken.Literal))
+	// 		return
+	// 	}
+	// 	s.Lang = p.curToken.Literal
+	// 	p.nextToken() // read over language
+	// }
 	//
 	switch p.curToken.Type {
 	case token.STRING:
-		s.Value = p.curToken.Literal
+		rf.Value = p.curToken.Literal
 	case token.INT:
 		i, _ := strconv.Atoi(p.curToken.Literal)
-		s.Value = i
+		rf.Value = i
 	case token.FLOAT:
-		f, err := strconc.ParseFloat(p.curToken.Literal, 64)
+		f, err := strconv.ParseFloat(p.curToken.Literal, 64)
 		if err != nil {
-			p.addErr(fmt.Sprintf(`Errored in converting literal, %q, to float64`, p.curToken.Literal))
-			return
+			p.addErr(fmt.Sprintf(`Errored in converting literal, %q, to float64. %s`, p.curToken.Literal, err.Error()))
+			return p
 		}
-		s.Value = f
+		rf.Value = f
 	default:
 		p.addErr(fmt.Sprintf(`Expected a string or number got %s instead`, p.curToken.Literal))
-		return
+		return p
 	}
 	p.nextToken() // read over value
 
 	for i := 0; i < 2; i++ {
 		if p.curToken.Type != token.RPAREN {
 			p.addErr(fmt.Sprintf(`Expected )  got %s instead`, p.curToken.Literal))
-			return
+			return p
 		}
 		p.nextToken() // read over )
 	}
+	return p
 
 }
 
-func eq() []ast.Result  {}
-func lt() []ast.Result  {}
-func has() []ast.Result {}
+func (p *Parser) parseFilter(s *ast.RootStmt) *Parser {
+
+	// @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))
+	fmt.Println("in parseFilter: ", p.curToken.Literal)
+	if p.hasError() || p.curToken.Type != token.ATSIGN {
+		return p
+	}
+	p.nextToken() // read over @
+	exprInput := p.l.Remaining()
+
+	if p.curToken.Type != token.FILTER {
+		p.addErr(fmt.Sprintf(`Expected (  got %s instead`, p.curToken.Literal))
+		return p
+	}
+	p.nextToken() // read over filter
+	fmt.Println("Input REmaining2: ", exprInput)
+	if p.curToken.Type != token.LPAREN {
+		p.addErr(fmt.Sprintf(`Expected (  got %s instead`, p.curToken.Literal))
+		return p
+	}
+	s.Filter = expression.New(exprInput) // TODO should return new rLoc, cLoc
+	return p
+}

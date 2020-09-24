@@ -47,12 +47,11 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 		sortk_ = "A#"
 	}
 	//slog.Log("FetchForUpdate: ", fmt.Sprintf("** Cache FetchForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk_))
-	uids := uid.String()
-	e := g.cache[uids]
+	e := g.cache[uid.String()]
 
 	if e == nil {
 		e = &entry{ready: make(chan struct{})}
-		g.cache[uids] = e
+		g.cache[uid.String()] = e
 		g.Unlock()
 		// nb: type blk.NodeBlock []*DataItem
 		nb, err := db.FetchNode(uid, sortk_)
@@ -157,7 +156,7 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 		<-e.ready
 	}
 	//
-	// lock node cache.
+	// lock node cache. TODO: when is it unlocked?????
 	//
 	e.RLock()
 	if e.NodeCache == nil {
@@ -176,8 +175,11 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 		}
 	}
 	if !found {
+		e.RUnlock()
 		e.fetchItems(sortk_)
 	}
+
+	e.RUnlock()
 
 	return e.NodeCache, nil
 }

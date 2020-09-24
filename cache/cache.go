@@ -41,6 +41,8 @@ type SortKey = string
 
 //type block map[SortKey]*blk.DataItem
 
+// ************************************ Node cache ********************************************
+
 // data associated with a single node
 type NodeCache struct {
 	sync.RWMutex // used for querying the cache data items
@@ -74,8 +76,69 @@ func NewCache() *GraphCache {
 	return &GraphC
 }
 
+// ************************************ Type caches ********************************************
+
+type Ty = string      // type
+type Ty_Attr = string // type:attr
+
+//type FacetIdent string // type:attr:facet
+//
+// Derived Type Attributes cache
+//
+type TyCache map[Ty]blk.TyAttrBlock
+
+var TyC TyCache
+
+//
+// caches for type-attribute and type-attribute-facet
+//
+type TyAttrCache map[Ty_Attr]blk.TyAttrD // map[Ty_Attr]blk.TyItem
+
+var TyAttrC TyAttrCache
+
+// graph cache consisting of all nodes loaded into memory
+type TypeCache struct {
+	sync.RWMutex
+	TyAttrC TyAttrCache
+	TyC     TyCache
+}
+
+var tyShortNm map[string]string
+
+var TypeC TypeCache
+
+// ====================================== init =====================================================
+
 func init() {
 	GraphC = GraphCache{cache: make(map[util.UIDb64s]*entry)}
+	//
+	// cache holding the attributes belonging to a type
+	///
+	TypeC.TyC = make(TyCache)
+	//
+	// DataTy caches for type-attribute and type-attribute-facet
+	//
+	TypeC.TyAttrC = make(TyAttrCache)
+	//
+	FacetC = make(map[Ty_Attr][]FacetTy)
+	//
+	// Load in to maps the short and long names of all types
+	//
+	tynames, err := db.LoadTypeShortNames()
+	if err != nil {
+		panic(err)
+	}
+	//
+	// populate type short name cache. This cache is conccurent safe as it is readonly from now on.
+	//
+	tyShortNm = make(map[string]string)
+	for _, v := range tynames {
+		tyShortNm[v.LongNm] = v.ShortNm
+	}
+	//
+	// TODO: consider loading ALL types - makes for concurrent safe FetchType()
+	//
+	return nil
 }
 
 // func (g gsiResult) String() string {
@@ -970,26 +1033,6 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 
 }
 
-// ************************************ Type caches ********************************************
-
-type Ty = string      // type
-type Ty_Attr = string // type:attr
-
-//type FacetIdent string // type:attr:facet
-//
-// Derived Type Attributes cache
-//
-type TyCache map[Ty]blk.TyAttrBlock
-
-var TyC TyCache
-
-//
-// caches for type-attribute and type-attribute-facet
-//
-type TyAttrCache map[Ty_Attr]blk.TyAttrD // map[Ty_Attr]blk.TyItem
-
-var TyAttrC TyAttrCache
-
 // type FacetAttr struct {
 // 	Attr  string
 // 	Facet string
@@ -1033,47 +1076,46 @@ type FacetCache map[Ty_Attr][]FacetTy
 
 var FacetC FacetCache
 
-func init() {
-	//
-	// cache holding the attributes belonging to a type
-	///
-	TyC = make(TyCache)
-	//
-	// DataTy caches for type-attribute and type-attribute-facet
-	//
-	TyAttrC = make(TyAttrCache)
-	FacetC = make(map[Ty_Attr][]FacetTy)
+func GetTyShortNm(longNm string) (string, bool) {
+	s, ok := tyShortNm[longNm]
+	return s, ok
 }
 
-// func LoadDataDictionary(ty Ty) {
-// 	// use dedicated table (DyGTy) to store types
-// 	_, err := db.LoadDataDictionary()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// }
+func GetTyLongNm(tyNm string) (string, bool) {
+	for shortNm, longNm := range tyShortNm {
+		if tyNm == longNm {
+			return shortNm, true
+		}
+	}
+	return "", false
+}
 
-// FetchType returns a slice of attributes belonging to the type and populates two pkg map variables  TyC, TyAttrC
-// TODO: make FetchType a method of TyC (?). What are the advantages if its a method? Cannot think of any.
+// FetchType returns a type info from table ? and populates the two type cache maps, TyCache, TyAttrCache
+// ty: argument can be either the long or short type name. TODO: check that short names and long names cannot clash.
 func FetchType(ty Ty) (blk.TyAttrBlock, error) {
-	// type Ty = string      // type
-	// type Ty_Attr = string // type:attr
-	// cache type :    type TyCache map[Ty]blk.TyAttrBlock
-	// cache  vaiable: var TyC TyCache
-	//
-	// check Type Cache (Map) (TyC): key: Type Name
-	if _, ok := db.GetTyShortNm(ty); !ok {
-		if longTy, ok := db.GetTyLongNm(ty); !ok {
+
+	// check if ty is long name using GetTyShortNm which presumes the input is a long name
+	if _, ok := GetTyShortNm(ty); !ok {
+		// must be a short name - check it exists using GetTyLongNm which only accepts a short name
+		if longTy, ok := GetTyLongNm(ty); !ok {
 			return nil, fmt.Errorf("FetchType: error %q type not found or short name not defined", ty)
 		} else {
 			ty = longTy
 		}
 	}
-	if ty, ok := TyC[ty]; ok { // ty= Person
+	// TODO : make this concurrent safe by wrapping map in struct and  adding mutex to it.
+
+	//Type.RLock()
+	TypeC.Lock()
+	defer TypeC.Unlock()
+	//
+	if ty, ok := TypeC.TyC[ty]; ok { // ty= Person
 		return ty, nil
 	}
 	//
 	// not found in cache, load from db
+	//
+	defer TypeC.Unlock()
 	//
 	tyIBlk, err := db.FetchType(ty)
 	if err != nil {
@@ -1113,7 +1155,7 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 		}
 		tc = append(tc, a)
 		//
-		TyAttrC[genT_Attr(v.Atr)] = a
+		TypeC.TyAttrC[genT_Attr(v.Atr)] = a
 
 		// fc, _ := FacetCache[tyAttr]
 		// for _, vf := range v.F {
@@ -1128,7 +1170,7 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 		// FacetCache[tyAttr] = fc
 	}
 	//
-	TyC[ty] = tc
+	TypeC.TyC[ty] = tc
 
 	return tc, nil
 }

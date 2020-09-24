@@ -6,6 +6,8 @@ package expression
 import (
 	"fmt"
 
+	"github.com/DynamoGraph/ds"
+	"github.com/DynamoGraph/expression/ast"
 	"github.com/DynamoGraph/expression/token"
 	"github.com/DynamoGraph/util"
 )
@@ -23,42 +25,75 @@ type operator = string
 // Connectives AND, OR and NOT join filters and can be built into arbitrarily complex filters, such as (NOT A OR B) AND (C AND NOT (D OR E)).
 // Note that, NOT binds more tightly than AND which binds more tightly than OR.
 
-type item struct {
+type Item struct {
 	uid util.UID
 	ty  string
 }
 
-func (e *Expression) Execute(r item) bool {
-	walk(r)
-	return e.getResult()
+func (e *Expression) Execute(nv *ds.NV) bool {
+	// nc, err := cache.FetchNode(d.uid, "A#")
+	// if err != nil {
+	// 	panic(err) //TODO ; how to handle errors - errmgr routine?
+	// }
+	// err = nc.UnmarshalCache(nv)
+	walk(e, nv)
+	return e.getResult(nv)
 }
 
-func walk(e operand) {
+func walk(e operand, nv *ds.NV) {
+
+	if e, ok := e.(*Expression); ok {
+
+		walk(e.left, nv)
+		walk(e.right, nv)
+
+		switch e.opr {
+		case token.AND:
+
+			e.result = e.left.getResult(nv) && e.right.getResult(nv)
+
+		case token.OR:
+
+			e.result = e.left.getResult(nv) || e.right.getResult(nv)
+
+		case token.NOT:
+
+			e.result = !e.right.getResult(nv)
+
+		default: //  represents ( )
+
+			e.result = e.right.getResult(nv)
+
+		}
+		fmt.Printf("Result: %v %v\n", e.opr, e.result)
+	}
+
+}
+
+var pred []string
+
+func (e *Expression) GetPredicates(e operand) []string {
+
+	pred = nil
+
+	walkPreds(e)
+
+	// remove duplicates
+
+	return pred
+
+}
+
+func walkPreds(e operand) {
 
 	if e, ok := e.(*Expression); ok {
 
 		walk(e.left)
 		walk(e.right)
 
-		switch e.opr {
-		case token.AND:
+		pred = append(pred, e.left.getPredicate())
+		pred = append(pred, e.right.getPredicate())
 
-			e.result = e.left.getResult() && e.right.getResult()
-
-		case token.OR:
-
-			e.result = e.left.getResult() || e.right.getResult()
-
-		case token.NOT:
-
-			e.result = !e.right.getResult()
-
-		default: //  represents ( )
-
-			e.result = e.right.getResult()
-
-		}
-		fmt.Printf("Result: %v %v\n", e.opr, e.result)
 	}
 
 }
@@ -74,10 +109,10 @@ func findRoot(e *Expression) *Expression {
 // operand interface.
 // So far type num (integer), Expression satisfy, but this can of course be extended to floats, complex numbers, functions etc.
 type operand interface {
-	getParent() *Expression
-	type_() string
-	printName() string
-	getResult() bool
+	GetParent() *Expression
+	Type_() string
+	PrintName() string
+	GetResult(nv *ds.NV) bool
 }
 
 type Expression struct { // expr1 and expr2     expr1 or expr2       exp1 or (expr2 and expr3). (expr1 or expr2) and expr3
@@ -90,17 +125,17 @@ type Expression struct { // expr1 and expr2     expr1 or expr2       exp1 or (ex
 	parent *Expression
 }
 
-func (e *Expression) getParent() *Expression {
+func (e *Expression) GetParent() *Expression {
 	return e.parent
 }
-func (e *Expression) type_() string {
+func (e *Expression) Type_() string {
 	return "Expression"
 }
-func (e *Expression) printName() string {
+func (e *Expression) PrintName() string {
 	return e.name
 }
 
-func (e *Expression) getResult() bool {
+func (e *Expression) GetResult(nv *ds.NV) bool {
 
 	return e.result
 }
@@ -113,42 +148,6 @@ func (e *Expression) getResult() bool {
 // eq(predicate, [$var1, "value", ..., $varN])
 
 //   eq(count(genre), 13))
-
-type filterFunc struct {
-	parent *Expression
-	value  bool
-	name   string // debug purposes
-	//
-	// fname(predicate, value)
-	// fname(predFunc(predicate), value)
-	predicate string
-	value     interface{} // string, int, float, time.Time, bool
-	fname     string      //      func(AttrName, AttrName, litVal, []DynaGValue, int) bool // eq,le,lt,gt,ge,allofterms, someofterms
-	predFunc  string      // count(predicate), val(predicate)
-}
-
-func (f *dGfunc) oper() {} // ???
-
-func (f *dGfunc) getParent() *Expression {
-	return f.parent
-}
-
-func (f *dGfunc) type_() string {
-	return "func"
-}
-
-func (f *dGfunc) getResult(uid []byte, ty string) bool {
-	//return f.f(f.uAttrName, f.sAttrName, f.attrData, f.cache, i)
-	//return f.value
-	return f.f(uid, ty)
-}
-
-func (f *dGfunc) printName() string {
-	if f == nil {
-		return "NoName"
-	}
-	return f.name
-}
 
 func makeExpr(l operand, op token.TokenType, r operand) (*Expression, token.TokenType) {
 

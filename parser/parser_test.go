@@ -7,10 +7,10 @@ import (
 func TestSimple(t *testing.T) {
 
 	input := `{
-  me(func: eq(name@en, "Steven Spielberg”)) ([UID-ty]) @filter( has(director.film) )([UID-person]) {
-    name@en (A#:N,S)
-    director.film (A#G#:D,Nd) @filter(allofterms(name@en (A#G#:D#:N,LS) , "jones indiana”) [index]  {
-      name@en. (A#G#:D#:N,LS)
+  me(func: eq(name@en, "Steven Spielberg”)) @filter( has(director.film) ) {
+    name 
+    director.film (A#G#:D,Nd) @filter(allofterms(name, "jones indiana”)   {
+      name
     }
   }
 }

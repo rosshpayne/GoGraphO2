@@ -171,6 +171,10 @@ func (l *Lexer) readRune() {
 
 }
 
+func (l *Lexer) Remaining() string {
+	return l.input[l.cLoc:]
+}
+
 func (l *Lexer) peekRune() rune {
 	if l.rLoc >= len(l.input) {
 		return 0
@@ -181,6 +185,7 @@ func (l *Lexer) peekRune() rune {
 }
 
 func (l *Lexer) readIdentifier() *token.Token {
+	fmt.Println("readIdentifier...")
 	start := token.Pos{l.Line, l.Col}
 	Loc := l.cLoc
 	for unicode.IsLetter(l.ch) || l.ch == '.' || l.ch == '_' || unicode.IsDigit(l.ch) {
@@ -252,7 +257,7 @@ func (l *Lexer) readNumber() *token.Token {
 }
 
 func (l *Lexer) readString() *token.Token {
-
+	fmt.Println("readString....")
 	Loc := l.cLoc + 1
 	start := token.Pos{l.Line, l.Col}
 	//fmt.Println("Loc: ", Loc)

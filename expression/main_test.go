@@ -14,6 +14,7 @@ func TestExecute(t *testing.T) {
 	var tests []testT = []testT{
 		//		{input: `le(initial_release_date, "2000")`, result: 9},
 		//		{input: `allofterms(name, "jones indiana") OR allofterms(name, "jurassic park")`, result: 0},
+		{input: `false`, result: true},
 		{input: `false OR NOT (false AND false)`, result: true},
 		{input: `false OR NOT (true AND true)`, result: false},
 		{input: `true OR NOT (true AND true)`, result: true},
