@@ -1,4 +1,4 @@
-package parser
+package expression
 
 import (
 	"errors"
@@ -17,8 +17,10 @@ type (
 
 		abort     bool
 		stmtType  string
-		CurToken  *token.Token
+		curToken  *token.Token
 		peekToken *token.Token
+
+		parseFns map[token.TokenType]funcs.FuncT //TODO: why include this as part of Parser. Make pkg var instead. Its readonly, no updates.
 
 		perror []error
 	}
@@ -28,16 +30,25 @@ var (
 	opt bool = true
 )
 
+const (
+	FILTER = "filter"
+	ROOT   = "root"
+)
+
 //
 
-func New(l *lexer.Lexer) *Parser {
+func NewParser(l *lexer.Lexer) *Parser {
 	p := &Parser{
 		l: l,
 	}
+	// Read two tokens, to initialise curToken and peekToken
+	p.nextToken()
+	p.nextToken()
+	//
+	p.parseFns = make(map[token.TokenType]funcs.FuncT)
+	p.registerFn(FILTER, token.EQ, funcs.FilterEQ)
+	p.registerFn(ROOT, token.EQ, funcs.RootEQ)
 
-	// Read two tokens, to initialise CurToken and peekToken
-	p.NextToken()
-	p.NextToken()
 	//
 	// remove cacheClar before releasing..
 	//
@@ -47,9 +58,9 @@ func New(l *lexer.Lexer) *Parser {
 
 func (p *Parser) printToken(s ...string) {
 	if len(s) > 0 {
-		fmt.Printf("** Current Token: [%s] %s %s %v %s [%s]\n", s[0], p.CurToken.Type, p.CurToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
+		fmt.Printf("** Current Token: [%s] %s %s %v %s [%s]\n", s[0], p.curToken.Type, p.curToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	} else {
-		fmt.Println("** Current Token: ", p.CurToken.Type, p.CurToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
+		fmt.Println("** Current Token: ", p.curToken.Type, p.curToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	}
 }
 
@@ -63,28 +74,32 @@ func (p *Parser) hasError() bool {
 // addErr appends to error slice held in parser.
 func (p *Parser) addErr(s string) error {
 	if strings.Index(s, " at line: ") == -1 {
-		s += fmt.Sprintf(" at line: %d, column: %d", p.CurToken.Loc.Line, p.CurToken.Loc.Col)
+		s += fmt.Sprintf(" at line: %d, column: %d", p.curToken.Loc.Line, p.curToken.Loc.Col)
 	}
 	e := errors.New(s)
 	p.perror = append(p.perror, e)
 	return e
 }
 
-func (p *Parser) NextToken(s ...string) {
-	p.CurToken = p.peekToken
+func (p *Parser) nextToken(s ...string) {
+	p.curToken = p.peekToken
 
 	p.peekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword etc.
 	if len(s) > 0 {
-		fmt.Printf("** Current Token: [%s] %s %s %s %s %s\n", s[0], p.CurToken.Type, p.CurToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
+		fmt.Printf("** Current Token: [%s] %s %s %s %s %s\n", s[0], p.curToken.Type, p.curToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	}
-	if p.CurToken != nil {
-		if p.CurToken.Illegal {
-			p.addErr(fmt.Sprintf("Illegal %s token, [%s]", p.CurToken.Type, p.CurToken.Literal))
+	if p.curToken != nil {
+		if p.curToken.Illegal {
+			p.addErr(fmt.Sprintf("Illegal %s token, [%s]", p.curToken.Type, p.curToken.Literal))
 		}
 	}
 }
 
-func (p *Parser) ParseFunction(s *ast.FilterFunc) *Parser {
+func (p *Parser) registerFn(funcType string, tokenType token.TokenType, fn parseFn) {
+	p.parseFns[funcType+":"+tokenType] = fn
+}
+
+func (p *Parser) ParseFunction(s *FilterFunc) *Parser {
 
 	// type FilterFunc struct {
 	// 	parent *Expression
@@ -110,7 +125,7 @@ func (p *Parser) ParseFunction(s *ast.FilterFunc) *Parser {
 	}
 	switch x := p.curToken.Literal; x {
 	case token.EQ:
-		rf.Name = x
+		rf.fname = func_[x]
 		if f, ok := rootFunc[token.TokenType(x)]; !ok {
 			p.addErr(fmt.Sprintf(`func %q is not registered`, p.curToken.Literal))
 			return p

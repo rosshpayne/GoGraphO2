@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/DynamoGraph/ds"
-	"github.com/DynamoGraph/expression/ast"
 	"github.com/DynamoGraph/expression/token"
+	"github.com/DynamoGraph/funcs"
 	"github.com/DynamoGraph/util"
 )
 
@@ -30,7 +30,7 @@ type Item struct {
 	ty  string
 }
 
-func (e *Expression) Execute(nv *ds.NV) bool {
+func (e *Expression) Execute(nv []ds.NV) bool {
 	// nc, err := cache.FetchNode(d.uid, "A#")
 	// if err != nil {
 	// 	panic(err) //TODO ; how to handle errors - errmgr routine?
@@ -40,7 +40,7 @@ func (e *Expression) Execute(nv *ds.NV) bool {
 	return e.getResult(nv)
 }
 
-func walk(e operand, nv *ds.NV) {
+func walk(e operand, nv []ds.NV) {
 
 	if e, ok := e.(*Expression); ok {
 
@@ -72,13 +72,11 @@ func walk(e operand, nv *ds.NV) {
 
 var pred []string
 
-func (e *Expression) GetPredicates(e operand) []string {
+func (e *Expression) GetPredicates(op operand) []string {
 
 	pred = nil
 
-	walkPreds(e)
-
-	// remove duplicates
+	walkPreds(op)
 
 	return pred
 
@@ -88,8 +86,8 @@ func walkPreds(e operand) {
 
 	if e, ok := e.(*Expression); ok {
 
-		walk(e.left)
-		walk(e.right)
+		walkPreds(e.left)
+		walkPreds(e.right)
 
 		pred = append(pred, e.left.getPredicate())
 		pred = append(pred, e.right.getPredicate())
@@ -109,10 +107,11 @@ func findRoot(e *Expression) *Expression {
 // operand interface.
 // So far type num (integer), Expression satisfy, but this can of course be extended to floats, complex numbers, functions etc.
 type operand interface {
-	GetParent() *Expression
-	Type_() string
-	PrintName() string
-	GetResult(nv *ds.NV) bool
+	getParent() *Expression
+	getPredicate() string
+	type_() string
+	printName() string
+	getResult(nv []ds.NV) bool
 }
 
 type Expression struct { // expr1 and expr2     expr1 or expr2       exp1 or (expr2 and expr3). (expr1 or expr2) and expr3
@@ -125,21 +124,30 @@ type Expression struct { // expr1 and expr2     expr1 or expr2       exp1 or (ex
 	parent *Expression
 }
 
-func (e *Expression) GetParent() *Expression {
+func (e *Expression) getParent() *Expression {
 	return e.parent
 }
-func (e *Expression) Type_() string {
+func (e *Expression) gype_() string {
 	return "Expression"
 }
-func (e *Expression) PrintName() string {
+func (e *Expression) printName() string {
 	return e.name
 }
 
-func (e *Expression) GetResult(nv *ds.NV) bool {
+func (f *Expression) getPredicate() string {
+	return ""
+}
+
+func (e *Expression) type_() string {
+	return "expression"
+}
+
+func (e *Expression) getResult(nv []ds.NV) bool {
 
 	return e.result
 }
 
+// =============================================================================
 // ( eq(predicate, value) and eq(..)
 // eq(val(varName), value)
 // eq(predicate, val(varName))
@@ -148,6 +156,47 @@ func (e *Expression) GetResult(nv *ds.NV) bool {
 // eq(predicate, [$var1, "value", ..., $varN])
 
 //   eq(count(genre), 13))
+
+type FilterFunc struct {
+	parent *Expression
+	//value  bool   // for testing only
+	name string // for debug purposes - not used yet
+	//
+	// fname(predicate, value)
+	// fname(predFunc(predicate), value)
+	predicate string // used to point to particular nv value at execution time
+	nv        *ds.NV // data from cache for all predicates
+	//
+	value bool // maybe useful for dummy expression where roperand is nil a bool rather than a function
+	//
+	fname    funcs.FuncT // funcs.Eq  func( arg1 interface{},  value interface{}) bool // eq,le,lt,gt,ge,allofterms, someofterms
+	predFunc funcs.FuncT // count(predicate), val(predicate)
+}
+
+func (f *FilterFunc) oper() {} // ???
+
+func (f *FilterFunc) getParent() *Expression {
+	return f.parent
+}
+
+func (f *FilterFunc) type_() string {
+	return "func"
+}
+
+func (f *FilterFunc) getResult(nv []ds.NV) bool {
+	return true
+	//return f.f(f.uAttrName, f.sAttrName, f.attrData)
+	//return f.value
+	//return f.f(uid, ty)
+}
+
+func (f *FilterFunc) printName() string {
+	return f.name
+}
+
+func (f *FilterFunc) getPredicate() string {
+	return f.predicate
+}
 
 func makeExpr(l operand, op token.TokenType, r operand) (*Expression, token.TokenType) {
 

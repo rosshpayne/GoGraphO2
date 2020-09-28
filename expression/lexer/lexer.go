@@ -143,7 +143,7 @@ func (l *Lexer) skipWhitespace() {
 	// Horizontal Tab (U+0009) Space (U+0020)
 	// LineTerminator :: New Line (U+000A)
 	//  Carriage Return (U+000D) [lookahead ≠ New Line (U+000A)] Carriage Return (U+000D) New Line (U+000A)
-	for l.ch == '\u0009' || l.ch == '\u0020' || l.ch == '\u000A' || l.ch == '\u000D' || l.ch == ',' {
+	for l.ch == '\u0009' || l.ch == '\u0020' || l.ch == '.' || l.ch == '\u000A' || l.ch == '\u000D' || l.ch == ',' {
 		if l.ch == '\n' { // linefeed
 			l.Line++
 			l.Col = 0

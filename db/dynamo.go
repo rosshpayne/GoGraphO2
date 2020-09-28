@@ -42,7 +42,7 @@ type gsiResult struct {
 //  all the other datatypes do not need to be converted.
 
 var (
-	dynSrv *dynamodb.DynamoDBLoadTypeShortNames
+	dynSrv *dynamodb.DynamoDB
 )
 
 func logerr(e error, panic_ ...bool) {
@@ -56,6 +56,34 @@ func logerr(e error, panic_ ...bool) {
 
 func syslog(s string) {
 	slog.Log("DB: ", s)
+}
+
+//  NOTE: tyShortNm is duplicated in cache pkg. It exists in in db package only to support come code in rdfload.go that references the db version rather than the cache which it cannot access
+// because of input-cycle issues. Once this reference is rdfload is removed the cache version should be the only one used.
+
+type tyNames struct {
+	ShortNm string `json:"Atr"`
+	LongNm  string
+}
+
+var (
+	err       error
+	tynames   []tyNames
+	tyShortNm map[string]string
+)
+
+func GetTyShortNm(longNm string) (string, bool) {
+	s, ok := tyShortNm[longNm]
+	return s, ok
+}
+
+func GetTyLongNm(tyNm string) (string, bool) {
+	for shortNm, longNm := range tyShortNm {
+		if tyNm == longNm {
+			return shortNm, true
+		}
+	}
+	return "", false
 }
 
 func init() {
@@ -72,14 +100,33 @@ func init() {
 
 	dynSrv = dynamodbSrv()
 	//
+	//
+	// Load in to maps the short and long names of all types. The is also shared with cache version.
+	//
+	tynames, err = loadTypeShortNames()
+	if err != nil {
+		panic(err)
+	}
+	//
+	// populate type short name cache. This cache is conccurent safe as it is readonly from now on.
+	//
+	tyShortNm = make(map[string]string)
+	for _, v := range tynames {
+		tyShortNm[v.LongNm] = v.ShortNm
+	}
+}
+
+func GetTypeShortNames() ([]tyNames, error) {
+	return tynames, nil
 }
 
 // Load Data Dictionary (DD) into memory
 //
 // TODO: create table DyGTypes and populate
-func loadDataDictionary() (blk.TyIBlock, error) {
+func LoadDataDictionary() (blk.TyIBlock, error) {
 
-	expr, err := expression.NewBuilder().Build()
+	filt := expression.Name("Nm").BeginsWith(expression.Value("#")).Not()
+	expr, err := expression.NewBuilder().WithFilter(filt).Build()
 	if err != nil {
 		return nil, newDBExprErr("LoadDataDictionary", "", "", err)
 	}
@@ -111,18 +158,13 @@ func loadDataDictionary() (blk.TyIBlock, error) {
 
 }
 
-func LoadTypeShortNames() ([]TyNames, error) {
-
-	type TyNames struct {
-		ShortNm string `json:"Atr"`
-		LongNm  string
-	}
+func loadTypeShortNames() ([]tyNames, error) {
 
 	syslog(fmt.Sprintf("db.loadTypeShortNames "))
 	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#T"))
 	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
 	if err != nil {
-		return newDBExprErr("loadTypeShortNames", "", "", err)
+		return nil, newDBExprErr("loadTypeShortNames", "", "", err)
 	}
 	//
 	input := &dynamodb.QueryInput{
@@ -137,21 +179,21 @@ func LoadTypeShortNames() ([]TyNames, error) {
 	result, err := dynSrv.Query(input)
 	t1 := time.Now()
 	if err != nil {
-		return newDBSysErr("loadTypeShortNames", "Query", err)
+		return nil, newDBSysErr("loadTypeShortNames", "Query", err)
 	}
 	syslog(fmt.Sprintf("loadTypeShortNames: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
 	if int(*result.Count) == 0 {
-		return newDBNoItemFound("loadTypeShortNames", "", "", "Query")
+		return nil, newDBNoItemFound("loadTypeShortNames", "", "", "Query")
 	}
 	//
 	// Unmarshal result into
 	//
-	items := make([]TyNames, *result.Count, *result.Count)
+	items := make([]tyNames, *result.Count, *result.Count)
 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &items)
 	if err != nil {
-		return newDBUnmarshalErr("loadTypeShortNames", "", "", "UnmarshalListOfMaps", err)
+		return nil, newDBUnmarshalErr("loadTypeShortNames", "", "", "UnmarshalListOfMaps", err)
 	}
-	return items
+	return items, nil
 }
 
 // Has return list of types containing the attribute

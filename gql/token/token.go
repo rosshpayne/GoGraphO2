@@ -37,6 +37,8 @@ const (
 	OR  = "OR"
 	NOT = "NOT"
 
+	AS = "as"
+
 	TRUE  = "true"
 	FALSE = "false"
 
@@ -48,6 +50,7 @@ const (
 	RBRACKET = "]"
 
 	ATSIGN = "@"
+	DOLLAR = "$"
 	EXPAND = "..."
 	COLON  = ":"
 	// delimiters
@@ -56,7 +59,8 @@ const (
 
 	BOM = "BOM"
 
-	// functions
+	// predicate
+	UID = "uid"
 
 	// Functions
 	RFUNC      = "RF"
@@ -69,9 +73,16 @@ const (
 	ANYOFTERMS = "anyofterms"
 	ALLOFTERMS = "allofterms"
 	// modifiers
-	MFUNC = "MF"
-	COUNT = "count"
+
 	VAL   = "val"
+	COUNT = "count"
+	//
+	AGFUNC = "AGGR"
+
+	AVG = "avg"
+	MIN = "min"
+	MAX = "max"
+	SUM = "sum"
 )
 
 type Pos struct {
@@ -103,6 +114,7 @@ var keywords = map[string]struct {
 	// "allofterms": {ALLOFTERMS},
 	"true":  {BOOLEAN},
 	"false": {BOOLEAN},
+	"uid":   {UID},
 	// suppored functions
 	EQ:         {RFUNC},
 	LE:         {RFUNC},
@@ -113,8 +125,14 @@ var keywords = map[string]struct {
 	ANYOFTERMS: {RFUNC},
 	ALLOFTERMS: {RFUNC},
 	// supported modifer funcs
-	COUNT: {MFUNC},
-	VAL:   {MFUNC},
+	COUNT: {COUNT},
+	VAL:   {VAL},
+	AVG:   {AGFUNC},
+	SUM:   {AGFUNC},
+	MIN:   {AGFUNC},
+	MAX:   {AGFUNC},
+	//
+	"as": {AS},
 }
 
 func LookupIdent(ident string) TokenType {

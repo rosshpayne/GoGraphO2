@@ -5,7 +5,6 @@ package expression
 import (
 	"fmt"
 	"github.com/DynamoGraph/expression/lexer"
-	"github.com/DynamoGraph/expression/parser"
 	"github.com/DynamoGraph/expression/token"
 )
 
@@ -24,12 +23,11 @@ func New(input string) *Expression {
 	type state struct {
 		opr token.TokenType
 	}
-	return &Expression{}
 
 	var (
 		tok         *token.Token
-		loperand    *filterFunc
-		roperand    *filterFunc
+		loperand    *FilterFunc
+		roperand    *FilterFunc
 		operandL    bool            // put next INT in numL
 		extendRight bool            // Used when a higher precedence operation detected. Assigns the latest Expression to the right operand of the current Expression.
 		opr         token.TokenType // string
@@ -56,15 +54,15 @@ func New(input string) *Expression {
 	fmt.Printf("\n %s \n", input)
 
 	l := lexer.New(input)
-	p := parser.New(l)
+	p := NewParser(l)
 	operandL = true
 
 	// TODO - initial full parse to validate left and right parenthesis match
 
 	for {
 
-		tok = p.CurToken
-		p.NextToken()
+		tok = p.curToken
+		p.nextToken()
 		fmt.Printf("\ntoken: %s\n", tok.Type)
 
 		switch tok.Type {
@@ -132,13 +130,13 @@ func New(input string) *Expression {
 		//		case token.TRUE, token.FALSE: // this will be functions that return true/false
 		case token.FUNC:
 
-			d := &filterFunc{}
-			p.ParseFunction(&d)
+			d := &FilterFunc{}
+			p.ParseFunction(d)
 
 			//
 			// look ahead to next operator and check for higher precedence operation
 			//
-			tok := p.CurToken
+			tok := p.curToken
 			if opr == token.OR && tok.Type == token.AND {
 				//
 				if extendRight {
@@ -243,7 +241,7 @@ func New(input string) *Expression {
 	}
 	if e == nil {
 		// not boolean expression just a bool - create a dummy expression
-		e, _ = makeExpr(loperand, token.AND, &filterFunc{value: true})
+		e, _ = makeExpr(loperand, token.AND, &FilterFunc{value: true})
 		return e
 
 	}
