@@ -1,10 +1,9 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/DynamoGraph/gql/lexer"
 )
 
 func compare(doc, expected string) bool {
@@ -69,20 +68,40 @@ func TestStmt0(t *testing.T) {
 	// }`
 
 	input := `{
-  me(func: eq(name, "Steven Spielberg"))  {
+  me(func: eq(Name, "Steven Spielberg"))  {
+    Name
+  date_of_birth:DOB
+  cn as count(Siblings)
+  brothers: Siblings {
+  	Name
+  	Friends {
+  		Name
+  	}
+  }
 }`
 
 	expectedDoc := `{
-  me(func: eq(name, "Steven Spielberg"))  {
+  me(func: eq(Name, "Steven Spielberg"))  {
+  Name
+  date_of_birth: DOB
+  cn as count(Siblings)
+  brothers: Siblings {
+  	Name
+  		Friends {
+  		Name
+  	}
+  }
 }`
 
 	var parseErrs []string
 
-	l := lexer.New(input)
-	p := New(l)
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
 
-	doc, errs := p.ParseDocument()
+	doc, errs := p.ParseInput()
 	//
+	fmt.Println(errs)
 	checkErrors(errs, parseErrs, t)
 	if len(errs) == 0 {
 		if compare(doc.String(), expectedDoc) {
@@ -91,11 +110,204 @@ func TestStmt0(t *testing.T) {
 			t.Errorf(`Unexpected document for %s. `, t.Name())
 		}
 	}
+	fmt.Println(doc.String())
 	//
 
 }
 
-func TestStringPred(t *testing.T) {
+func TestStmt1(t *testing.T) {
+
+	// 	input := `{
+	//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
+	//     name@en
+	//     director.film @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))  {
+	//       uid
+	//       name@en
+	//     }
+	//   }
+	// }`
+
+	input := `{
+  me(func: gt(count(Director.film), 5)) { 
+    totalDirectors : count(uid)
+	}
+	}`
+
+	expectedDoc := `{
+ me(func: gt(count(Director.film), 5)) { 
+    totalDirectors : count(uid)
+}}`
+
+	var parseErrs []string
+
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
+
+	doc, errs := p.ParseInput()
+	//
+	fmt.Println(errs)
+	checkErrors(errs, parseErrs, t)
+	if len(errs) == 0 {
+		if compare(doc.String(), expectedDoc) {
+			t.Logf("Got:      [%s] \n", trimWS(doc.String()))
+			t.Logf("Expected: [%s] \n", trimWS(expectedDoc))
+			t.Errorf(`Unexpected document for %s. `, t.Name())
+		}
+	}
+	fmt.Println(doc.String())
+	//
+
+}
+
+func TestStmt2(t *testing.T) {
+
+	// 	input := `{
+	//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
+	//     name@en
+	//     director.film @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))  {
+	//       uid
+	//       name@en
+	//     }
+	//   }
+	// }`
+
+	input := `{
+  me(func: gt(count(Director.film), 5)) { 
+    totalDirectors : count(uid)
+} }`
+
+	expectedDoc := `{
+ me(func: gt(count(Director.film), 5)) { 
+    totalDirectors : count(uid)
+} }`
+
+	var parseErrs []string
+
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
+
+	doc, errs := p.ParseInput()
+	//
+	fmt.Println(errs)
+	checkErrors(errs, parseErrs, t)
+	if len(errs) == 0 {
+		if compare(doc.String(), expectedDoc) {
+			t.Logf("Got:      [%s] \n", trimWS(doc.String()))
+			t.Logf("Expected: [%s] \n", trimWS(expectedDoc))
+			t.Errorf(`Unexpected document for %s. `, t.Name())
+		}
+	}
+	fmt.Println(doc.String())
+	//
+
+}
+
+func TestStmt3(t *testing.T) {
+
+	// 	input := `{
+	//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
+	//     name@en
+	//     director.film @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))  {
+	//       uid
+	//       name@en
+	//     }
+	//   }
+	// }`
+
+	input := `{
+  var(func: allofterms(Name, "eat drink man woman")) {
+    Film.performance {
+      actors as performance.actor {
+            	      Name
+      	totalRoles as count(actor.film)
+
+      }
+    }
+  }
+}`
+
+	expectedDoc := `{
+  var(func: allofterms(Name, "eat drink man woman")) {
+    Film.performance {
+      actors as performance.actor {
+       Name
+        totalRoles as count(actor.film)
+      }
+    }
+  }
+}`
+
+	var parseErrs []string
+
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
+
+	doc, errs := p.ParseInput()
+	//
+	fmt.Println(errs)
+	checkErrors(errs, parseErrs, t)
+	if len(errs) == 0 {
+		if compare(doc.String(), expectedDoc) {
+			t.Logf("Got:      [%s] \n", trimWS(doc.String()))
+			t.Logf("Expected: [%s] \n", trimWS(expectedDoc))
+			t.Errorf(`Unexpected document for %s. `, t.Name())
+		}
+	}
+	//fmt.Println(doc.String())
+	//
+
+}
+
+func TestFilter0(t *testing.T) {
+
+	// 	input := `{
+	//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
+	//     name@en
+	//     director.film @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))  {
+	//       uid
+	//       name@en
+	//     }
+	//   }
+	// }`
+
+	input := `{
+  me(func: eq(Name, "Steven Spielberg")) @filter(has(Friends)) {
+   UID
+   Name
+}`
+
+	expectedDoc := `{
+  me(func: eq(Name, "Steven Spielberg")) @filter(has(Friends)) {
+   UID
+   Name
+}`
+
+	var parseErrs []string
+
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
+
+	doc, errs := p.ParseInput()
+	//
+	fmt.Println(errs)
+	checkErrors(errs, parseErrs, t)
+	if len(errs) == 0 {
+		if compare(doc.String(), expectedDoc) {
+			t.Logf("Got:      [%s] \n", trimWS(doc.String()))
+			t.Logf("Expected: [%s] \n", trimWS(expectedDoc))
+			t.Errorf(`Unexpected document for %s. `, t.Name())
+		}
+	}
+	fmt.Println(doc.String())
+	//
+
+}
+
+func TestCounPred(t *testing.T) {
 
 	// 	input := `{
 	//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
@@ -117,9 +329,9 @@ func TestStringPred(t *testing.T) {
 
 	var parseErrs []string
 
-	l := lexer.New(input)
-	p := New(l)
-
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
 	doc, errs := p.ParseDocument()
 	t.Log(doc.String())
 	//
@@ -157,9 +369,9 @@ func TestStmtIntPred(t *testing.T) {
 
 	var parseErrs []string
 
-	l := lexer.New(input)
-	p := New(l)
-
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
 	doc, errs := p.ParseDocument()
 	t.Log(doc.String())
 	//
@@ -197,9 +409,9 @@ func TestStmtFloatPred(t *testing.T) {
 
 	var parseErrs []string
 
-	l := lexer.New(input)
-	p := New(l)
-
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
 	doc, errs := p.ParseDocument()
 	t.Log(doc.String())
 	//
@@ -228,18 +440,18 @@ func TestFilter(t *testing.T) {
 	// }`
 
 	input := `{
-  me(func: eq(count(name), "Steven Spielberg")) @filter(eq(count(name)) {
+  me(func: eq(count(Siblings),2), "Steven Spielberg")) @filter(has(Friends)) {
 }`
 
 	expectedDoc := `{
-  me(func: eq(count(name), "Steven Spielberg")) @filter(eq(count(name))  {
+  me(func: eq(count(Siblings),2), "Steven Spielberg")) @filter(has(Friends)) {
 }`
 
 	var parseErrs []string
 
-	l := lexer.New(input)
-	p := New(l)
-
+	// l := lexer.New(input)
+	// p := New(l)
+	p := New(input)
 	doc, errs := p.ParseDocument()
 	t.Log(doc.String())
 	//

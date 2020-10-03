@@ -87,18 +87,18 @@ type Ty_Attr = string // type:attr
 //
 type TyCache map[Ty]blk.TyAttrBlock
 
-var TyC TyCache
+//var TyC TyCache
 
 //
 // caches for type-attribute and type-attribute-facet
 //
 type TyAttrCache map[Ty_Attr]blk.TyAttrD // map[Ty_Attr]blk.TyItem
 
-var TyAttrC TyAttrCache
+//var TyAttrC TyAttrCache
 
-// graph cache consisting of all nodes loaded into memory
+//
 type TypeCache struct {
-	sync.RWMutex
+	//sync.RWMutex // as all types are loaded at startup - no concurrency control required
 	TyAttrC TyAttrCache
 	TyC     TyCache
 }
@@ -139,7 +139,7 @@ func init() {
 	// Load data dictionary (i.e ALL type info) - makes for concurrent safe FetchType()
 	//
 	{
-		dd, err = db.LoadDataDictionary()
+		dd, err := db.LoadDataDictionary() // type TyIBlock []TyItem
 		if err != nil {
 			panic(err)
 		}
@@ -150,9 +150,9 @@ func init() {
 
 func IsUidPred(pred string) bool {
 
-	for _, v := range ypeC.TyC {
-		if v.Atr == pred {
-			if len(v.Ty) > 0 {
+	for _, v := range TypeC.TyC {
+		for _, vv := range v {
+			if vv.Name == pred && len(vv.Ty) > 0 {
 				// is a uid-pred in one type so presume its ok
 				return true
 			}
@@ -162,31 +162,44 @@ func IsUidPred(pred string) bool {
 }
 
 func IsScalarPred(pred string) bool {
-
-	for _, v := range ypeC.TyC {
-		if v.Atr == pred {
-			if len(v.Ty) == 0 {
+	fmt.Println("IsScalarPred for ", pred)
+	for _, v := range TypeC.TyC {
+		for _, vv := range v {
+			if vv.Name == pred && len(vv.Ty) == 0 {
 				// is a scalar in one type so presume its ok
+				fmt.Println("TRUE")
 				return true
 			}
 		}
 	}
+	fmt.Println("FALSE")
 	return false
 }
 
-func popluateTyCaches(allTypes blk.TyIBlock) {
-	var tyMap map[string]bool
+func populateTyCaches(allTypes blk.TyIBlock) {
+	var (
+		a     blk.TyAttrD
+		tc    blk.TyAttrBlock
+		s     strings.Builder
+		tyMap map[string]bool
+	)
 	tyMap = make(map[string]bool)
 
 	for _, v := range allTypes {
-		if _, ok := tyMap[v.ty]; !ok {
-			tyMap[v.ty] = true
+		if _, ok := tyMap[v.Nm]; !ok {
+			tyMap[v.Nm] = true
 		}
 	}
 
 	for ty, _ := range tyMap {
-		for _, v := range allTypes { // database item
 
+		fmt.Println("load type data for ", ty)
+		for _, v := range allTypes { // database item
+			// if not current ty then
+			if v.Nm != ty {
+				continue
+			}
+			fmt.Println("attr for type data ", ty, v.Atr)
 			genT_Attr := func(attr string) Ty_Attr {
 				// generte key for TyAttrC:  <typeName>:<attrName> e.g. Person:Age
 				s.Reset()
@@ -292,7 +305,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 	// TyAttrC populated in NodeAttach(). Get Name of attribute that is the attachment point, based on sortk
 	//
 	i := strings.IndexByte(sortK, ':')
-	for _, v := range TyAttrC {
+	for _, v := range TypeC.TyAttrC {
 		if v.C == sortK[i+1:] {
 			attachAttrNm = v.Name
 			found = true
@@ -408,12 +421,12 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 				// check child node type defined e.g. Sibling, which is type "Person"
 				//
 				// first check first attribute (Sibling) exists as an attribute in type, cTy.Ty
-				if aty, ok = TyAttrC[ty+":"+attr_[i]]; !ok {
+				if aty, ok = TypeC.TyAttrC[ty+":"+attr_[i]]; !ok {
 					return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr[i], ty)
 				} else {
 					// now check sibling's (child node) type exists
 					if len(aty.Ty) > 0 { // uidpred type
-						if _, ok := TyC[aty.Ty]; !ok {
+						if _, ok := TypeC.TyC[aty.Ty]; !ok {
 							return "", fmt.Errorf("Child node Type %q not defined", aty.Ty)
 						}
 						// shift current type, ty, to child node type, aTy
@@ -437,7 +450,7 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 			// scalar edge e.g. Age, Siblings
 			//
 			pd.WriteString("A#")
-			if aty, ok = TyAttrC[ty+":"+attr]; !ok {
+			if aty, ok = TypeC.TyAttrC[ty+":"+attr]; !ok {
 				return "", fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
 			}
 			if aty.DT == "Nd" {
@@ -751,7 +764,7 @@ func (d *NodeCache) UnmarshalValue(attr string, i interface{}) error {
 		return err
 	}
 
-	if aty, ok = TyAttrC[ty+":"+attr]; !ok {
+	if aty, ok = TypeC.TyAttrC[ty+":"+attr]; !ok {
 		panic(fmt.Errorf("Attribute %q not found in type %q", attr, ty))
 	}
 	// build a item clause
@@ -829,7 +842,7 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 	)
 
 	genAttrKey := func(attr string) string {
-		if aty, ok = TyAttrC[ty+":"+attr]; !ok {
+		if aty, ok = TypeC.TyAttrC[ty+":"+attr]; !ok {
 			return ""
 		}
 		// build a item clause
@@ -1202,7 +1215,7 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 	//
 	// not found in cache, load from db
 	//
-	defer TypeC.Unlock()
+	//defer TypeC.Unlock()
 	//
 	tyIBlk, err := db.FetchType(ty)
 	if err != nil {

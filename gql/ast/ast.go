@@ -1,12 +1,13 @@
 package ast
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
-	expr "github.com/DynamoGraph/expression"
-	"github.com/DynamoGraph/funcs"
-	"github.com/DynamoGraph/util"
+	"github.com/DynamoGraph/db"
+	expr "github.com/DynamoGraph/gql/expression"
+	"github.com/DynamoGraph/gql/token"
 )
 
 type FargI interface {
@@ -21,7 +22,28 @@ type InnerFuncI interface {
 // 	innerArg()
 // }
 
+type SelectI interface {
+	AssignSelectList(SelectList)
+}
+
 type SelectList []*EdgeT
+
+func (sl SelectList) String() string {
+	var s strings.Builder
+	for _, e := range sl {
+		s.WriteString(e.String())
+		s.WriteByte('\n')
+	}
+	return s.String()
+}
+
+func (sl SelectList) GetPredicates() []string {
+	var ps []string
+	for _, e := range sl {
+		ps = append(ps, e.GetPredicates()...)
+	}
+	return ps
+}
 
 type EdgeT struct {
 	Alias   name_
@@ -30,18 +52,38 @@ type EdgeT struct {
 	//f         aggrFunc - now in predicate (edgeT)
 }
 
-func (e *EdgeT) AssignName(input string, loc *Loc, err *[]error) {
+func (e EdgeT) String() string {
+	var s strings.Builder
+	if len(e.Alias.Name) > 0 {
+		s.WriteString(e.Alias.Name)
+		s.WriteString(" : ")
+	}
+	if len(e.VarName.Name) > 0 {
+		s.WriteString(e.VarName.Name)
+		s.WriteString(" as ")
+	}
+	s.WriteString(e.Edge.String())
+	return s.String()
+}
+
+func (e *EdgeT) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
 	e.Alias = name_{Name: input, Loc: loc}
 }
 
-func (e *EdgeT) AssignVarName(input string, loc *Loc, err *[]error) {
+func (e *EdgeT) AssignVarName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
 	e.VarName = name_{Name: input, Loc: loc}
 }
 
+func (e *EdgeT) GetPredicates() []string {
+	return e.Edge.GetPredicates()
+}
+
 type EdgeI interface {
 	edge()
+	String() string
+	GetPredicates() []string
 }
 
 // type Arg1 interface {
@@ -55,9 +97,17 @@ type ScalarPred struct {
 func (s ScalarPred) edge() {}
 func (s ScalarPred) farg() {}
 
-func (s *ScalarPred) AssignName(input string, loc *Loc, err *[]error) {
+func (s *ScalarPred) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
 	s.Name = name_{Name: input, Loc: loc}
+}
+
+func (s ScalarPred) String() string {
+	return s.Name.Name
+}
+
+func (s ScalarPred) GetPredicates() []string {
+	return []string{s.Name.Name}
 }
 
 type UidPred struct {
@@ -66,32 +116,61 @@ type UidPred struct {
 	Select SelectList
 }
 
-func (u *UidPred) AssignName(input string, loc *Loc, err *[]error) {
+func (u *UidPred) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
 	u.Name = name_{Name: input, Loc: loc}
 }
+func (u *UidPred) AssignSelectList(s SelectList) {
+	u.Select = s
+}
 
-func (p *UIDPred) edge() {}
+func (u *UidPred) GetPredicates() []string {
+	ps := []string{}
+	ps = append(ps, u.Name.Name)
+	// 	ps = append(ps, u.Filter.GetPredicates()...)
+	ps = append(ps, u.Select.GetPredicates()...)
+	return ps
+}
+
+func (p *UidPred) edge() {}
 
 //func (p *UIDPred) innerArg() {}
-func (p *UIDPred) aggrArg() {}
-func (p *UIDPred) count_()  {}
+func (p *UidPred) aggrArg() {}
+func (p *UidPred) count_()  {}
+func (p *UidPred) String() string {
+	var s strings.Builder
+	s.WriteString(p.Name.Name)
+	// Filter
+	if p.Select != nil {
+		s.WriteString("{\n")
+		s.WriteString(p.Select.String())
+		s.WriteByte('}')
+	}
+	return s.String()
+}
 
 type Variable struct {
 	Name name_
 }
 
-func (u *Variable) AssignName(input string, loc *Loc, err *[]error) {
+func (u *Variable) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
 	u.Name = name_{Name: input, Loc: loc}
+}
+func (u *Variable) String() string {
+	return "var(" + u.Name.Name + ")"
 }
 
 //func (r *Variable) innerArg()  {}
 func (r *Variable) edge() {}
-func (r *Variable) farg() {}
+
+// not for root func: func (r *Variable) farg() {}
 
 //func (r *Variable) innerFunc() {}
 func (r *Variable) aggrArg() {}
+func (r *Variable) GetPredicates() []string {
+	return nil
+}
 
 //type ValFuncT func(v Variable) ValOut
 
@@ -99,75 +178,100 @@ type AggrArg interface {
 	aggrArg()
 }
 type AggrFunc struct {
-	FName name_ // count, avg takes either a variable argument or a uid-pred argument
-	Arg   AggrArg
+	Name name_ // count, avg takes either a variable argument or a uid-pred argument
+	Arg  AggrArg
+}
+
+func (u *AggrFunc) AssignName(input string, loc token.Pos) {
+	//ValidateName(input, err, Loc)
+	u.Name = name_{Name: input, Loc: loc}
 }
 
 func (e *AggrFunc) edge() {}
 
 //func (e *AggrFunc) innerFunc() {}
 
-type Counter interface {
+type CounterI interface {
 	count_()
+	String() string
+	GetPredicates() []string
 }
 
 type CountFunc struct {
-	Arg Counter // uidPred, UID
+	Arg CounterI // uidPred, UID
 }
 
 func (e *CountFunc) farg() {}
+func (e *CountFunc) edge() {}
+func (e *CountFunc) String() string {
+	var s strings.Builder
+	s.WriteString("count(")
+	s.WriteString(e.Arg.String())
+	s.WriteByte(')')
+	return s.String()
+}
+
+func (e *CountFunc) GetPredicates() []string {
+	return e.Arg.GetPredicates()
+}
 
 type UID struct{}
 
-func (e *UID) edge()   {}
-func (e *UID) count_() {}
+func (e UID) edge()   {}
+func (e UID) count_() {}
+func (e UID) String() string {
+	return "uid"
+}
+func (e UID) GetPredicates() []string {
+	return nil
+}
 
 type Values []interface{} // int,float,string,$var
 
 // =========================  GQLFunc  =============================================
 
-type FuncT func(predfunc FargI, value interface{}, nv []ds.NV, ty string) bool
+type FuncT func(FargI, interface{}) []db.QResult
+
+//type FuncT func(predfunc FargI, value interface{}, nv []ds.NV, ty string) []db.QResult
 
 type GQLFunc struct {
-	FName name_ // for String() purposes
-	F     FuncT
-	Farg  FargI // either predicate, count, var
+	Name name_ // for String() purposes
+	F    FuncT
+	Farg FargI // either predicate, count, var
 	//	IFarg InnerArgI   // either uidPred, variable
 	Value interface{} //  string,int,float,$var, List of string,int,float,$var
 }
 
-func (g *GQLFunc) AssignName(input string, loc *Loc, err *[]error) {
+func (g *GQLFunc) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
 	g.Name = name_{Name: input, Loc: loc}
 }
 
-func (g *GQLFunc) Execute() {
+func (g *GQLFunc) Execute() []db.QResult {
 	//
-	if g.IF != nil {
-		return g.F(g.IF(g.IFarg), g.Value)
-	}
 	return g.F(g.Farg, g.Value)
 }
 
 func (f *GQLFunc) String() string {
 	//
 	var s strings.Builder
-	s.WriteString(f.FName)
+	s.WriteString(f.Name.String())
 	s.WriteByte('(')
-	if len(f.IFName) > 0 {
-		s.WriteString(f.IFName)
-		s.WriteByte('(')
-		//
-		switch x := f.IFarg.(type) {
-		case UidPred:
-			s.WriteString(x.Name)
-		case Variable:
-			s.WriteString(x.Name)
+	if f.Farg != nil {
+		switch x := f.Farg.(type) {
+		case *CountFunc:
+			s.WriteString("count(")
+			switch y := x.Arg.(type) {
+			case *UidPred:
+				s.WriteString(y.Name.String())
+			case UID:
+				s.WriteString("uid")
+			}
+			s.WriteString(")")
+		case ScalarPred:
+			s.WriteString(x.Name.String())
+			//
 		}
-		//
-		s.WriteByte(')')
-	} else {
-		s.WriteString(f.Predicate)
 	}
 	s.WriteByte(',')
 	switch x := f.Value.(type) {
@@ -223,9 +327,9 @@ func (f *GQLFunc) String() string {
 // ============== RootStmt ==============
 
 type RootStmt struct {
-	Name    name_
-	VarName name_
-	Lang    string
+	Name name_
+	Var  *Variable
+	Lang string
 	// (func: eq(name@en, "Steven Spielberg”))
 	RootFunc GQLFunc // generates []uid from GSI data io.Writer Write([]byte) (int, error)
 	// @filter( has(director.film) )
@@ -235,9 +339,18 @@ type RootStmt struct {
 	PredList []string
 }
 
-func (r *RootStmt) AssignName(input string, loc *Loc, err *[]error) {
+func (r *RootStmt) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
 	r.Name = name_{Name: input, Loc: loc}
+}
+
+func (r *RootStmt) AssignSelectList(s SelectList) {
+	r.Select = s
+}
+
+func (r *RootStmt) AssignVarName(input string, loc token.Pos) {
+	//ValidateName(input, err, Loc)
+	r.Var.Name = name_{Name: input, Loc: loc}
 }
 
 func (r *RootStmt) String() string {
@@ -253,20 +366,32 @@ func (r *RootStmt) String() string {
 	// 	s.WriteString(r.filter.String())
 	// }
 	s.WriteString("{\n")
-	//s.WriteString(r.Edge.String())
+	s.WriteString(r.Select.String())
+	s.WriteByte('}')
+
 	s.WriteByte('}')
 
 	return s.String()
 }
 
 // Predicates lists all predicates involved in the root stmt i.e. in RootFunc filter, and edges
-func (r *RootStmt) RetrievePredicates() {
+func (r *RootStmt) RetrievePredicates() []string {
 	var s []string
-	s = append(s, r.RootFunc.Predicate)
-	s = append(s, r.Filter.GetPredicates()...)
-	s = append(s, r.Edge.GetPredicates()...)
+	if r.RootFunc.Farg != nil {
+		switch x := r.RootFunc.Farg.(type) {
+		case *CountFunc:
+			switch y := x.Arg.(type) {
+			case *UidPred:
+				s = append(s, y.Name.Name)
+			}
+		case ScalarPred:
+			s = append(s, x.Name.Name)
+		}
+	}
+	// s = append(s, r.Filter.GetPredicates()...)
+	s = append(s, r.Select.GetPredicates()...)
 
-	r.preds = dedup(s)
+	return s
 }
 
 func dedup(s []string) []string {
@@ -288,20 +413,30 @@ func dedup(s []string) []string {
 	return ss
 }
 
-// ============== RootResult ==============
+// ============== QResult ==============
 
-type RootResult struct {
-	UID   util.UID
-	SortK string
-	Ty    string
+// type QResult struct {
+// 	UID   util.UID
+// 	SortK string
+// 	Ty    string
+// }
+
+func (r *RootStmt) Execute() []db.QResult {
+	//
+	// execute root func
+	//
+	uids := r.RootFunc.F(r.RootFunc.Farg, r.RootFunc.Value)
+
+	for _, u := range uids {
+		fmt.Printf("%#v", u)
+	}
+	return uids
 }
-
-func (r *RootStmt) Execute() []RootResult {}
 
 // ============== NameI  ========================
 
 type NameAssigner interface {
-	AssignName(name string, Loc *Loc, errS *[]error)
+	AssignName(string, token.Pos)
 }
 
 // ===============  NameValue_  =========================
@@ -324,7 +459,7 @@ type NameAssigner interface {
 
 type name_ struct {
 	Name string
-	Loc  *Loc
+	Loc  token.Pos
 }
 
 func (n name_) String() string {
@@ -332,11 +467,11 @@ func (n name_) String() string {
 }
 
 func (n name_) AtPosition() string {
-	if n.Loc == nil {
+	if n.Loc.Col == 0 && n.Loc.Line == 0 {
 		//panic(fmt.Errorf("Error in AtPosition(), Loc not set"))
 		return "Loc not set"
 	}
-	return n.Loc.String()
+	return "" + strconv.Itoa(n.Loc.Line) + " " + strconv.Itoa(n.Loc.Col) + "] "
 }
 
 func (n name_) Exists() bool {
@@ -346,18 +481,18 @@ func (n name_) Exists() bool {
 	return false
 }
 
-// =========== Loc_ =============================
+// // =========== Loc_ =============================
 
-type Loc struct {
-	Line   int
-	Column int
-}
+// type Loc struct {
+// 	Line   int
+// 	Column int
+// }
 
-func (l Loc) String() string {
-	return "at line: " + strconv.Itoa(l.Line) + " " + "column: " + strconv.Itoa(l.Column)
-	//return "" + strconv.Itoa(l.Line) + " " + strconv.Itoa(l.Column) + "] "
-}
+// func (l Loc) String() string {
+// 	return "at line: " + strconv.Itoa(l.Line) + " " + "column: " + strconv.Itoa(l.Column)
+// 	//return "" + strconv.Itoa(l.Line) + " " + strconv.Itoa(l.Column) + "] "
+// }
 
-type HasName interface {
-	AssignName(string, Loc_, err *[]error)
-}
+// type HasName interface {
+// 	AssignName(string, Loc_,)
+// }

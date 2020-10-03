@@ -2,13 +2,7 @@ package ast
 
 import (
 	"fmt"
-
-	"github.com/DynamoGraph/block"
-	"github.com/DynamoGraph/cache"
 	"github.com/DynamoGraph/db"
-	"github.com/DynamoGraph/ds"
-	"github.com/DynamoGraph/gql/varcache"
-	"github.com/DynamoGraph/util"
 )
 
 // eq(predicate, value)
@@ -18,53 +12,11 @@ import (
 // eq(predicate, [val1, val2, ..., valN])
 // eq(predicate, [$var1, "value", ..., $varN])
 
-//   eq(count(genre), 13))
-
-// type Arg1 interface {
-// 	arg1()
+// type QResultT struct {
+// 	PKey  util.UID
+// 	SortK string
+// 	Ty    string
 // }
-
-// type InnerFuncT interface {
-// 	innerFunc()
-// }
-
-// type InnerArg interface {
-// 	innerArg()
-// }
-
-// type ScalarPred string
-
-// func (p ScalarPred) arg1() {}
-
-// type UIDPred string
-
-// func (p UIDPred) innerArg() {}
-
-// type Variable string
-
-// func (v Variable) innerArg() {}
-
-// type ValFuncT func(v Variable) ValOut
-
-// func (p ValFuncT) arg1()      {}
-// func (p ValFuncT) innerFunc() {}
-
-// type CountFuncT func(predicate UIDPred) int
-
-// func (p CountFuncT) arg1()      {}
-// func (p CountFuncT) innerFunc() {}
-
-// type FuncT func(predfunc Farg1, value interface{}, nv []ds.NV, ty string) bool
-
-// type TyAttrCache map[Ty_Attr]blk.TyAttrD // map[Ty_Attr]blk.TyItem
-
-// var TyAttrC TyAttrCache
-
-type RootResultT struct {
-	PKey  util.UID
-	SortK string
-	Ty    string
-}
 
 // ==========================================================================================================
 
@@ -89,17 +41,67 @@ type RootResultT struct {
 // 	return nil
 // }
 
-// Root EQ function called during execution-root-query phase
-// Each RootResult will be Fetched then Unmarshalled (via UnmarshalCache) into []NV for each predicate.
+// eq function for root query called during execution-root-query phase
+// Each QResult will be Fetched then Unmarshalled (via UnmarshalCache) into []NV for each predicate.
 // The []NV will then be processed by the Filter function if present to reduce the number of elements in []NV
-func EQRootfunc(a FargI, value interface{}, nv []ds.NV, ty string) []RootResultT {
-	switch a.(type) {
-//case CountFunc:
+func EQ(a FargI, value interface{}) []db.QResult {
+
+	var (
+		err  error
+		uids []db.QResult
+	)
+
+	switch x := a.(type) {
+
+	case *CountFunc:
+
+		// for root stmt only this signature is valid: Count(<uid-pred>)
+
+		if y, ok := x.Arg.(*UidPred); !ok {
+
+			switch v := value.(type) {
+			case int:
+				uids, err = db.GSIQueryN(y.Name.Name, float64(v), db.EQ)
+			case float64:
+				uids, err = db.GSIQueryN(y.Name.Name, v, db.EQ)
+			case string:
+				uids, err = db.GSIQueryS(y.Name.Name, v, db.EQ)
+			case []interface{}:
+				//case Variable: // not on root func
+			}
+			if err != nil {
+				panic(fmt.Errorf("GSIQueryNum error: %s", err.Error()))
+			}
+
+		}
+
 	case ScalarPred:
-	//case Variable:
+
+		switch v := value.(type) {
+		case int:
+			uids, err = db.GSIQueryN(x.Name.Name, float64(v), db.EQ)
+		case float64:
+			uids, err = db.GSIQueryN(x.Name.Name, v, db.EQ)
+		case string:
+			uids, err = db.GSIQueryS(x.Name.Name, v, db.EQ)
+		case []interface{}:
+			//case Variable: // not on root func
+		}
+
 	}
 
+	return uids
+}
+
+// The []NV will then be processed by the Filter function if present to reduce the number of elements in []NV
+func GT(a FargI, value interface{}) []db.QResult {
 	return nil
+
+}
+
+func ALLOFTERMS(a FargI, value interface{}) []db.QResult {
+	return nil
+
 }
 
 // Filter EQ function called during execution-filter phase
@@ -107,102 +109,103 @@ func EQRootfunc(a FargI, value interface{}, nv []ds.NV, ty string) []RootResultT
 // value is the predicate value as appears in the expression e.g. eq(<pred>, 5) where 5 is the value.
 // nv is the contents of the cache (predicate,value) for the UID returned from the root func
 // ty is the type of the cache entry
-// bool dictates whether RootResult element (represented by nv argument) will be ignored or displayeda
-func EQFilter(predfunc Arg1, value interface{}, nv []ds.NV, ty string) bool {
-	var (
-		pTy    block.TyAttrD
-		ok     bool
-		nvPred string
-		nvVal  interface{}
-	)
-	// _, err := cache.FetchType(ty) // performed outside of FilterEQ maybe
-	// if err != nil {
-	// 	panic(fmt.Errorf("Type %q not found", ty))
-	// }
+// bool dictates whether QResult element (represented by nv argument) will be ignored or displayeda
+//
 
-	switch x := predfunc.(type) {
+//func eqFilter(predfunc Arg1, value interface{}, nv []ds.NV, ty string) bool {
+// 	var (
+// 		pTy    block.TyAttrD
+// 		ok     bool
+// 		nvPred string
+// 		nvVal  interface{}
+// 	)
+// 	// _, err := cache.FetchType(ty) // performed outside of FilterEQ maybe
+// 	// if err != nil {
+// 	// 	panic(fmt.Errorf("Type %q not found", ty))
+// 	// }
 
-	case InnerFuncT:
+// 	switch x := predfunc.(type) {
 
-		var c interface{}
+// 	case InnerFuncT:
 
-		c := x() // var(<variable>), count(<predicate>)
-		
+// 		var c interface{}
 
-		switch x.(type) {
-		case int64:
-			// check value is an int
-			if v, ok := value.(int64); !ok {
+// 		c := x() // var(<variable>), count(<predicate>)
 
-			} else {
-				if v == x {
-					return true
-				}
-				return false
-			}
-		case float:
-		}
+// 		switch x.(type) {
+// 		case int64:
+// 			// check value is an int
+// 			if v, ok := value.(int64); !ok {
 
-	case ScalarPred:
-		// find value for this predicate
-		var (
-			found bool
-		)
-		// search NV for expression predicate
-		for _, v := range nv {
-			if x == v.Name {
-				found = true
-				nvPred = v.Name
-				nvVal = v.Value
-				break
-			}
-		}
-		if !found {
-			panic(fmt.Errorf("predicate %q not found in ds.NV", x))
-		}
-		//
-		// get type of predicate from type info
-		if pTy, ok = cache.TyAttrC[ty+":"+x]; !ok { // TODO is this concurrent safe??
-			panic(fmt.Errorf("predicate %q not found in type map", x))
-		}
-		switch pTy.DT {
-		case "S":
-			var (
-				ok       bool
-				cacheVal string
-				exprVal  string
-			)
-			if cacheVal, ok = nvVal.(string); !ok {
-				panic(fmt.Errorf("predicate %q value type %q does not match type for predicate in type %q", nvPred, nvVal, ty))
-			}
-			// compare
-			if exprVal, ok = value.(string); !ok {
-				panic(fmt.Errorf("value %q for predicate %q does not match type %q", cacheVal, nvPred, ty))
-			}
-			//
-			//
-			//
-			if exprVal == cacheVal {
-				return true
-			}
-			return false
-		case "I":
-		case "F":
-		case "Bl":
-		}
+// 			} else {
+// 				if v == x {
+// 					return true
+// 				}
+// 				return false
+// 			}
+// 		case float:
+// 		}
 
-	}
-	return false
-}
+// 	case ScalarPred:
+// 		// find value for this predicate
+// 		var (
+// 			found bool
+// 		)
+// 		// search NV for expression predicate
+// 		for _, v := range nv {
+// 			if x == v.Name {
+// 				found = true
+// 				nvPred = v.Name
+// 				nvVal = v.Value
+// 				break
+// 			}
+// 		}
+// 		if !found {
+// 			panic(fmt.Errorf("predicate %q not found in ds.NV", x))
+// 		}
+// 		//
+// 		// get type of predicate from type info
+// 		if pTy, ok = cache.TyAttrC[ty+":"+x]; !ok { // TODO is this concurrent safe??
+// 			panic(fmt.Errorf("predicate %q not found in type map", x))
+// 		}
+// 		switch pTy.DT {
+// 		case "S":
+// 			var (
+// 				ok       bool
+// 				cacheVal string
+// 				exprVal  string
+// 			)
+// 			if cacheVal, ok = nvVal.(string); !ok {
+// 				panic(fmt.Errorf("predicate %q value type %q does not match type for predicate in type %q", nvPred, nvVal, ty))
+// 			}
+// 			// compare
+// 			if exprVal, ok = value.(string); !ok {
+// 				panic(fmt.Errorf("value %q for predicate %q does not match type %q", cacheVal, nvPred, ty))
+// 			}
+// 			//
+// 			//
+// 			//
+// 			if exprVal == cacheVal {
+// 				return true
+// 			}
+// 			return false
+// 		case "I":
+// 		case "F":
+// 		case "Bl":
+// 		}
+
+// 	}
+// 	return false
+// }
 
 // func lt() []ast.Result  { return nil }
 // func has() []ast.Result { return nil }
 
-funcs Var(varNm Variable) ValOut {
-	item:=variable.Get(varNm)
-	switch x:=item.(type);x {
-	case ast.EdgeT:
-	default:
-	
-	}
-} 
+// funcs Var(varNm Variable) ValOut {
+// 	item:=variable.Get(varNm)
+// 	switch x:=item.(type);x {
+// 	case ast.EdgeT:
+// 	default:
+
+// 	}
+// }

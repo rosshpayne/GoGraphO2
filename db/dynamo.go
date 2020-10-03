@@ -122,10 +122,11 @@ func GetTypeShortNames() ([]tyNames, error) {
 
 // Load Data Dictionary (DD) into memory
 //
-// TODO: create table DyGTypes and populate
+// TODO: create table DyGTypes and populat
+
 func LoadDataDictionary() (blk.TyIBlock, error) {
 
-	filt := expression.Name("Nm").BeginsWith(expression.Value("#")).Not()
+	filt := expression.BeginsWith(expression.Name("Nm"), "#").Not()
 	expr, err := expression.NewBuilder().WithFilter(filt).Build()
 	if err != nil {
 		return nil, newDBExprErr("LoadDataDictionary", "", "", err)
@@ -136,6 +137,7 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 		ExpressionAttributeValues: expr.Values(),
 	}
 	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	//
 	result, err := dynSrv.Scan(input)
 	if err != nil {
 		return nil, newDBSysErr("LoadDataDictionary", "Scan", err)
@@ -197,50 +199,50 @@ func loadTypeShortNames() ([]tyNames, error) {
 }
 
 // Has return list of types containing the attribute
-func Has(attrNm string) ([]string, error) {
+// func Has(attrNm string) ([]string, error) {
 
-	type tyNameItem struct {
-		Nm string
-	}
-	syslog(fmt.Sprintf("db.Has "))
-	keyC := expression.KeyEqual(expression.Key("Atr"), expression.Value(attrNm))
-	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
-	if err != nil {
-		return nil, newDBExprErr("Has", "", "", err)
-	}
-	//
-	input := &dynamodb.QueryInput{
-		KeyConditionExpression:    expr.KeyCondition(),
-		FilterExpression:          expr.Filter(),
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-	}
-	input = input.SetTableName("DyGTypes").SetIndexName("Atr-Nm-index").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
-	//
-	t0 := time.Now()
-	result, err := dynSrv.Query(input)
-	t1 := time.Now()
-	if err != nil {
-		return nil, newDBSysErr("Has", "Query", err)
-	}
-	syslog(fmt.Sprintf("Has: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
-	if int(*result.Count) == 0 {
-		return nil, newDBNoItemFound("Has", "", "", "Query")
-	}
-	ty := make([]string, *result.Count, *result.Count)
-	item := make([]tyNameItem, *result.Count, *result.Count)
+// 	type tyNameItem struct {
+// 		Nm string
+// 	}
+// 	syslog(fmt.Sprintf("db.Has "))
+// 	keyC := expression.KeyEqual(expression.Key("Atr"), expression.Value(attrNm))
+// 	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
+// 	if err != nil {
+// 		return nil, newDBExprErr("Has", "", "", err)
+// 	}
+// 	//
+// 	input := &dynamodb.QueryInput{
+// 		KeyConditionExpression:    expr.KeyCondition(),
+// 		FilterExpression:          expr.Filter(),
+// 		ExpressionAttributeNames:  expr.Names(),
+// 		ExpressionAttributeValues: expr.Values(),
+// 	}
+// 	input = input.SetTableName("DyGTypes").SetIndexName("Atr-Nm-index").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+// 	//
+// 	t0 := time.Now()
+// 	result, err := dynSrv.Query(input)
+// 	t1 := time.Now()
+// 	if err != nil {
+// 		return nil, newDBSysErr("Has", "Query", err)
+// 	}
+// 	syslog(fmt.Sprintf("Has: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
+// 	if int(*result.Count) == 0 {
+// 		return nil, newDBNoItemFound("Has", "", "", "Query")
+// 	}
+// 	ty := make([]string, *result.Count, *result.Count)
+// 	item := make([]tyNameItem, *result.Count, *result.Count)
 
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &item)
-	if err != nil {
-		return nil, newDBUnmarshalErr("Has", "", "", "UnmarshalList", err)
-	}
-	//
-	for i, v := range item {
-		ty[i] = v.Nm
+// 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &item)
+// 	if err != nil {
+// 		return nil, newDBUnmarshalErr("Has", "", "", "UnmarshalList", err)
+// 	}
+// 	//
+// 	for i, v := range item {
+// 		ty[i] = v.Nm
 
-	}
-	return ty, nil
-}
+// 	}
+// 	return ty, nil
+// }
 
 //TODO: move to table DyGTypes
 func FetchType(ty string) (blk.TyIBlock, error) {

@@ -7,7 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DynamoGraph/expression"
+	expr "github.com/DynamoGraph/gql/expression"
+
+	"github.com/DynamoGraph/cache"
 
 	"github.com/DynamoGraph/gql/ast"
 	"github.com/DynamoGraph/gql/lexer"
@@ -16,7 +18,7 @@ import (
 )
 
 type (
-	gqlFunc map[token.TokenType]ast.Gqlf
+	gqlFunc map[string]ast.FuncT
 
 	Parser struct {
 		l *lexer.Lexer
@@ -43,15 +45,19 @@ func init() {
 
 	rootFunc = make(gqlFunc)
 	// regiser Parser methods for each statement type
-	registerFn(token.EQ, eq)
-	registerFn(token.HAS, has)
+	registerFn(token.EQ, ast.EQ)
+	registerFn(token.GT, ast.GT)
+	registerFn(token.ALLOFTERMS, ast.ALLOFTERMS)
+	//	registerFn(token.HAS, has)
 }
 
-func registerFn(t token.TokenType, f ast.Gqlf) {
+func registerFn(t string, f ast.FuncT) {
 	rootFunc[t] = f
 }
 
-func New(l *lexer.Lexer) *Parser {
+func New(input string) *Parser {
+
+	l := lexer.New(input)
 	p := &Parser{
 		l: l,
 	}
@@ -66,13 +72,28 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
+// func New(l *lexer.Lexer) *Parser {
+// 	p := &Parser{
+// 		l: l,
+// 	}
+
+// 	// Read two tokens, to initialise curToken and peekToken
+// 	p.nextToken()
+// 	p.nextToken()
+// 	//
+// 	// remove cacheClar before releasing..
+// 	//
+// 	//ast.CacheClear()
+// 	return p
+// }
+
 // astsitory of all types defined in the graph
 
-func (p *Parser) loc() *ast.Loc {
-	//l,c  := p.l.Loc()
-	loc := p.curToken.Loc
-	return &ast.Loc{Line: loc.Line, Column: loc.Col}
-}
+// func (p *Parser) loc() *token.Pos. {
+// 	//l,c  := p.l.loc()
+// 	loc := p.curToken.Loc
+// 	return &ast.Loc{Line: loc.Line, Column: loc.Col}
+// }
 
 func (p *Parser) printToken(s ...string) {
 	if len(s) > 0 {
@@ -83,7 +104,7 @@ func (p *Parser) printToken(s ...string) {
 }
 
 func (p *Parser) hasError() bool {
-	if len(p.perror) > 17 || p.abort {
+	if len(p.perror) > 3 || p.abort {
 		return true
 	}
 	return false
@@ -91,6 +112,7 @@ func (p *Parser) hasError() bool {
 
 // addErr appends to error slice held in parser.
 func (p *Parser) addErr(s string) error {
+	fmt.Println("addErr: ", s)
 	if strings.Index(s, " at line: ") == -1 {
 		s += fmt.Sprintf(" at line: %d, column: %d", p.curToken.Loc.Line, p.curToken.Loc.Col)
 	}
@@ -101,7 +123,9 @@ func (p *Parser) addErr(s string) error {
 
 func (p *Parser) nextToken(s ...string) {
 	p.curToken = p.peekToken
-
+	if len(s) > 0 {
+		fmt.Println("nextToken: ", s[0])
+	}
 	p.peekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword etc.
 	if len(s) > 0 {
 		fmt.Printf("** Current Token: [%s] %s %s %s %s %s\n", s[0], p.curToken.Type, p.curToken.Literal, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
@@ -115,6 +139,10 @@ func (p *Parser) nextToken(s ...string) {
 
 // ===========================================================================================================
 
+func (p *Parser) ParseDocument() (*ast.RootStmt, []error) {
+	return p.ParseInput()
+}
+
 func (p *Parser) ParseInput() (*ast.RootStmt, []error) { // TODO: turn into ParseDocument
 
 	if p.curToken.Type == token.LBRACE {
@@ -124,43 +152,82 @@ func (p *Parser) ParseInput() (*ast.RootStmt, []error) { // TODO: turn into Pars
 		return nil, p.perror
 	}
 
-	x := p.parseRootStmt()
+	blk := p.parseRootStmt()
 
-	return x, p.perror
+	if len(blk) > 0 {
+		return blk[0], p.perror
+	}
+	return nil, p.perror
 
 }
 
-func (p *Parser) parseRootStmt() *ast.RootStmt {
+func (p *Parser) parseRootStmt() []*ast.RootStmt {
 	// Types: query, mutation, subscription
+	var block []*ast.RootStmt
 
-	stmt := &ast.RootStmt{}
+	for p.curToken.Type != token.EOF {
+		stmt := &ast.RootStmt{}
 
-	p.parseName(stmt, opt).parseFunction(stmt).parseFilter(&stmt.Filter).parseSelection(stmt.Select)
+		p.parseVarName(stmt, opt).parseFunction(stmt).parseFilter(&stmt.Filter).parseSelection(stmt)
 
-	if p.hasError() {
-		return nil
+		if p.hasError() {
+			return nil
+		}
+		fmt.Printf("stmt: %#v\n\n", *stmt)
+		fmt.Printf("curToken: %#v\n", p.curToken)
+		if p.curToken.Type == token.RBRACE {
+			p.nextToken()
+		}
+		preds := stmt.RetrievePredicates()
+		for _, v := range preds {
+			fmt.Println("predicates: ", v)
+		}
+		block = append(block, stmt)
 	}
 
-	return stmt
+	return block
 
+}
+
+func (p *Parser) parsePredicates(r *ast.RootStmt) {
+
+	r.RetrievePredicates()
+}
+
+func (p *Parser) parseName(f ast.NameAssigner, optional ...bool) *Parser { // type f *ast.Executable,  f=passedInArg converts argument to f
+	return p.parseVarName(f, optional...)
 }
 
 // parseName will validate input data against GraphQL name requirement and assign to a field called Name
-func (p *Parser) parseName(f ast.NameAssigner, optional ...bool) *Parser { // type f *ast.Executable,  f=passedInArg converts argument to f
+func (p *Parser) parseVarName(f ast.NameAssigner, optional ...bool) *Parser { // type f *ast.Executable,  f=passedInArg converts argument to f
 	// check if appropriate thing to do
 	if p.hasError() {
 		return p
 	}
 	//p.nextToken()
 	// alternative tokens, LPAREN+variableDef, ATSIGN+directive, LBRACE-selectionSet
+	if p.curToken.Type == token.IDENT && p.peekToken.Type == token.AS {
+		// var specified
+
+		var v = &ast.Variable{}
+		v.AssignName(p.curToken.Literal, p.curToken.Loc)
+		if x, ok := f.(*ast.RootStmt); !ok {
+			panic(fmt.Errorf("pareVarName: Not a  RootStmt"))
+		} else {
+			x.Var = v
+		}
+		p.nextToken() // read over var name
+		p.nextToken() // read over as
+
+	}
 	if p.curToken.Type == token.IDENT {
 
-		f.AssignName(p.curToken.Literal, p.loc(), &p.perror)
+		f.AssignName(p.curToken.Literal, p.curToken.Loc)
 		p.nextToken() // read over name
 
-	} else if len(optional) == 0 {
-		p.addErr(fmt.Sprintf(`Expected an identifer got %s of %s`, p.curToken.Type, p.curToken.Literal))
+	} else {
 
+		p.addErr(fmt.Sprintf("expected query name got %q", p.curToken.Literal))
 	}
 
 	return p
@@ -180,32 +247,35 @@ func (p *Parser) parseName(f ast.NameAssigner, optional ...bool) *Parser { // ty
 //  }
 //}
 func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
-
+	// root only ...
 	// eq(predicate, value)
+	// eq(count(predicate), value)
+	//
+	// in filter clause
 	// eq(val(varName), value)
 	// eq(predicate, val(varName))
-	// eq(count(predicate), value)
 	// eq(predicate, [val1, val2, ..., valN])
 	// eq(predicate, [$var1, "value", ..., $varN])
 
-	// type GQLFunc struct {
-	// 	FName Name_ // for String() purposes
-	// 	F     funcs.FuncT
-	// 	Farg  funcs.Arg1
-	// 	//inner function val(<variable>), count(<uidpred>)
-	// 	IFName Name_            // for String() purposes
-	// 	IF     funcs.InnerFuncT // either count, var
-	// 	IFarg  funcs.InnerArg   // either uidPred, variable
+	// type RootStmt struct {
+	// 	Name    name_
+	// 	Var.    ast.Variable
+	// 	Lang    string
+	// 	// (func: eq(name@en, "Steven Spielberg”))
+	// 	F GQLFunc // generates []uid from GSI data io.Writer Write([]byte) (int, error)
+	// 	// @filter( has(director.film) )
+	// 	Filter *expr.Expression //
+	// 	Select SelectList
 	// 	//
-	// 	Value interface{} // scalar int, bool, float, string. List of string. List of $var, string.
+	// 	PredList []string
 	// }
 
 	// 	type GQLFunc struct {
-	// 	Name      string      // eq, le, lt, anyofterms, someofterms
-	//  Lang	  string
-	// 	Predicate string      // Name,
-	// 	Value     interface{} // scalar int, bool, float, string. List of string. List of $var, string.
-	// 	Modifier  string      // count(), val()
+	// 	FName name_ // for String() purposes
+	// 	F     FuncT
+	// 	Farg  FargI // either predicate, count, var
+	// 	//	IFarg InnerArgI   // either uidPred, variable
+	// 	Value interface{} //  string,int,float,$var, List of string,int,float,$var
 	// }
 
 	if p.hasError() {
@@ -231,60 +301,82 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 		p.addErr(fmt.Sprintf(`Expected a function  got %s instead`, p.curToken.Literal))
 		return p
 	}
-	switch x := p.curToken.Literal; x {
+	//
+	// root function
+	//
+	switch p.curToken.Type {
 
-	case token.EQ:
-		rf.FName = x
-		rf.F = funcs.RootEQ
+	case token.RFUNC:
+		rf.AssignName(p.curToken.Literal, p.curToken.Loc)
+		rf.F = rootFunc[p.curToken.Literal]
 
-	case token.LT:
-		rf.FName = x
-		rf.F = funcs.RootLT
+		// case token.EQ:
+		// 	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
+		// 	rf.F = ast.EQRoot
+
+		// case token.GT:
+		// 	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
+		// 	rf.F = ast.GtRoot
+
+		// case token.LT:
+		// 	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
+		//rf.F = lt
 		//
 		// ...
 		//
 	}
-	p.nextToken() // read over func
+	p.nextToken() // read over eq,lt...
 	// (
 	if p.curToken.Type != token.LPAREN {
 		p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
 	}
 	p.nextToken() // read over (
-
+	///
+	// argument to func
+	//
+	fmt.Printf("2: %#v\n", p.curToken)
 	switch p.curToken.Type {
 
 	case token.IDENT:
 		if !cache.IsScalarPred(p.curToken.Literal) {
 			p.addErr(fmt.Sprintf(`Predicate %s is not a scalar in any type`, p.curToken.Literal))
-			return
+			// return p
 		}
-		rf.Farg = funcs.ScalarPred(p.curToken.Literal)
-		p.nextToken() // read over identier
+		s := ast.ScalarPred{}
+		s.AssignName(p.curToken.Literal, p.curToken.Loc)
+		rf.Farg = s
 
-	case token.MFUNC:
-		switch p.curToken.Literal {
-		case token.COUNT:
-			rf.IFName = token.COUNT
-			rf.IF = funcs.Count
-		case token.VAL:
-			rf.IFName = token.VAL
-			rf.IF = funcs.Val
-		}
-		p.nextToken() // read over modifier
+		p.nextToken("read over identifer") // read over identier
+
+	case token.COUNT:
+
+		cfunc := &ast.CountFunc{}
+		p.nextToken() // read over count
+
 		if p.curToken.Type != token.LPAREN {
 			p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
 			return p
 		}
 		p.nextToken() // read over (
+		//
+		// arg to Count
+		///
 		if p.curToken.Type != token.IDENT {
-			p.addErr(fmt.Sprintf(`Expected identifier got %s`, p.curToken.Literal))
-			return p
+			if p.curToken.Literal == "UID" {
+				p.addErr(`UID is not appropriate for a root function. Use as predicate in selection list or in filter expressions`)
+			} else {
+				p.addErr(fmt.Sprintf(`Expected identifier got %s`, p.curToken.Literal))
+			}
 		}
-		if rf.IF == funcs.Count {
-			rf.IFarg = funcs.UIDPred(p.curToken.Literal)
-		} else {
-			rf.IFarg = funcs.Variable(p.curToken.Literal)
+		if !cache.IsUidPred(p.curToken.Literal) {
+			p.addErr(fmt.Sprintf(`%q must be a UID predicate in some type`, p.curToken.Literal))
 		}
+		// assign to CountFunc
+		a := &ast.UidPred{}
+		a.AssignName(p.curToken.Literal, p.curToken.Loc)
+		cfunc.Arg = a
+		rf.Farg = cfunc
+
 		p.nextToken() // read over identier
 		p.nextToken() // read over )
 
@@ -292,7 +384,10 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 		p.addErr(fmt.Sprintf(`Expected an identifier or modifer function got %s`, p.curToken.Literal))
 		return p
 	}
+	//
 	// parse value
+	//
+	fmt.Printf("3: %#v\n", p.curToken)
 	switch p.curToken.Type {
 
 	case token.STRING:
@@ -330,15 +425,19 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 			case token.DOLLAR:
 				p.nextToken() // read over $
 				if p.curToken.Type == token.IDENT {
-					vs = append(vs, ast.VarName(p.curToken.Literal))
+					v := ast.Variable{}
+					v.AssignName(p.curToken.Literal, p.curToken.Loc)
+					vs = append(vs, v)
 				} else {
 					p.addErr(fmt.Sprintf(`Expected variable name got %s`, p.curToken.Literal))
 				}
 			}
 		}
-		p.nextToken() // read over ]
-	}
 
+		rf.Value = vs
+	}
+	p.nextToken("read over value...")
+	fmt.Printf("4: %#v\n", p.curToken)
 	for i := 0; i < 2; i++ {
 		if p.curToken.Type != token.RPAREN {
 			p.addErr(fmt.Sprintf(`Expected )  got %s instead`, p.curToken.Literal))
@@ -346,15 +445,21 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 		}
 		p.nextToken() // read over )
 	}
+	fmt.Printf("End of parseFunction..  %#v\n", rf)
 	return p
 
 }
 
 func (p *Parser) parseFilter(s **expr.Expression) *Parser {
 
+	if p.hasError() {
+		return p
+	}
 	// @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))
 	fmt.Println("in parseFilter: ", p.curToken.Literal)
+	fmt.Printf("in parseFilter: %#v\n", p.curToken)
 	if p.hasError() || p.curToken.Type != token.ATSIGN {
+		fmt.Printf("in parseFilter: return..\n")
 		return p
 	}
 	p.nextToken() // read over @
@@ -370,40 +475,72 @@ func (p *Parser) parseFilter(s **expr.Expression) *Parser {
 		p.addErr(fmt.Sprintf(`Expected (  got %s instead`, p.curToken.Literal))
 		return p
 	}
-	*s = expression.New(exprInput) // TODO should return new rLoc, cLoc
+	*s = expr.New(exprInput) // TODO should return new rLoc, cLoc
 	return p
 }
 
-func (p *Parser) parseSelection(s ast.SelectList) *Parser {
+func (p *Parser) parseSelection(r ast.SelectI) *Parser {
 
-	for p.curToken.NextToken; p.curToken.Type != token.RBRACE; p.curToken.NextToken {
+	if p.hasError() {
+		return p
+	}
+	var s ast.SelectList
+	fmt.Printf("in parseSelection: %#v\n", p.curToken)
+	if p.curToken.Type != token.LBRACE {
+		p.addErr(fmt.Sprintf(`expected a "{" got a %q`, p.curToken.Literal))
+	}
+	for p.nextToken(); p.curToken.Type != token.RBRACE; {
 
-		e = &ast.EdgeT{}
+		e := &ast.EdgeT{}
 
 		p.parseVarAlias(e).parseEdge(e)
 
 		s = append(s, e)
 
+		fmt.Printf("in parseSelection loop: %s\n", p.curToken.Type)
+
+		if p.curToken.Type == token.RBRACE {
+			break
+		}
+
 	}
+	r.AssignSelectList(s)
+	fmt.Printf("end parseSelection %#v\n", s)
+	p.nextToken() // read over }
+	//	panic(fmt.Errorf("XX"))
+	return p
 }
 
 func (p *Parser) parseVarAlias(e *ast.EdgeT) *Parser {
 
-	if p.curToken.Type == token.IDENT && p.peekToken.Type == token.COLON {
-
-		e.AssignName(p.curToken.Literal, p.curToken.Loc())
-
+	fmt.Printf("in parseVarAlias: %#v\n", p.curToken)
+	if p.curToken.Type == token.RBRACE {
+		p.addErr("No predicates specified in selection set")
+		return p // must return
 	}
-	if p.curToken.Type == token.IDENT && p.peekToken.Type == token.AS {
 
-		e.AssignVarName(p.curToken.Literal, p.curToken.Loc())
+	switch {
+	case p.curToken.Type == token.IDENT && p.peekToken.Type == token.COLON:
+		fmt.Println("Alias ", p.curToken.Literal)
+		e.AssignName(p.curToken.Literal, p.curToken.Loc)
+		p.nextToken() // read over IDENT
+		p.nextToken() // read over :
+		fmt.Printf("Next %#v\n", p.curToken)
+
+	case p.curToken.Type == token.IDENT && p.peekToken.Type == token.AS:
+		fmt.Println("Variable ", p.curToken.Literal)
+		e.AssignVarName(p.curToken.Literal, p.curToken.Loc)
 
 		st := &variable.Item{Name: p.curToken.Literal, Edge: e}
 		st.Add()
-	}
+		p.nextToken() // read over IDENT
+		p.nextToken() // read over as
 
-	p.nextToken() // read over IDENT
-	p.nextToken() // read over : or as
+		//default:
+
+		// not a variable or alias...
+
+	}
 
 	return p
 }
@@ -486,98 +623,139 @@ func (p *Parser) parseEdge(e *ast.EdgeT) *Parser {
 	// * <scalar-predicate>
 	// * <uid-predicate> { SelectList }
 	// * <uid predicate> @filter { SelectList }
+	// *  totalDirectors : count(uid)
 	// * avg(val(<variable>)), sum, min, max
 	// * val(<variable>)
 	// * variable as <uidPred>     // query variable
 	// * variable as <scalarPred>  // value variable
 	// * uid
+
+	if p.hasError() {
+		return p
+	}
+	fmt.Printf("In parseEdge: %#v  %#v\n", p.curToken, p.peekToken)
+
 	switch p.curToken.Type {
 
-	case IDENT:
+	case token.IDENT:
 		// * <scalar-predicate>
 		// * <uid-predicate> { SelectList }
 		// * <uid predicate> @filter { SelectList }
 		ident := p.curToken.Literal
-		p.nextToken() // read over IDENT
 		if p.peekToken.Type == token.ATSIGN || p.peekToken.Type == token.LBRACE {
 			if !cache.IsUidPred(ident) {
-				p.addErr("%q is not a uid-predicate", ident)
+				p.addErr(fmt.Sprintf("%q is not a uid-predicate", ident))
 			}
 			//
-			e.Edge = &ast.UidPred{}
-			p.parseFilter(&e.Filter).parseSelection(e.Select)
+			fmt.Println("parseEdge: IDENT uid-pred")
+			uidpred := &ast.UidPred{}
+			uidpred.AssignName(p.curToken.Literal, p.curToken.Loc)
+			e.Edge = uidpred
+			//p.parseFilter(uidpred.Filter).parseSelection(uidpred.Select) // TODO: remove comment...
+			p.nextToken() // read over uid-pred
+			if p.curToken.Type == token.ATSIGN {
+				p.parseFilter(&uidpred.Filter)
+			}
+			p.parseSelection(uidpred)
 
 		} else {
+
+			fmt.Println("parseEdge: IDENT scalar-pred")
 			if !cache.IsScalarPred(ident) {
-				p.addErr("%q is not a uid-pred", x)
+				p.addErr(fmt.Sprintf("%q is not a scalar-pred", ident))
 			}
 			//
-			e.Edge = &ast.ScalarPred{}
-			p.parseName(e.Edge)
+			spred := &ast.ScalarPred{}
+			spred.AssignName(p.curToken.Literal, p.curToken.Loc)
+			e.Edge = spred
+			p.nextToken() // read over predicate
 		}
+		fmt.Printf("XXEdge: %#v\n", e.Edge)
+	// case token.AGFUNC:  // not applicable to root func
+	// 	// * avg(val(<variable>)), sum, max, min,
+	// 	// * val(<variable>)
 
-	case AGFUNC:
-		// * avg(val(<variable>)), sum, max, min,
-		// * val(<variable>)
+	// 	agf := &ast.AggrFunc{}
+	// 	agf.AssignName(p.curToken.Literal, p.curToken.Loc)
+	// 	e.Edge = agf
+	// 	p.nextToken() // read over count
+	// 	if p.curToken.Type != token.LPAREN {
+	// 		p.addErr(fmt.Sprintf("Expected ( got %s", p.curToken.Literal))
+	// 	}
+	// 	p.nextToken() // read over (
+	// 	//
+	// 	if p.curToken.Type != token.VAL {
+	// 		p.addErr(fmt.Sprintf(`Expected "val" got %s`, p.curToken.Literal))
+	// 	}
+	// 	p.nextToken() // read over val
+	// 	p.nextToken() // read over (
+	// 	//
+	// 	v := ast.Variable{}
+	// 	v.AssignName(p.curToken.Literal, p.curToken.Loc)
+	// 	e.Edge.Arg = v
+	// 	//to execute variable.Count(p.nextToken.Literal)
+	// 	p.nextToken() // read over )
 
-		e.Edge = &ast.AggrFunc{}
-		e.Edge.AssignName(p.nextToken.Literal, p.nextToken.Loc())
-		p.nextToken() // read over count
-		if p.curToken.Type != token.LPAREN {
-			p.addErr("Expected ( got %s", p.curToken.Literal)
-		}
-		p.nextToken() // read over (
-		//
-		if p.curToken.Type != token.VAL {
-			p.addErr(`Expected "val" got %s`, p.curToken.Literal)
-		}
-		p.nextToken() // read over val
-		p.nextToken() // read over (
-		//
-		v := ast.Variable{}
-		v.AssignName(p.curToken.Literal, p.curToken.Loc())
-		e.Edge.Arg = v
-		//to execute variable.Count(p.nextToken.Literal)
-		p.nextToken() // read over )
-
-	case COUNT:
+	case token.COUNT:
 		// actors as performance.actor {
 		//   totalRoles as count(actor.film)
 		// }
 		// * abc as count(<uid predicate>|<UID>)
 		// totalDirectors : count(uid)
-		e.Edge = &ast.CountFunc{}
-		e.Edge.AssignName(p.nextToken.Literal, p.nextToken.Loc())
+		fmt.Println("COUNT..............")
+		cf := &ast.CountFunc{}
+		e.Edge = cf
 		p.nextToken() // read over count
+		if p.curToken.Type != token.LPAREN {
+			p.addErr(fmt.Sprintf("expected ( got %s", p.curToken.Literal))
+		}
+		p.nextToken() // read over (
 		switch p.curToken.Type {
 
 		case token.IDENT:
 			if !cache.IsUidPred(p.curToken.Literal) {
-				p.addErr("%q is not a uid-predicate", ident)
+				p.addErr(fmt.Sprintf("%q is not a uid-predicate", p.curToken.Literal))
 			}
 			//
-			pred := &UidPred{}
-			pred.AssignName(p.curToken.Literal, p.curToken.Loc())
-			e.Edge.Arg = pred
+			fmt.Printf("COUNT IDENT- create uidPred: %#v\n", p.curToken)
+			pred := &ast.UidPred{}
+			pred.AssignName(p.curToken.Literal, p.curToken.Loc)
+			cf.Arg = pred
+			p.nextToken() // read over uid-pred
+			fmt.Printf("COUNT IDENT: %#v\n", p.curToken)
+			if p.curToken.Type != token.RPAREN {
+				p.addErr(fmt.Sprintf("expected ) got %s", p.curToken.Literal))
+			}
+			p.nextToken("") // read over )
+			fmt.Printf("COUNT IDENT 3: %#v\n", p.curToken)
 
 		case token.UID:
-			e.Edge.Arg = UID{}
+			cf.Arg = ast.UID{}
+			p.nextToken() // read over uid
+			if p.curToken.Type != token.RPAREN {
+				p.addErr(fmt.Sprintf("expected ) got %s", p.curToken.Literal))
+			}
+			p.nextToken() // read over )
 		}
 
-	case VAL:
+	case token.VAL:
 		// numRoles : val(roles)
 		p.nextToken() // read over val
-		p.nextToken() // read ove (
-		if p.curToken.Type != token.DOLLAR {
-			p.addErr("Expected ( got %s", p.curToken.Literal)
+		if p.curToken.Type != token.LPAREN {
+			p.addErr(fmt.Sprintf("Expected ( got %s", p.curToken.Literal))
 		}
-		p.nextToken() // read over variable
-		e.Edge = &ast.Variable{}
-		e.Edge.AssignName(p.nextToken.Literal, p.nextToken.Loc())
-		p.nextToken() // read ove )
-
-	case UID:
+		p.nextToken() // read over (
+		v := &ast.Variable{}
+		v.AssignName(p.curToken.Literal, p.curToken.Loc)
+		e.Edge = v
+		p.nextToken() // read over )
+		if p.curToken.Type != token.RPAREN {
+			p.addErr(fmt.Sprintf("expected ( got %s", p.curToken.Literal))
+		}
+	case token.UID:
 		e.Edge = &ast.UID{}
 		p.nextToken() // read over uid
 	}
+
+	return p
 }
