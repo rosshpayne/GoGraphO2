@@ -309,7 +309,8 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	idx := strings.IndexByte(sortK, '#')
 
-	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1])
+	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1]) //TODO: query all items in UID partition. Sortk should not be shortened. It should search based on entire sortk like below.
+	// to fix need to add Ty item to each uid-pred so type is returned from {uid,sortk} query
 	//	pnd, err = gc.FetchForUpdate(pUID, sortK)
 	if err != nil {
 		pnd.Unlock()
@@ -447,7 +448,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		}
 	}()()
 	//
-	// this API deals only in UID that are known to exist - hence NodeExists() not necessary
+	// this API deals only in UID that are unknown- hence NodeExists()  necessary
 	//
 	syslog.Log("AttachNode2:", fmt.Sprintf("Start: attach  %q to %q ", cUID.String(), pUID.String()))
 	if ok, err := db.NodeExists(cUID); !ok {

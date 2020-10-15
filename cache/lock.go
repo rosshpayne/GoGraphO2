@@ -122,6 +122,13 @@ func (g *GraphCache) LockPredR(uid util.UID, sortk ...string) error {
 	return nil
 }
 
+func (g *GraphCache) FetchNodeExec(uid util.UID, ty string) (*NodeCache, error) {
+	return nil, nil
+}
+func (g *GraphCache) FetchNodeExec_(uid util.UID, sortk string, ty string) (*NodeCache, error) {
+	return nil, nil
+}
+
 func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var sortk_ string
 	fmt.Printf("** Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk)
@@ -144,6 +151,7 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 		if err != nil {
 			return nil, err
 		}
+
 		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
 		en := e.NodeCache
 		en.Uid = uid

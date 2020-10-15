@@ -13,12 +13,13 @@ import (
 	"github.com/DynamoGraph/util"
 )
 
-func TestUnmarshalCache(t *testing.T) {
+func TestUnmarshalNodeCache(t *testing.T) {
 	t0 := time.Now()
 	ch := cache.NewCache()
 
 	// TODO fetch data rather than hardwire UID.
-	uidb64 := util.UIDb64("GRPs/RUeRiask2dlRBvc5w==")
+	uidb64 := util.UIDb64("Mq2RAESKSdyNSwzqD5d84A==")
+	//uidb64 := util.UIDb64("ScNIRTc7T7WYi6uypbs1CA==")
 	uid := uidb64.Decode()
 	fmt.Printf("uid = [%08b] - %d \n", uid, len(uid))
 	// establish node cache
@@ -31,21 +32,25 @@ func TestUnmarshalCache(t *testing.T) {
 	fmt.Println()
 	fmt.Println("DB Access: ", t1.Sub(t0))
 	var a = ds.ClientNV{ // represents the attributes in a Graph Query
-		&ds.NV{Name: "Age"},
-		&ds.NV{Name: "Name"},
-		&ds.NV{Name: "DOB"},
-		&ds.NV{Name: "Cars"},
-		&ds.NV{Name: "Siblings"},
-		&ds.NV{Name: "Siblings:Name"},
-		&ds.NV{Name: "Siblings:Age"},
-		&ds.NV{Name: "Siblings:DOB"},
+		&ds.NV{Type: "Person", Name: "Age"},
+		&ds.NV{Type: "Person", Name: "Name"},
+		&ds.NV{Type: "Person", Name: "DOB"},
+		&ds.NV{Type: "Person", Name: "Cars"},
+		&ds.NV{Type: "Person", Name: "Siblings"},
+		&ds.NV{Type: "Person", Name: "Siblings:Name"},
+		&ds.NV{Type: "Person", Name: "Siblings:Age"},
+		&ds.NV{Type: "Person", Name: "Siblings:DOB"},
+		&ds.NV{Type: "Person", Name: "Friend"},
+		&ds.NV{Type: "Person", Name: "Friend:Name"},
+		&ds.NV{Type: "Person", Name: "Friend:Age"},
+		&ds.NV{Type: "Person", Name: "Friend:DOB"},
 	}
 	//
 	// UnmarshalQLMap, populates NV{Value} given NV{Name}
 	//
 	//err = nc.UnmarshalCache(ty, a) // TODO: get rid of Person argument
 	fmt.Println("========================.   UnmarshalCache(a).    ======================= ")
-	err = nc.UnmarshalCache(a)
+	err = nc.UnmarshalNodeCache(a)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,13 +185,13 @@ func TestAttachNode(t *testing.T) {
 	//
 	// }
 	var a = ds.ClientNV{ // represents the attributes in a Graph Query
-		&ds.NV{Name: "Age"},
-		&ds.NV{Name: "Name"},
-		&ds.NV{Name: "DOB"},
-		&ds.NV{Name: "Cars"},
-		&ds.NV{Name: "Siblings"},
-		&ds.NV{Name: "Siblings:Name"},
-		&ds.NV{Name: "Siblings:Age"},
+		&ds.NV{Type: "Person", Name: "Age"},
+		&ds.NV{Type: "Person", Name: "Name"},
+		&ds.NV{Type: "Person", Name: "DOB"},
+		&ds.NV{Type: "Person", Name: "Cars"},
+		&ds.NV{Type: "Person", Name: "Siblings"},
+		&ds.NV{Type: "Person", Name: "Siblings:Name"},
+		&ds.NV{Type: "Person", Name: "Siblings:Age"},
 	}
 	// err = np.UnmarshalCache(a)
 	// if err != nil {
@@ -236,13 +241,13 @@ func TestDetachNode(t *testing.T) {
 	// 	t.Error(err)
 	// }
 	var a = ds.ClientNV{ // represents the attributes in a Graph Query
-		&ds.NV{Name: "Age"},
-		&ds.NV{Name: "Name"},
-		&ds.NV{Name: "DOB"},
-		&ds.NV{Name: "Cars"},
-		&ds.NV{Name: "Siblings"}, // "G#:S"
-		&ds.NV{Name: "Siblings:Name"},
-		&ds.NV{Name: "Siblings:Age"},
+		&ds.NV{Type: "Person", Name: "Age"},
+		&ds.NV{Type: "Person", Name: "Name"},
+		&ds.NV{Type: "Person", Name: "DOB"},
+		&ds.NV{Type: "Person", Name: "Cars"},
+		&ds.NV{Type: "Person", Name: "Siblings"}, // "G#:S"
+		&ds.NV{Type: "Person", Name: "Siblings:Name"},
+		&ds.NV{Type: "Person", Name: "Siblings:Age"},
 	}
 	// err = np.UnmarshalCache(a)
 	// if err != nil {
@@ -288,13 +293,13 @@ func TestDetachxNodeNotAttached(t *testing.T) {
 		t.Error(err)
 	}
 	var a = ds.ClientNV{ // represents the attributes in a Graph Query
-		&ds.NV{Name: "Age"},
-		&ds.NV{Name: "Name"},
-		&ds.NV{Name: "DOB"},
-		&ds.NV{Name: "Cars"},
-		&ds.NV{Name: "Siblings"}, // "G#:S"
-		&ds.NV{Name: "Siblings:Name"},
-		&ds.NV{Name: "Siblings:Age"},
+		&ds.NV{Type: "Person", Name: "Age"},
+		&ds.NV{Type: "Person", Name: "Name"},
+		&ds.NV{Type: "Person", Name: "DOB"},
+		&ds.NV{Type: "Person", Name: "Cars"},
+		&ds.NV{Type: "Person", Name: "Siblings"}, // "G#:S"
+		&ds.NV{Type: "Person", Name: "Siblings:Name"},
+		&ds.NV{Type: "Person", Name: "Siblings:Age"},
 	}
 	err = np.UnmarshalCache(a)
 	if err != nil {
@@ -331,13 +336,13 @@ func TestAttachxNodeExisting(t *testing.T) {
 		t.Error(err)
 	}
 	var a = ds.ClientNV{ // represents the attributes in a Graph Query
-		&ds.NV{Name: "Age"},
-		&ds.NV{Name: "Name"},
-		&ds.NV{Name: "DOB"},
-		&ds.NV{Name: "Cars"},
-		&ds.NV{Name: "Siblings"},
-		&ds.NV{Name: "Siblings:Name"},
-		&ds.NV{Name: "Siblings:Age"},
+		&ds.NV{Type: "Person", Name: "Age"},
+		&ds.NV{Type: "Person", Name: "Name"},
+		&ds.NV{Type: "Person", Name: "DOB"},
+		&ds.NV{Type: "Person", Name: "Cars"},
+		&ds.NV{Type: "Person", Name: "Siblings"},
+		&ds.NV{Type: "Person", Name: "Siblings:Name"},
+		&ds.NV{Type: "Person", Name: "Siblings:Age"},
 	}
 	err = np.UnmarshalCache(a)
 	if err != nil {

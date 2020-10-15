@@ -91,6 +91,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 	//	slog.Log("SaveRDFNode: ", fmt.Sprintf("UID received  : %s", UID.String()))
 
 	var (
+		NdUid     util.UID
 		tyShortNm string
 		ok        bool
 	)
@@ -424,13 +425,13 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 
 					UID := <-localCh
 
-					slog.Log("SaveRDFNode: ", fmt.Sprintf("Received UID: %s\n", UID.String()))
-
 					uid[i] = []byte(UID)
 					xf[i] = blk.ChildUID
 					id[i] = 0
 
 				}
+				NdUid = UID // save to use to create a Type item
+				slog.Log("SaveRDFNode: ", fmt.Sprintf("Received UID: %T %v %s\n", UID, UID, UID.String()))
 				a := Item{PKey: UID, SortK: nv.Sortk, Nd: uid, XF: xf, Id: id}
 				//e:= uuid.Edges{	PKey  : UID, SortK: nv.SortK, Nd : uid}
 				//execute AttachNode based on data in a
@@ -438,7 +439,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 				slog.Log("SaveRDFNode: ", fmt.Sprintf("a: = %#v", a))
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
+					return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
 				return fmt.Errorf(" Value is not an string slice ")
@@ -448,17 +449,50 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) (err error
 		//
 		// PutItem
 		//
-		{
-			t0 := time.Now()
-			ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-				TableName:              aws.String("DyGraph"),
-				Item:                   av,
-				ReturnConsumedCapacity: aws.String("TOTAL"),
-			})
-			t1 := time.Now()
-			syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
-			if err != nil {
-				return fmt.Errorf("XX Error: PutItem, %s", err.Error())
+
+		t0 := time.Now()
+		ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
+			TableName:              aws.String("DyGraph"),
+			Item:                   av,
+			ReturnConsumedCapacity: aws.String("TOTAL"),
+		})
+		t1 := time.Now()
+		syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+		if err != nil {
+			return fmt.Errorf("XX Error: PutItem, %s", err.Error())
+		}
+		//
+		// add a Type item for each uid-pred
+		//
+		if nv.DT == "Nd" {
+			{
+				type Item struct {
+					PKey  []byte
+					SortK string
+					Ty    string // node type
+				}
+				syslog(fmt.Sprintf("Adding Type item for uid-pred %s %s to %s UID: %s", nv.Ty, nv.Sortk, nv.Sortk+"#T", NdUid.String()))
+				// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
+				a := Item{PKey: NdUid, SortK: nv.Sortk + "#T", Ty: tyShortNm}
+				av, err = dynamodbattribute.MarshalMap(a)
+				if err != nil {
+					syslog(fmt.Sprintf("XX %s: %s", "Error: failed to marshal type definition ", err.Error()))
+					return fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
+				}
+				{
+					t0 := time.Now()
+					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
+						TableName:              aws.String("DyGraph"),
+						Item:                   av,
+						ReturnConsumedCapacity: aws.String("TOTAL"),
+					})
+					t1 := time.Now()
+					syslog(fmt.Sprintf("SaveRDFNode for Ty: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+					if err != nil {
+						syslog(fmt.Sprintf("Error: PutItem for uid-pred type  %s", err.Error()))
+						return fmt.Errorf("Error: PutItem for uid-pred type  %s", err.Error())
+					}
+				}
 			}
 		}
 	}

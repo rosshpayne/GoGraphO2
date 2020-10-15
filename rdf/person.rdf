@@ -3,7 +3,8 @@ _:abc Name "Ross Payne" .
 _:abc DOB "13 March 1958" .
 _:abc Age "62" .
 _:abc Siblings _:b  .
-
+_:abc Friends _:d .
+_:abc Friends _:c .
 _:abc Siblings _:c  .
 _:abc Cars "Fiat"  .
 _:abc Cars "Honda"  .
@@ -17,7 +18,9 @@ _:b Siblings _:abc  .
 _:b Siblings _:c  .
 _:b Cars "Holden Commodore"  .  // specify type for blank node 
 _:b Cars "Honda"  .
-_:b Cars "VW Golf"   .  
+_:b Cars "VW Golf"   . 
+_:b Friends _:abc .
+_:b Friends _:c .
 
 _:c __type "Person" . /* specify type for blank node */
 _:c Name "Ian Payne"  .
@@ -26,6 +29,8 @@ _:c Age "67"	.
 _:c Siblings _:abc	.
 _:c Siblings _:b	.
 _:c Friends _:abc .
+_:c Friends _:b .
+_:c Friends _:d .
 _:c Cars "VW Passat"  .
 _:c Cars "Mitsubishi"  .
 _:c Cars "Ford Laser"   .  
@@ -34,6 +39,8 @@ _:c Cars "Honda"   .
 _:d __type "Person" . /* specify type for blank node */
 _:d Name "Phil Smith"  .
 _:d Friends _:abc .
+_:d Friends _:b .
+_:d Friends _:c .
 _:d DOB "17 June 1976"  .
 _:d Age "36"	.
 _:d Cars "Roll Roycet"  .

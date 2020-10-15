@@ -1,21 +1,28 @@
 package ast
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/DynamoGraph/db"
+	"github.com/DynamoGraph/ds"
 	expr "github.com/DynamoGraph/gql/expression"
 	"github.com/DynamoGraph/gql/token"
+	//"github.com/DynamoGraph/rdf/grmgr"
 )
 
 type FargI interface {
+	String() string
 	farg()
 }
 
 type InnerFuncI interface {
 	innerFunc()
+}
+
+type FilterI interface {
+	AssignFilter(*expr.Expression)
+	AssignFilterStmt(string)
 }
 
 // type InnerArgI interface {
@@ -37,17 +44,21 @@ func (sl SelectList) String() string {
 	return s.String()
 }
 
-func (sl SelectList) GetPredicates() []string {
-	var ps []string
-	for _, e := range sl {
-		ps = append(ps, e.GetPredicates()...)
-	}
-	return ps
+// func (sl SelectList) GetPredicates() []string {
+// 	var ps []string
+// 	for _, e := range sl {
+// 		ps = append(ps, e.GetPredicates()...)
+// 	}
+// 	return ps
+// }
+
+func (sl SelectList) Execute() {
+
 }
 
 type EdgeT struct {
 	Alias   name_
-	VarName name_
+	VarName name_ // TODO: type should be Variable maybe
 	Edge    EdgeI
 	//f         aggrFunc - now in predicate (edgeT)
 }
@@ -76,14 +87,28 @@ func (e *EdgeT) AssignVarName(input string, loc token.Pos) {
 	e.VarName = name_{Name: input, Loc: loc}
 }
 
-func (e *EdgeT) GetPredicates() []string {
-	return e.Edge.GetPredicates()
+// func (e *EdgeT) GetPredicates() []string {
+// 	return e.Edge.GetPredicates()
+// }
+
+func (e *EdgeT) JSON() string {
+	var s strings.Builder
+	if len(e.Alias.Name) != 0 {
+		s.WriteString(e.Alias.String())
+	}
+	if len(e.VarName.Name) != 0 {
+		//s.WriteString(GetVarValue(e.VarName))
+	} else {
+		s.WriteString(e.Edge.String())
+	}
+	return s.String()
 }
 
 type EdgeI interface {
 	edge()
 	String() string
-	GetPredicates() []string
+	//	GetPredicates() []string
+	Name() string
 }
 
 // type Arg1 interface {
@@ -91,7 +116,7 @@ type EdgeI interface {
 // }
 
 type ScalarPred struct {
-	Name name_
+	Name_ name_
 }
 
 func (s ScalarPred) edge() {}
@@ -99,48 +124,107 @@ func (s ScalarPred) farg() {}
 
 func (s *ScalarPred) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
-	s.Name = name_{Name: input, Loc: loc}
+	s.Name_ = name_{Name: input, Loc: loc}
 }
 
 func (s ScalarPred) String() string {
-	return s.Name.Name
+	return s.Name_.Name
 }
 
-func (s ScalarPred) GetPredicates() []string {
-	return []string{s.Name.Name}
+func (s ScalarPred) Name() string {
+	return s.Name_.Name
 }
+
+// func (s ScalarPred) GetPredicates() []string {
+// 	return []string{s.Name_.Name}
+// }
 
 type UidPred struct {
-	Name   name_
-	Filter *expr.Expression
-	Select SelectList
+	Name_      name_
+	Filter     *expr.Expression
+	filterStmt string
+	Select     SelectList
+	//
+	nv ds.ClientNV
 }
 
+func (p UidPred) edge() {}
 func (u *UidPred) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
-	u.Name = name_{Name: input, Loc: loc}
+	u.Name_ = name_{Name: input, Loc: loc}
 }
+
+func (u *UidPred) AssignFilter(e *expr.Expression) {
+	u.Filter = e
+}
+
+func (u *UidPred) AssignFilterStmt(e string) {
+	u.filterStmt = e
+}
+
+func (p UidPred) Name() string {
+	return p.Name_.Name
+}
+
 func (u *UidPred) AssignSelectList(s SelectList) {
 	u.Select = s
 }
 
-func (u *UidPred) GetPredicates() []string {
-	ps := []string{}
-	ps = append(ps, u.Name.Name)
-	// 	ps = append(ps, u.Filter.GetPredicates()...)
-	ps = append(ps, u.Select.GetPredicates()...)
-	return ps
+// func (u *UidPred) execNode(grl grmgr.Limiter, n util.UID) {...} // see execute.go
+
+func (u *UidPred) genNV() (ds.NVmap, ds.ClientNV) {
+
+	var nvc ds.ClientNV
+	nvMap := make(ds.NVmap)
+
+	for _, v := range u.Select {
+		switch x := v.Edge.(type) {
+
+		case ScalarPred:
+			nv := &ds.NV{Name: x.Name()}
+			nvMap[x.Name()] = nv
+			nvc = append(nvc, nv)
+
+		case *UidPred:
+			un := x.Name() + ":"
+			nv := &ds.NV{Name: un}
+			nvMap[un] = nv
+			for _, vv := range x.Select {
+				switch x := vv.Edge.(type) {
+				case ScalarPred:
+					upred := un + x.Name()
+					nv := &ds.NV{Name: upred}
+					nvMap[upred] = nv
+					nvc = append(nvc, nv)
+				}
+			}
+		}
+
+	}
+	return nvMap, nvc
+	return nvMap, nvc
 }
 
-func (p *UidPred) edge() {}
+// func (u *UidPred) GetPredicates() []string {
+// 	var ps []string
+// 	ps = append(ps, u.Name())
+// 	// 	ps = append(ps, u.Filter.GetPredicates()...)
+// 	ps = append(ps, u.Select.GetPredicates()...)
+// 	return ps
+// }
 
 //func (p *UIDPred) innerArg() {}
 func (p *UidPred) aggrArg() {}
-func (p *UidPred) count_()  {}
-func (p *UidPred) String() string {
+func (p *UidPred) cntArg()  {}
+func (p UidPred) String() string {
 	var s strings.Builder
-	s.WriteString(p.Name.Name)
+	s.WriteString(p.Name_.Name)
 	// Filter
+	if p.Filter != nil {
+		s.WriteString("@filter( ")
+		s.WriteString(p.filterStmt)
+		s.WriteByte(')')
+	}
 	if p.Select != nil {
 		s.WriteString("{\n")
 		s.WriteString(p.Select.String())
@@ -150,27 +234,32 @@ func (p *UidPred) String() string {
 }
 
 type Variable struct {
-	Name name_
+	Name_ name_
 }
 
 func (u *Variable) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
-	u.Name = name_{Name: input, Loc: loc}
+	u.Name_ = name_{Name: input, Loc: loc}
 }
 func (u *Variable) String() string {
-	return "var(" + u.Name.Name + ")"
+	return "var(" + u.Name() + ")"
 }
 
 //func (r *Variable) innerArg()  {}
-func (r *Variable) edge() {}
+func (r *Variable) edge()   {}
+func (r *Variable) cntArg() {}
+func (r *Variable) Name() string {
+	return r.Name_.Name
+}
 
 // not for root func: func (r *Variable) farg() {}
 
 //func (r *Variable) innerFunc() {}
 func (r *Variable) aggrArg() {}
-func (r *Variable) GetPredicates() []string {
-	return nil
-}
+
+// func (r *Variable) GetPredicates() []string {
+// 	return nil
+// }
 
 //type ValFuncT func(v Variable) ValOut
 
@@ -192,13 +281,14 @@ func (e *AggrFunc) edge() {}
 //func (e *AggrFunc) innerFunc() {}
 
 type CounterI interface {
-	count_()
+	cntArg()
 	String() string
-	GetPredicates() []string
+	//	GetPredicates() []string
+	Name() string
 }
 
 type CountFunc struct {
-	Arg CounterI // uidPred, UID
+	Arg CounterI // uidPred, UID, Variable
 }
 
 func (e *CountFunc) farg() {}
@@ -210,15 +300,18 @@ func (e *CountFunc) String() string {
 	s.WriteByte(')')
 	return s.String()
 }
-
-func (e *CountFunc) GetPredicates() []string {
-	return e.Arg.GetPredicates()
+func (e *CountFunc) Name() string {
+	return e.Arg.Name()
 }
+
+// func (e *CountFunc) GetPredicates() []string {
+// 	return e.Arg.GetPredicates()
+// }
 
 type UID struct{}
 
 func (e UID) edge()   {}
-func (e UID) count_() {}
+func (e UID) cntArg() {}
 func (e UID) String() string {
 	return "uid"
 }
@@ -226,53 +319,46 @@ func (e UID) GetPredicates() []string {
 	return nil
 }
 
+func (e UID) Name() string {
+	return ""
+}
+
 type Values []interface{} // int,float,string,$var
 
 // =========================  GQLFunc  =============================================
 
-type FuncT func(FargI, interface{}) []db.QResult
+type FuncT func(FargI, interface{}) db.QResult
 
 //type FuncT func(predfunc FargI, value interface{}, nv []ds.NV, ty string) []db.QResult
 
 type GQLFunc struct {
-	Name name_ // for String() purposes
-	F    FuncT
-	Farg FargI // either predicate, count, var
+	//	name  name_ // for String() purposes - TODO: check its not used if so remove it
+	FName name_ // function name
+	F     FuncT
+	Farg  FargI // either predicate, count, var
 	//	IFarg InnerArgI   // either uidPred, variable
-	Value interface{} //  string,int,float,$var, List of string,int,float,$var
+	Value interface{} //  literal value: string,int,float,$var, List of string,int,float,$var
 }
 
 func (g *GQLFunc) AssignName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
-	g.Name = name_{Name: input, Loc: loc}
+	g.FName = name_{Name: input, Loc: loc}
 }
 
-func (g *GQLFunc) Execute() []db.QResult {
-	//
-	return g.F(g.Farg, g.Value)
+// func (g *GQLFunc) Execute() []db.QResult {
+// 	//
+// 	return g.F(g.Farg, g.Value)
+// }
+
+func (g *GQLFunc) Name() string {
+	return g.FName.Name
 }
 
 func (f *GQLFunc) String() string {
-	//
 	var s strings.Builder
-	s.WriteString(f.Name.String())
+	s.WriteString(f.FName.Name)
 	s.WriteByte('(')
-	if f.Farg != nil {
-		switch x := f.Farg.(type) {
-		case *CountFunc:
-			s.WriteString("count(")
-			switch y := x.Arg.(type) {
-			case *UidPred:
-				s.WriteString(y.Name.String())
-			case UID:
-				s.WriteString("uid")
-			}
-			s.WriteString(")")
-		case ScalarPred:
-			s.WriteString(x.Name.String())
-			//
-		}
-	}
+	s.WriteString(f.Farg.String())
 	s.WriteByte(',')
 	switch x := f.Value.(type) {
 	case string:
@@ -285,10 +371,47 @@ func (f *GQLFunc) String() string {
 		s.WriteString(strconv.FormatFloat(x, 'G', -1, 64))
 		// list of literals, list of $varN...
 	}
-	s.WriteString("))")
-
+	s.WriteByte(')')
 	return s.String()
 }
+
+// func (f *GQLFunc) String() string {
+// 	//
+// 	var s strings.Builder
+// 	s.WriteString(f.Name.String())
+// 	s.WriteByte('(')
+// 	if f.Farg != nil {
+// 		switch x := f.Farg.(type) {
+// 		case *CountFunc:
+// 			s.WriteString("count(")
+// 			switch y := x.Arg.(type) {
+// 			case *UidPred:
+// 				s.WriteString(y.Name())
+// 			case UID:
+// 				s.WriteString("uid")
+// 			}
+// 			s.WriteString(")")
+// 		case ScalarPred:
+// 			s.WriteString(x.Name())
+// 			//
+// 		}
+// 	}
+// 	s.WriteByte(',')
+// 	switch x := f.Value.(type) {
+// 	case string:
+// 		s.WriteByte('"')
+// 		s.WriteString(x)
+// 		s.WriteByte('"')
+// 	case int:
+// 		s.WriteString(strconv.Itoa(x))
+// 	case float64:
+// 		s.WriteString(strconv.FormatFloat(x, 'G', -1, 64))
+// 		// list of literals, list of $varN...
+// 	}
+// 	s.WriteString(")")
+
+// 	return s.String()
+// }
 
 // ============== Select/edge List ==============
 
@@ -333,10 +456,14 @@ type RootStmt struct {
 	// (func: eq(name@en, "Steven Spielberg”))
 	RootFunc GQLFunc // generates []uid from GSI data io.Writer Write([]byte) (int, error)
 	// @filter( has(director.film) )
-	Filter *expr.Expression //
-	Select SelectList
+	filterStmt string           // for printing filter expression
+	Filter     *expr.Expression //
+	Select     SelectList
 	//
-	PredList []string
+	//PredList []string
+	// populated during execution phase = contains slice of predicate,value for current node and child nodes
+	//result []rootResult - executor passes nv results to goroutine collector which formats the results and prints out on request
+	nv ds.ClientNV
 }
 
 func (r *RootStmt) AssignName(input string, loc token.Pos) {
@@ -348,9 +475,65 @@ func (r *RootStmt) AssignSelectList(s SelectList) {
 	r.Select = s
 }
 
+func (r *RootStmt) AssignFilter(e *expr.Expression) {
+	r.Filter = e
+}
+
+func (r *RootStmt) AssignFilterStmt(e string) {
+	r.filterStmt = e
+}
+
 func (r *RootStmt) AssignVarName(input string, loc token.Pos) {
 	//ValidateName(input, err, Loc)
-	r.Var.Name = name_{Name: input, Loc: loc}
+	r.Var.AssignName(input, loc)
+}
+
+// genNV generates NV data based on type (parameter ty) passed in
+func (r *RootStmt) genNV() (ds.NVmap, ds.ClientNV) {
+	var nvc ds.ClientNV
+	nvMap := make(ds.NVmap)
+
+	if r.Filter != nil {
+		for _, nv := range r.Filter.GetPredicates() {
+			nv := &ds.NV{Name: x.Name()}
+			nvMap[x.Name()] = nv
+			nvc = append(nvc, nv)
+		}
+	}
+
+	for _, v := range r.Select {
+		switch x := v.Edge.(type) {
+
+		case ScalarPred:
+			if _, ok := nvMap[x.Name()]; ok {
+				continue
+			}
+			nv := &ds.NV{Name: x.Name()}
+			nvMap[x.Name()] = nv
+			nvc = append(nvc, nv)
+
+		case *UidPred:
+			if _, ok := nvMap[x.Name()]; !ok {
+				un := x.Name() + ":"
+				nv := &ds.NV{Name: un}
+				nvMap[un] = nv
+			}
+			for _, vv := range x.Select {
+				switch x := vv.Edge.(type) {
+				case ScalarPred:
+					upred := un + x.Name()
+					if _, ok := nvMap[upred]; ok {
+						continue
+					}
+					nv := &ds.NV{Name: upred}
+					nvMap[upred] = nv
+					nvc = append(nvc, nv)
+				}
+			}
+		}
+
+	}
+	return nvMap, nvc
 }
 
 func (r *RootStmt) String() string {
@@ -361,10 +544,12 @@ func (r *RootStmt) String() string {
 	s.WriteString(r.Name.String())
 	s.WriteString("(func: ")
 	s.WriteString(r.RootFunc.String())
-	// if r.filter != nil {
-	// 	s.WriteString("@filter( ")
-	// 	s.WriteString(r.filter.String())
-	// }
+	if r.Filter != nil {
+		s.WriteString("@filter( ")
+		s.WriteString(r.filterStmt)
+		s.WriteByte(')')
+	}
+	s.WriteByte(')')
 	s.WriteString("{\n")
 	s.WriteString(r.Select.String())
 	s.WriteByte('}')
@@ -375,24 +560,24 @@ func (r *RootStmt) String() string {
 }
 
 // Predicates lists all predicates involved in the root stmt i.e. in RootFunc filter, and edges
-func (r *RootStmt) RetrievePredicates() []string {
-	var s []string
-	if r.RootFunc.Farg != nil {
-		switch x := r.RootFunc.Farg.(type) {
-		case *CountFunc:
-			switch y := x.Arg.(type) {
-			case *UidPred:
-				s = append(s, y.Name.Name)
-			}
-		case ScalarPred:
-			s = append(s, x.Name.Name)
-		}
-	}
-	// s = append(s, r.Filter.GetPredicates()...)
-	s = append(s, r.Select.GetPredicates()...)
+// func (r *RootStmt) RetrievePredicates() []string {
+// 	var s []string
+// 	if r.RootFunc.Farg != nil {
+// 		switch x := r.RootFunc.Farg.(type) {
+// 		case *CountFunc:
+// 			switch y := x.Arg.(type) {
+// 			case *UidPred:
+// 				s = append(s, y.Name.Name)
+// 			}
+// 		case ScalarPred:
+// 			s = append(s, x.Name.Name)
+// 		}
+// 	}
+// 	// s = append(s, r.Filter.GetPredicates()...)
+// 	s = append(s, r.Select.GetPredicates()...)
 
-	return s
-}
+// 	return s
+// }
 
 func dedup(s []string) []string {
 	var ss []string
@@ -420,18 +605,6 @@ func dedup(s []string) []string {
 // 	SortK string
 // 	Ty    string
 // }
-
-func (r *RootStmt) Execute() []db.QResult {
-	//
-	// execute root func
-	//
-	uids := r.RootFunc.F(r.RootFunc.Farg, r.RootFunc.Value)
-
-	for _, u := range uids {
-		fmt.Printf("%#v", u)
-	}
-	return uids
-}
 
 // ============== NameI  ========================
 

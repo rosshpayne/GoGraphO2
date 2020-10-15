@@ -12,12 +12,15 @@ import (
 // NV is an abstraction layer immediate above the cached representation of the graph which itelf is sourced 1:1 from the database
 // It is populated in the nodecache.UnmarshalCache method. NV presents the data for query consumption.
 // See MarshalJSON to see it in use.
+//
 type NV struct {
-	Name  string
-	Value interface{}
+	Name   string      // predicate (no type required as its based on contents in cache)
+	Value  interface{} // its value from cahe
+	ItemTy string      // short name of the type Name belongs to e.g. Pn (for Person)
 	//
 	// used by UnmarshalCache
 	//
+	Sortk  string
 	OfUIDs [][]byte // overflow blocks ids
 	// ... for Overflow blocks only
 	State [][]int  // Nd only (propagated child UIDs only)
@@ -25,6 +28,8 @@ type NV struct {
 }
 
 type ClientNV []*NV
+
+type NVmap map[string]*NV
 
 func (c ClientNV) MarshalJSON() {
 

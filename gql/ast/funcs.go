@@ -44,11 +44,11 @@ import (
 // eq function for root query called during execution-root-query phase
 // Each QResult will be Fetched then Unmarshalled (via UnmarshalCache) into []NV for each predicate.
 // The []NV will then be processed by the Filter function if present to reduce the number of elements in []NV
-func EQ(a FargI, value interface{}) []db.QResult {
+func EQ(a FargI, value interface{}) db.QResult {
 
 	var (
-		err  error
-		uids []db.QResult
+		err    error
+		result db.QResult
 	)
 
 	switch x := a.(type) {
@@ -61,11 +61,11 @@ func EQ(a FargI, value interface{}) []db.QResult {
 
 			switch v := value.(type) {
 			case int:
-				uids, err = db.GSIQueryN(y.Name.Name, float64(v), db.EQ)
+				result, err = db.GSIQueryN(y.Name(), float64(v), db.EQ)
 			case float64:
-				uids, err = db.GSIQueryN(y.Name.Name, v, db.EQ)
+				result, err = db.GSIQueryN(y.Name(), v, db.EQ)
 			case string:
-				uids, err = db.GSIQueryS(y.Name.Name, v, db.EQ)
+				result, err = db.GSIQueryS(y.Name(), v, db.EQ)
 			case []interface{}:
 				//case Variable: // not on root func
 			}
@@ -79,27 +79,27 @@ func EQ(a FargI, value interface{}) []db.QResult {
 
 		switch v := value.(type) {
 		case int:
-			uids, err = db.GSIQueryN(x.Name.Name, float64(v), db.EQ)
+			result, err = db.GSIQueryN(x.Name(), float64(v), db.EQ)
 		case float64:
-			uids, err = db.GSIQueryN(x.Name.Name, v, db.EQ)
+			result, err = db.GSIQueryN(x.Name(), v, db.EQ)
 		case string:
-			uids, err = db.GSIQueryS(x.Name.Name, v, db.EQ)
+			result, err = db.GSIQueryS(x.Name(), v, db.EQ)
 		case []interface{}:
 			//case Variable: // not on root func
 		}
 
 	}
 
-	return uids
+	return result
 }
 
 // The []NV will then be processed by the Filter function if present to reduce the number of elements in []NV
-func GT(a FargI, value interface{}) []db.QResult {
+func GT(a FargI, value interface{}) db.QResult {
 	return nil
 
 }
 
-func ALLOFTERMS(a FargI, value interface{}) []db.QResult {
+func ALLOFTERMS(a FargI, value interface{}) db.QResult {
 	return nil
 
 }

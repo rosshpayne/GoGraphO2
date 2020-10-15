@@ -340,9 +340,9 @@ type TyIBlock []TyItem
 // type attribute block, derived from TyItem
 type TyAttrD struct {
 	Name string // Attribute Identfier
-	DT   string // Attribute Data Type - derived. ?? S,DT,N etc
+	DT   string // Derived value. Attribute Data Type - Nd,DT,N,S etc
 	C    string // Attribute short identifier
-	Ty   string // For abstract attribute the type it respresents e.g "Person"
+	Ty   string // For uid-pred only, the type it respresents e.g "Person"
 	P    string // data partition (aka shard) containing attribute
 	N    bool   // true: nullable (attribute may not exist) false: not nullable
 	Pg   bool   // true: propagate scalar data to parent

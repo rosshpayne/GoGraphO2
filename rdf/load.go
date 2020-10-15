@@ -182,7 +182,7 @@ func Load(f io.Reader) error { // S P O
 	cancel()
 
 	ctxEnd.Wait()
-	syslog("loader exists.....")
+	syslog("loader exits.....")
 
 	return err
 }
@@ -254,13 +254,11 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	genSortK := func(ty blk.TyAttrD) string {
 		var s strings.Builder
 
+		s.WriteString("A#") // leading sortk
+
 		if ty.DT == "Nd" {
-			if len(ty.P) == 0 {
-				s.WriteString("G#:")
-			} else {
-				s.WriteString(ty.P)
-				s.WriteString("#G#:")
-			}
+			// all uid-preds are listed under G partition
+			s.WriteString("G#:")
 			s.WriteString(ty.C)
 		} else {
 			s.WriteString(ty.P)
@@ -275,7 +273,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	lmtr.StartR()
 	defer lmtr.EndR()
 
-	// accumulate predicate (spo) n.Obj ect values in the following map
+	// accumulate predicate (spo) n.Object values in the following map
 	type mergedRDF struct {
 		value interface{}
 		name  string
@@ -288,7 +286,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	//
 	var nv []ds.NV // AttributName-Dynamo-Value
 
-	// find predicate in Lines matching type attribute name in ty'
+	// find predicate in Lines matching type attribute name in ty
 
 	for _, v := range ty {
 		var found bool
@@ -303,7 +301,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 
 			switch v.DT {
 			case I:
-				// check n.Obj ect can be coverted to int
+				// check n.Object can be coverted to int
 
 				i, err := strconv.Atoi(n.Obj)
 				if err != nil {
@@ -314,12 +312,12 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 				attr[v.Name] = &mergedRDF{value: i, dt: v.DT}
 
 			case F:
-				// check n.Obj ect can be converted to float
+				// check n.Object can be converted to float
 				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT}
 				//attr[v.Name] = n.Obj // keep float as string as Dynamodb transport it as string
 
 			case S:
-				// check n.Obj ect can be converted to float
+				// check n.Object can be converted to float
 
 				//attr[v.Name] = n.Obj
 				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT}

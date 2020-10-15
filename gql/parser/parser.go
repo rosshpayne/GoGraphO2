@@ -168,7 +168,7 @@ func (p *Parser) parseRootStmt() []*ast.RootStmt {
 	for p.curToken.Type != token.EOF {
 		stmt := &ast.RootStmt{}
 
-		p.parseVarName(stmt, opt).parseFunction(stmt).parseFilter(&stmt.Filter).parseSelection(stmt)
+		p.parseVarName(stmt, opt).parseFunction(stmt).parseFilter(stmt).parseSelection(stmt)
 
 		if p.hasError() {
 			return nil
@@ -178,10 +178,10 @@ func (p *Parser) parseRootStmt() []*ast.RootStmt {
 		if p.curToken.Type == token.RBRACE {
 			p.nextToken()
 		}
-		preds := stmt.RetrievePredicates()
-		for _, v := range preds {
-			fmt.Println("predicates: ", v)
-		}
+		//preds := stmt.RetrievePredicates()
+		// for _, v := range preds {
+		// 	fmt.Println("predicates: ", v)
+		// }
 		block = append(block, stmt)
 	}
 
@@ -189,10 +189,10 @@ func (p *Parser) parseRootStmt() []*ast.RootStmt {
 
 }
 
-func (p *Parser) parsePredicates(r *ast.RootStmt) {
+// func (p *Parser) parsePredicates(r *ast.RootStmt) {
 
-	r.RetrievePredicates()
-}
+// 	r.RetrievePredicates()
+// }
 
 func (p *Parser) parseName(f ast.NameAssigner, optional ...bool) *Parser { // type f *ast.Executable,  f=passedInArg converts argument to f
 	return p.parseVarName(f, optional...)
@@ -283,7 +283,7 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 	}
 
 	rf := &s.RootFunc
-
+	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
 	//	tok = p.nextToken()
 
 	// (func:
@@ -438,9 +438,13 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 	}
 	p.nextToken("read over value...")
 	fmt.Printf("4: %#v\n", p.curToken)
+	//	  me(func: eq(count(Siblings),2) @filter(has(Friends)) ) {
 	for i := 0; i < 2; i++ {
 		if p.curToken.Type != token.RPAREN {
-			p.addErr(fmt.Sprintf(`Expected )  got %s instead`, p.curToken.Literal))
+			if p.curToken.Type == token.ATSIGN {
+				return p
+			}
+			p.addErr(fmt.Sprintf(`Expected ) got %s instead`, p.curToken.Literal))
 			return p
 		}
 		p.nextToken() // read over )
@@ -450,13 +454,13 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 
 }
 
-func (p *Parser) parseFilter(s **expr.Expression) *Parser {
+func (p *Parser) parseFilter(r ast.FilterI) *Parser {
 
 	if p.hasError() {
 		return p
 	}
+
 	// @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))
-	fmt.Println("in parseFilter: ", p.curToken.Literal)
 	fmt.Printf("in parseFilter: %#v\n", p.curToken)
 	if p.hasError() || p.curToken.Type != token.ATSIGN {
 		fmt.Printf("in parseFilter: return..\n")
@@ -464,18 +468,30 @@ func (p *Parser) parseFilter(s **expr.Expression) *Parser {
 	}
 	p.nextToken() // read over @
 	exprInput := p.l.Remaining()
+	//  me(func: .......  @filter(has(Friends)) ) {
+	//                                                     ^ ^ ^
+	exprInput = exprInput[:strings.IndexByte(exprInput, '{')]
+	exprInput = exprInput[:strings.LastIndexByte(exprInput, ')')]
+	exprInput = exprInput[:strings.LastIndexByte(exprInput, ')')]
 
 	if p.curToken.Type != token.FILTER {
-		p.addErr(fmt.Sprintf(`Expected (  got %s instead`, p.curToken.Literal))
+		p.addErr(fmt.Sprintf(`Expected keyword "filter" got %s instead`, p.curToken.Literal))
 		return p
 	}
+
 	p.nextToken() // read over filter
 	fmt.Println("Input REmaining2: ", exprInput)
 	if p.curToken.Type != token.LPAREN {
 		p.addErr(fmt.Sprintf(`Expected (  got %s instead`, p.curToken.Literal))
 		return p
 	}
-	*s = expr.New(exprInput) // TODO should return new rLoc, cLoc
+	//
+	r.AssignFilterStmt(exprInput)
+	r.AssignFilter(expr.New(exprInput)) // TODO should return new rLoc, cLoc
+	//
+	for ; p.curToken.Type != token.LBRACE; p.nextToken() {
+	}
+	fmt.Printf("******************************** in parseFilter: %#v\n", p.curToken)
 	return p
 }
 
@@ -654,7 +670,7 @@ func (p *Parser) parseEdge(e *ast.EdgeT) *Parser {
 			//p.parseFilter(uidpred.Filter).parseSelection(uidpred.Select) // TODO: remove comment...
 			p.nextToken() // read over uid-pred
 			if p.curToken.Type == token.ATSIGN {
-				p.parseFilter(&uidpred.Filter)
+				p.parseFilter(uidpred)
 			}
 			p.parseSelection(uidpred)
 

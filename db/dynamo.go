@@ -363,14 +363,13 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 	syslog(fmt.Sprintf("FetchNode:consumed capacity for Query  %s. ItemCount %d  Duration: %s", result.ConsumedCapacity.String(), len(result.Items), t1.Sub(t0)))
 	//
 	if int(*result.Count) == 0 {
-		if strings.Index(subKey[0], "#G#") != -1 {
+		// is subKey is a G type ie. child data block associated with current parent node, create empty cache entry
+		if len(subKey) > 0 && strings.Index(subKey[0], "#G#") != -1 {
 			data := make(blk.NodeBlock, 1)
 			data[0] = new(blk.DataItem)
 			return data, nil
 		}
-		if err != nil {
-			return nil, newDBNoItemFound("FetchNode", uid.String(), "", "Query")
-		}
+		return nil, newDBNoItemFound("FetchNode", uid.String(), "", "Query")
 	}
 	data := make(blk.NodeBlock, *result.Count)
 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &data)
@@ -1138,7 +1137,9 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 		} else {
 			// uid-predicate e.g. Sibling
 			lty = "Nd"
-			sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right?
+			//sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right?
+			sortk = "A#G#:" + sortK[strings.LastIndex(sortK, ":")+1:]
+
 		}
 	} else {
 		if ty.DT != "Nd" {
@@ -1148,7 +1149,9 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 		} else {
 			// uid-predicate e.g. Sibling
 			lty = "Nd"
-			sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right?
+			//sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right?
+			sortk = "A#G#:" + sortK[strings.LastIndex(sortK, ":")+1:]
+
 		}
 	}
 	fmt.Println("PropagateChildData: sortk , ty", sortk, ty.Name)
@@ -1167,7 +1170,7 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 	} else {
 		pkey_ = tUID
 	}
-
+	// NULL value representation using false = not null, and true =  value is null
 	b := make([]bool, 1, 1)
 	b[0] = false
 	// append child attr value to parent uid-pred list
@@ -1274,6 +1277,32 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 			return id, fmt.Errorf("XX Error: PutItem, %s", err.Error())
 		}
 	}
+	// {
+	// 	// add type item so type is hundled with propagated data and does not have to be queried separately
+	// 	type Item struct {
+	// 		PKey  []byte
+	// 		SortK string
+	// 		Ty    string
+	// 	}
+	// 	// populate with dummy item to establish LIST
+	// 	sortk := sortK + "#T"
+	// 	a := Item{PKey: pkey_, sortk:, Ty: Ty.Name}
+	// 	av, err = dynamodbattribute.MarshalMap(a)
+	// 	if err != nil {
+	// 		return id, fmt.Errorf("XX %s: %s", "Error: failed to marshal type definition ", err.Error())
+	// 	}
+	// 	t0 := time.Now()
+	// 	ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
+	// 		TableName:              aws.String("DyGraph"),
+	// 		Item:                   av,
+	// 		ReturnConsumedCapacity: aws.String("TOTAL"),
+	// 	})
+	// 	t1 := time.Now()
+	// 	syslog(fmt.Sprintf("createPropagationScalarItem: consumed capacity for PutItem for type info %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+	// 	if err != nil {
+	// 		return id, fmt.Errorf("XX Error: PutItem, %s", err.Error())
+	// 	}
+	// }
 
 	return PropagateChildData(ty, pUID, sortK, tUID, id, value)
 
@@ -1330,9 +1359,11 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 			lty = "L" + ty.DT
 			sortk = sortK + "#:" + ty.C // TODO: currently ignoring concept of partitioning data within node block. Is that right?
 		} else {
+			// TODO: can remove this section
 			// uid-predicate e.g. Sibling
 			lty = "Nd"
-			sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right?
+			//	sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right? Fix: this presumes single character short name
+			sortk = "A#G#:" + sortK[strings.LastIndex(sortK, ":")+1:]
 		}
 	} else {
 		if ty.DT != "Nd" {
@@ -1340,13 +1371,15 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 			lty = "L" + ty.DT
 			sortk = sortK + "#:" + ty.C + "#" + strconv.Itoa(id) // TODO: currently ignoring concept of partitioning data within node block. Is that right?
 		} else {
+			// TODO: can remove this section
 			// uid-predicate e.g. Sibling
 			lty = "Nd"
-			sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right?
+			//sortk = "A#G#:" + sortK[len(sortK)-1:] // TODO: currently ignoring concept of partitioning data within node block. Is that right? Fix: this presumes single character short name
+			sortk = "A#G#:" + sortK[strings.LastIndex(sortK, ":")+1:]
 		}
 	}
 	//
-	// shadow XBl null identiier
+	// shadow XBl null identiier. Here null means there is no predicate specified in item, so its value is necessarily null (ie. not defined)
 	//
 	null := make([]bool, 1, 1)
 	// no predicate value in item - set associated null flag, XBl, to true
