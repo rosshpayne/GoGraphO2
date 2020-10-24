@@ -2,11 +2,13 @@ package event
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/DynamoGraph/event/db"
 	"github.com/DynamoGraph/util"
 )
 
-func New() (util.UID, error) {
+func newUID() (util.UID, error) {
 
 	// eventlock = new(eventLock)
 	// eventlock.Lock()
@@ -19,8 +21,34 @@ func New() (util.UID, error) {
 	return uid, nil
 }
 
+func New(eventData interface{}) ([]byte, error) {
+
+	eID, err := newUID()
+	if err != nil {
+		return nil, err
+	}
+
+	m := EventMeta{EID: eID, SEQ: 1, Status: "I", Start: time.Now().String(), Dur: "_"}
+	switch x := eventData.(type) {
+
+	case AttachNode:
+		m.OP = "AN"
+		x.EventMeta = m
+		db.LogEvent(x)
+
+	case DetachNode:
+		m.OP = "DN"
+		x.EventMeta = m
+		db.LogEvent(x)
+	}
+
+	return eID, nil
+
+}
+
 type Event interface {
 	event_()
+	Tag() string
 }
 
 type EventMeta struct {
@@ -34,6 +62,19 @@ type EventMeta struct {
 }
 
 func (e EventMeta) event_() {}
+func (e EventMeta) Tag() string {
+	return "Meta"
+}
+
+func LogEventSuccess(eID util.UID, duration string) error {
+	//return nil
+	return db.UpdateEvent(eID, "C", duration)
+}
+
+func LogEventFail(eID util.UID, duration string, err error) error {
+	//return nil
+	return db.UpdateEvent(eID, "F", duration, err)
+}
 
 type AttachNode struct {
 	EventMeta
@@ -42,9 +83,17 @@ type AttachNode struct {
 	SK  string
 }
 
+func (a AttachNode) Tag() string {
+	return "Attach-Node"
+}
+
 type DetachNode struct {
 	EventMeta
 	CID []byte
 	PID []byte
 	SK  string
+}
+
+func (a DetachNode) Tag() string {
+	return "Detach-Node"
 }

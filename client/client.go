@@ -15,6 +15,7 @@ import (
 	"github.com/DynamoGraph/db"
 	"github.com/DynamoGraph/ds"
 	"github.com/DynamoGraph/event"
+	mon "github.com/DynamoGraph/gql/monitor"
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/grmgr"
 	//	"github.com/DynamoGraph/rdf/uuid"
@@ -89,9 +90,9 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		return func() {
 			t1 := time.Now()
 			if err != nil {
-				db.LogEventFail(eID, t1.Sub(t0).String(), err) // TODO : this should also create a CW log event
+				event.LogEventFail(eID, t1.Sub(t0).String(), err) // TODO : this should also create a CW log event
 			} else {
-				db.LogEventSuccess(eID, t1.Sub(t0).String())
+				event.LogEventSuccess(eID, t1.Sub(t0).String())
 			}
 		}
 	}()()
@@ -135,7 +136,8 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	//
 	// going straight to db is safe provided its part of a FetchNode lock and all updates to the "R" predicate are performed within the FetchNode lock.
 	ev := event.AttachNode{CID: cUID, PID: pUID, SK: sortK}
-	eID, err = eventNew(ev)
+	//eID, err = eventNew(ev)
+	eID, err = event.New(ev)
 	if err != nil {
 		return addErr(err)
 	}
@@ -182,6 +184,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 			errch <- fmt.Errorf("AttachNode: Channel xch prematurely closed and drained")
 			return
 		}
+		fmt.Println("Payload received...", payload)
 		tUID := payload.tUID
 		pnd = payload.nd
 		defer pnd.Unlock()
@@ -291,22 +294,21 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 			errch <- err
 			return
 		}
-		//
-		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id, 1)
-		if err != nil {
-			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
-			errch <- err
-		}
 
-		// select {
-		// 	case <-ctx.Done():
-
-		// }
 	}()
+
+	setAvailable := func(tUID util.UID, id int, cnt int, ty string) {
+		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id, cnt, ty)
+		if err != nil {
+			syslog.Log("AttachNode: main ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
+		}
+		syslog.Log("AttachNode: main ", fmt.Sprintf("SetUpredAvailable succesful %d %d ", id, cnt))
+	}
+
 	//
 	// fetch parent node to find its type. This will lock parent node for update (no shared locks). Explicit unlocked in defer
 	//
-	syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
+	syslog.Log("AttachNode: main X", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	idx := strings.IndexByte(sortK, '#')
 
 	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1]) //TODO: query all items in UID partition. Sortk should not be shortened. It should search based on entire sortk like below.
@@ -314,13 +316,14 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	//	pnd, err = gc.FetchForUpdate(pUID, sortK)
 	if err != nil {
 		pnd.Unlock()
-		syslog.Log("AttachNode: main ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
+		syslog.Log("AttachNode: main 2 ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
 		// send empty payload so concurrent routine will abort -
 		// not necessary to capture nil payload error from routine as it has a buffer size of 1
 		xch <- chPayload{}
 		wg.Wait()
 		return addErr(err)
 	}
+	syslog.Log("AttachNode: main 3", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	//
 	// get type of child node from A#T sortk e.g "Person"
 	//
@@ -333,9 +336,11 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		wg.Wait()
 		return addErr(err)
 	}
+	syslog.Log("AttachNode: main 4", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	//
 	// get type details from type table for child node
 	//
+	syslog.Log("AttachNode: main 4a", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
 	if pty, err = cache.FetchType(pTyName); err != nil {
 		pnd.Unlock()
@@ -345,13 +350,14 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		wg.Wait()
 		return addErr(err)
 	}
+	syslog.Log("AttachNode: main 5", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	//
 	targetUID, id, err := pnd.ConfigureUpred(sortK, pUID, cUID)
 	if err != nil {
+		// undo inUse state set by ConfigureUpred
+		setAvailable(targetUID, id, 0, pTyName)
 		pnd.Unlock()
 		err := fmt.Errorf("AttachNode: Error in configuring upd-pred block for propagation of child data: %w", err)
-		// send empty payload so concurrent routine will abort -
-		// not necessary to capture nil payload error from routine as it has a buffer size of 1
 		// TODO: consider using a Cancel Context
 		xch <- chPayload{}
 		wg.Wait()
@@ -361,9 +367,19 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	// get concurrent goroutine to write event items
 	//
 	pass := chPayload{tUID: targetUID, itemId: id, nd: pnd, pTy: pty}
+	syslog.Log("AttachNode: main 6", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
+	fmt.Println("passed payload to other attachnode routine...waiting ")
 	xch <- pass
 
 	wg.Wait()
+	syslog.Log("AttachNode: main 7", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
+	//
+	setAvailable(targetUID, id, 1, pTyName)
+	//
+	// monitor: increment attachnode counter
+	//
+	stat := mon.Stat{Id: mon.AttachNode}
+	mon.StatCh <- stat
 	//
 	// two goroutines can result in upto two errors
 	//
@@ -441,9 +457,9 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		return func() {
 			t1 := time.Now()
 			if err != nil {
-				db.LogEventFail(eID, t1.Sub(t0).String(), err) // TODO : this should also create a CW log event
+				event.LogEventFail(eID, t1.Sub(t0).String(), err) // TODO : this should also create a CW log event
 			} else {
-				db.LogEventSuccess(eID, t1.Sub(t0).String())
+				event.LogEventSuccess(eID, t1.Sub(t0).String())
 			}
 		}
 	}()()
@@ -486,7 +502,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	//
 	// going straight to db is safe provided its part of a FetchNode lock and all updates to the "R" predicate are performed within the FetchNode lock.
 	ev := event.AttachNode{CID: cUID, PID: pUID, SK: sortK}
-	eID, err = eventNew(ev)
+	eID, err = event.New(ev)
 	if err != nil {
 		return addErr(err)
 	}
@@ -651,8 +667,8 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 
 	}()
 
-	setAvailable := func(tUID util.UID, id int, cnt int) {
-		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id, cnt)
+	setAvailable := func(tUID util.UID, id int, cnt int, ty string) {
+		err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id, cnt, ty)
 		if err != nil {
 			syslog.Log("AttachNode: main ", fmt.Sprintf("Errored: SetUpredAvailable %s", err.Error()))
 		}
@@ -700,7 +716,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	targetUID, id, err := pnd.ConfigureUpred(sortK, pUID, cUID)
 	if err != nil {
 		// undo inUse state set by ConfigureUpred
-		setAvailable(targetUID, id, 0)
+		setAvailable(targetUID, id, 0, pTyName)
 		pnd.Unlock()
 		err := fmt.Errorf("AttachNode: Error in configuring upd-pred block for propagation of child data: %w", err)
 		// TODO: consider using a Cancel Context
@@ -714,9 +730,10 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	pass := chPayload{tUID: targetUID, itemId: id, nd: pnd, pTy: pty}
 	xch <- pass
 
+	fmt.Println("about to wg.Wait()...................")
 	wg.Wait()
 	//
-	setAvailable(targetUID, id, 1)
+	setAvailable(targetUID, id, 1, pTyName)
 	//
 	// two goroutines can result in upto two errors
 	//
@@ -822,15 +839,17 @@ func recoverItemSizeErr(gc *cache.GraphCache, pUID, cUID, tUID util.UID, sortk s
 
 func DetachNode(cUID, pUID util.UID, sortK string) error {
 	//
+
 	var (
 		err error
 		ok  bool
 		eID util.UID
 	)
+
 	ev := event.DetachNode{CID: cUID, PID: pUID, SK: sortK}
-	eID, err = eventNew(ev)
+	eID, err = event.New(ev)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error in DetachNode creating an event: %s", err)
 	}
 	// log Event via defer
 	defer func() func() {
@@ -838,9 +857,9 @@ func DetachNode(cUID, pUID util.UID, sortK string) error {
 		return func() {
 			t1 := time.Now()
 			if err != nil {
-				db.LogEventFail(eID, t1.Sub(t0).String(), err) // TODO : this should also create a CW log event. NO THIS IS PERFORMED BY STREAMS Lambda function.
+				event.LogEventFail(eID, t1.Sub(t0).String(), err) // TODO : this should also create a CW log event. NO THIS IS PERFORMED BY STREAMS Lambda function.
 			} else {
-				db.LogEventSuccess(eID, t1.Sub(t0).String())
+				event.LogEventSuccess(eID, t1.Sub(t0).String())
 			}
 		}
 	}()()
@@ -855,7 +874,6 @@ func DetachNode(cUID, pUID util.UID, sortK string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("here..")
 	err = db.DetachNode(cUID, pUID, sortK)
 	if err != nil {
 		var nif db.DBNoItemFound
@@ -870,27 +888,27 @@ func DetachNode(cUID, pUID util.UID, sortK string) error {
 	return nil
 }
 
-func eventNew(eventData interface{}) ([]byte, error) {
+// func eventNew(eventData interface{}) ([]byte, error) {
 
-	eID, err := event.New()
-	if err != nil {
-		return nil, err
-	}
+// 	eID, err := event.New()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	m := event.EventMeta{EID: eID, SEQ: 1, Status: "I", Start: time.Now().String(), Dur: "_"}
-	switch x := eventData.(type) {
+// 	m := event.EventMeta{EID: eID, SEQ: 1, Status: "I", Start: time.Now().String(), Dur: "_"}
+// 	switch x := eventData.(type) {
 
-	case event.AttachNode:
-		m.OP = "AN"
-		x.EventMeta = m
-		db.LogEvent(x)
+// 	case event.AttachNode:
+// 		m.OP = "AN"
+// 		x.EventMeta = m
+// 		db.LogEvent(x)
 
-	case event.DetachNode:
-		m.OP = "DN"
-		x.EventMeta = m
-		db.LogEvent(x)
-	}
+// 	case event.DetachNode:
+// 		m.OP = "DN"
+// 		x.EventMeta = m
+// 		db.LogEvent(x)
+// 	}
 
-	return eID, nil
+// 	return eID, nil
 
-}
+// }

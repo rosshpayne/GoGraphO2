@@ -372,7 +372,7 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 			p.addErr(fmt.Sprintf(`%q must be a UID predicate in some type`, p.curToken.Literal))
 		}
 		// assign to CountFunc
-		a := &ast.UidPred{}
+		a := &ast.UidPred{Parent: s}
 		a.AssignName(p.curToken.Literal, p.curToken.Loc)
 		cfunc.Arg = a
 		rf.Farg = cfunc
@@ -509,7 +509,7 @@ func (p *Parser) parseSelection(r ast.SelectI) *Parser {
 
 		e := &ast.EdgeT{}
 
-		p.parseVarAlias(e).parseEdge(e)
+		p.parseVarAlias(e).parseEdge(e, r)
 
 		s = append(s, e)
 
@@ -634,12 +634,12 @@ func (p *Parser) parseVarAlias(e *ast.EdgeT) *Parser {
 //   }
 // }
 
-func (p *Parser) parseEdge(e *ast.EdgeT) *Parser {
+func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 	// edge can be
 	// * <scalar-predicate>
 	// * <uid-predicate> { SelectList }
 	// * <uid predicate> @filter { SelectList }
-	// *  totalDirectors : count(uid)
+	// * totalDirectors : count(uid)
 	// * avg(val(<variable>)), sum, min, max
 	// * val(<variable>)
 	// * variable as <uidPred>     // query variable
@@ -659,12 +659,12 @@ func (p *Parser) parseEdge(e *ast.EdgeT) *Parser {
 		// * <uid predicate> @filter { SelectList }
 		ident := p.curToken.Literal
 		if p.peekToken.Type == token.ATSIGN || p.peekToken.Type == token.LBRACE {
+			// must be a uid-pred - confirm there is a type that exists with this uid-pred
 			if !cache.IsUidPred(ident) {
 				p.addErr(fmt.Sprintf("%q is not a uid-predicate", ident))
 			}
 			//
-			fmt.Println("parseEdge: IDENT uid-pred")
-			uidpred := &ast.UidPred{}
+			uidpred := &ast.UidPred{Parent: parentEdge}
 			uidpred.AssignName(p.curToken.Literal, p.curToken.Loc)
 			e.Edge = uidpred
 			//p.parseFilter(uidpred.Filter).parseSelection(uidpred.Select) // TODO: remove comment...
@@ -675,13 +675,13 @@ func (p *Parser) parseEdge(e *ast.EdgeT) *Parser {
 			p.parseSelection(uidpred)
 
 		} else {
-
+			// scalar type
 			fmt.Println("parseEdge: IDENT scalar-pred")
 			if !cache.IsScalarPred(ident) {
 				p.addErr(fmt.Sprintf("%q is not a scalar-pred", ident))
 			}
 			//
-			spred := &ast.ScalarPred{}
+			spred := &ast.ScalarPred{Parent: parentEdge}
 			spred.AssignName(p.curToken.Literal, p.curToken.Loc)
 			e.Edge = spred
 			p.nextToken() // read over predicate
@@ -734,7 +734,7 @@ func (p *Parser) parseEdge(e *ast.EdgeT) *Parser {
 			}
 			//
 			fmt.Printf("COUNT IDENT- create uidPred: %#v\n", p.curToken)
-			pred := &ast.UidPred{}
+			pred := &ast.UidPred{Parent: parentEdge}
 			pred.AssignName(p.curToken.Literal, p.curToken.Loc)
 			cf.Arg = pred
 			p.nextToken() // read over uid-pred

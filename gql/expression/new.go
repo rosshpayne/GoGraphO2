@@ -84,8 +84,14 @@ func New(input string) *Expression {
 
 	for p.curToken.Type != token.EOF {
 
+		// expression parsing has a requirement to have double peek ("abc", a is current, b is peek, c is double peek) capability.
+		// to achieve this with code designed for single peek capability is inelegant but works
+		// save current token to tok
+		// generate the next Token (via nexToken()), which normally would be the current Token but in this scenario is the peek token
+		// this leads to the peek token (peekToken) enabling a double-peek ahead.
+		//
 		tok = p.curToken
-		p.nextToken() // why here???
+		p.nextToken()
 		fmt.Printf("\ntoken: %#v\n", tok)
 
 		switch tok.Type {
@@ -155,7 +161,7 @@ func New(input string) *Expression {
 		case token.FUNC:
 
 			d := &FilterFunc{}
-			fmt.Printf("token.FUNC d: %#v\n", d)
+			fmt.Printf("token.FUNC d: %#v %#v\n", d, tok)
 			p.ParseFunction(d, tok)
 
 			//	for ;p.curToken.Type != token.LBRACE; p.curToken.nextToken(){}

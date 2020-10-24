@@ -157,6 +157,36 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 			gqlf.Farg = c
 		}
 
+	case token.GT:
+		// gt(<scalar pred>, <int|float|string>)
+		var err error
+		p.nextToken() // read over (
+
+		h := ast.ScalarPred{}
+		h.AssignName(p.curToken.Literal, p.curToken.Loc)
+
+		gqlf.F = ast.GT
+		gqlf.Farg = h
+
+		p.nextToken() // read over scalar pred
+		fmt.Printf("curToken: %#v\n", p.curToken)
+		switch p.curToken.Type {
+		case token.INT:
+			if gqlf.Value, err = strconv.Atoi(p.curToken.Literal); err != nil {
+				panic(fmt.Errorf("cannot convert %s to int", p.curToken.Literal))
+			}
+		case token.FLOAT:
+			if gqlf.Value, err = strconv.ParseFloat(p.curToken.Literal, 64); err != nil {
+				panic(fmt.Errorf("cannot convert %s to int", p.curToken.Literal))
+			}
+		default:
+			panic(fmt.Errorf("Expected a float or int as value to function not %s, %s", p.curToken.Type, p.curToken.Literal))
+		}
+		p.nextToken() // read over has value
+		p.nextToken() // read over )
+		fmt.Printf("GT..................... %#v  %#v \n", gqlf, p.curToken)
+		return p
+
 	case token.HAS:
 		// has(<any pred>)
 

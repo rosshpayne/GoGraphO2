@@ -204,7 +204,7 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 				continue
 			}
 			fmt.Println("attr for type data ", ty, v.Atr)
-			genT_Attr := func(attr string) Ty_Attr {
+			genT_Attr := func(ty string, attr string) Ty_Attr {
 				// generte key for TyAttrC:  <typeName>:<attrName> e.g. Person:Age
 				s.Reset()
 				s.WriteString(ty)
@@ -227,7 +227,12 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 			}
 			tc = append(tc, a)
 			//
-			TypeC.TyAttrC[genT_Attr(v.Atr)] = a
+			TypeC.TyAttrC[genT_Attr(ty, v.Atr)] = a
+			tyShortNm, ok := GetTyShortNm(ty)
+			if !ok {
+				panic(fmt.Errorf("Error in populateTyCaches: Type short name not found"))
+			}
+			TypeC.TyAttrC[genT_Attr(tyShortNm, v.Atr)] = a
 
 			// fc, _ := FacetCache[tyAttr]
 			// for _, vf := range v.F {
@@ -299,7 +304,7 @@ func (n *NodeCache) GetDataItem(sortk string) (*blk.DataItem, bool) {
 // targetUID is the propagation block that contains the child scalar data.
 // id - overflow block id
 // cnt - increment counter by 0 (if errored) or 1 (if node attachment successful)
-func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.UID, id int, cnt int) error {
+func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.UID, id int, cnt int, ty string) error {
 	var (
 		attachAttrNm string
 		found        bool
@@ -321,6 +326,12 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		return fmt.Errorf(fmt.Sprintf("Error in SetUpredAvailable. Attach point attribute not found in type map for sortk %q", sortK))
 	}
 	//
+	// get type short name
+	//
+	tyShortNm, ok := GetTyShortNm(ty)
+	if !ok {
+		panic(fmt.Errorf("SetUpredAvailable: type not found in GetTyShortNm"))
+	}
 	// cache: update pUID block with latest propagation state; targetUID, XF state
 	//
 	di := nc.m[sortK]
@@ -333,7 +344,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		for i := len(di.Nd); i > 0; i-- {
 			if bytes.Equal(di.Nd[i-1], cUID) {
 				di.XF[i-1] = blk.ChildUID
-				err = db.SaveUpredState(di, cUID, blk.ChildUID, i-1, cnt, attachAttrNm)
+				err = db.SaveUpredState(di, cUID, blk.ChildUID, i-1, cnt, attachAttrNm, tyShortNm)
 				if err != nil {
 					return err
 				}
@@ -348,7 +359,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 			if bytes.Equal(di.Nd[i-1], targetUID) {
 				di.XF[i-1] = blk.OvflBlockUID
 				di.Id[i-1] = id
-				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, i-1, cnt, attachAttrNm)
+				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, i-1, cnt, attachAttrNm, tyShortNm)
 				if err != nil {
 					return err
 				}
@@ -391,6 +402,10 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 	// count predicates, scalar & uid.
 	// ":" used to identify uid-preds
 	//
+	fmt.Println("GenSortK: ty - ", ty)
+	if len(ty) == 0 {
+		panic(fmt.Errorf("Error in GenSortK: argument ty is empty"))
+	}
 	for _, nv := range nvc {
 		if strings.IndexByte(nv.Name, ':') == -1 {
 			scalarPreds++
@@ -404,6 +419,9 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 	// if tyc, ok := TypeC.TyC[ty]; !ok {
 	// 	panic(fmt.Errorf(`genSortK: Type %q does not exist`, ty))
 	// }
+	// get long type name
+	ty, _ = GetTyLongNm(ty)
+	fmt.Println("GenSortK: long ty - ", ty)
 	var s strings.Builder
 
 	switch {
@@ -421,6 +439,7 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 		// get partitions involved
 		var parts map[string]bool
 
+		parts = make(map[string]bool)
 		for _, nv := range nvc {
 			if aty, ok = TypeC.TyAttrC[ty+":"+nv.Name]; !ok {
 				panic(fmt.Errorf("Predicate %q does not exist in type %q", nvc[0].Name, ty))
@@ -483,7 +502,7 @@ func (nc *NodeCache) UnmarshalCache(nv ds.ClientNV) error {
 // When the types differ only those predicates that match (based on predicate name - NV.Name) can be unmarshalled.
 // ty_ should be the type of the item resulting from the root query which will necessarily match the type from the item cache.
 // If ty_ is not passed then the type is sourced from the cache, at the potental cost of a read, so its better to pass the type if known
-// which should be the case.
+// which should always be the case.
 //
 func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 	if nc == nil {
@@ -507,6 +526,11 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 		}
 	}
 	//TODO: consider checking ty_ against cache type and error if different.
+	fmt.Println("ty: ", ty)
+	// if ty is short name convert to long name
+	if x, ok := GetTyLongNm(ty); ok {
+		ty = x
+	}
 	fmt.Println("ty: ", ty)
 	// FetchType populates  struct cache.TypeC with map types TyAttr, TyC
 	if _, err = FetchType(ty); err != nil {
@@ -603,7 +627,7 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 	// &ds.NV{Name: "Siblings"},    <== important to define Nd type before refering to its attributes
 	// &ds.NV{Name: "Siblings:Name"},
 	// &ds.NV{Name: "Siblings:Age"},
-
+	fmt.Println("About to range nv  ", len(nv))
 	for _, a := range nv { // a.Name = "Age"
 		//
 		// field name repesents a scalar. It has a type that we use to generate a sortk <partition>#G#:<uid-pred>#:<scalarpred-type-abreviation>
@@ -612,12 +636,14 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 			// no match between NV name and type attribute name
 			continue
 		}
+		fmt.Println("*** aName, sortk : ", a.Name, sortk)
 		//
 		// grab the *blk.DataItem from the cache for the nominated sortk.
 		// we could query the child node to get this data or query the #G data which is its copy of the data
 		//
 		a.ItemTy = ty
 		attrKey = sortk
+		//
 		if v, ok := nc.m[sortk]; ok {
 			// based on data type and whether its a node or uid-pred
 			switch attrDT {
@@ -817,10 +843,13 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 
 				cuid, xf, ofuids := v.GetNd()
 				// share ofuids amoungst all propgatated data types
-				OfUIDs = ofuids
-
-				allcuid = append(allcuid, cuid)
-				xfall = append(xfall, xf)
+				if len(ofuids) > 0 {
+					OfUIDs = ofuids[1:] // ignore dummy entry: TODO: check this is appropriate??
+				} else {
+					OfUIDs = ofuids
+				}
+				allcuid = append(allcuid, cuid[1:]) // ignore dummy entry
+				xfall = append(xfall, xf[1:])       // ignore dummy entry
 
 				// data from overflow blocks
 				for _, v := range OfUIDs {
@@ -829,9 +858,6 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 					if err != nil {
 						return err
 					}
-					// for k := range nuid.m {
-					// 	fmt.Println("Overflow keys : ", k)
-					// }
 					for i := 1; true; i++ {
 						if di, ok := nuid.m[sortK(attrKey, i)]; !ok {
 							break //return fmt.Errorf("UnmarshalCache: SortK %q does not exist in cache", attrKey)
@@ -841,8 +867,8 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 							// this occurs as UID item target is created as item id is incremented but associated scalar data target items are created on demand.
 							// so a UID target item may exist without any associated scalar data targets. Each scalar data target items will always contain data associated with each cUID attached to parent.
 							if len(uof) > 0 {
-								allcuid = append(allcuid, uof) // ignore first entry
-								xfall = append(xfall, xof)     // ignore first entry
+								allcuid = append(allcuid, uof[1:]) // ignore first entry
+								xfall = append(xfall, xof[1:])     // ignore first entry
 							}
 						}
 					}
@@ -1304,12 +1330,12 @@ func GetTyShortNm(longNm string) (string, bool) {
 }
 
 func GetTyLongNm(tyNm string) (string, bool) {
-	for shortNm, longNm := range tyShortNm {
-		if tyNm == longNm {
-			return shortNm, true
+	for longNm, shortNm := range tyShortNm {
+		if tyNm == shortNm {
+			return longNm, true
 		}
 	}
-	return "", false
+	return tyNm, true // tyNm is a long ty name
 }
 
 // FetchType returns a type info from table ? and populates the two type cache maps, TyCache, TyAttrCache

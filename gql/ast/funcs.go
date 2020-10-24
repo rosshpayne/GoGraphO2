@@ -50,17 +50,19 @@ func EQ(a FargI, value interface{}) db.QResult {
 		err    error
 		result db.QResult
 	)
-
+	fmt.Println("in EQ...............................")
 	switch x := a.(type) {
 
 	case *CountFunc:
-
+		fmt.Println("in CountFuncQ...............................")
 		// for root stmt only this signature is valid: Count(<uid-pred>)
 
-		if y, ok := x.Arg.(*UidPred); !ok {
+		if y, ok := x.Arg.(*UidPred); ok {
 
+			fmt.Printf("in Arg......%T\n", y)
 			switch v := value.(type) {
 			case int:
+				fmt.Printf("in int......%v/n", v)
 				result, err = db.GSIQueryN(y.Name(), float64(v), db.EQ)
 			case float64:
 				result, err = db.GSIQueryN(y.Name(), v, db.EQ)

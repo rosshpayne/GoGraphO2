@@ -8,7 +8,7 @@ import (
 	"github.com/DynamoGraph/util"
 )
 
-type ndAlias = string
+type ndAlias = string // rdf blank-node-id e.g. _:a subject entry in rdf file
 type nodeMap map[ndAlias]util.UID
 
 var (

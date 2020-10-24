@@ -38,6 +38,7 @@ _:c Cars "Honda"   .
 
 _:d __type "Person" . /* specify type for blank node */
 _:d Name "Phil Smith"  .
+_:d Siblings _:e	.
 _:d Friends _:abc .
 _:d Friends _:b .
 _:d Friends _:c .
@@ -47,3 +48,12 @@ _:d Cars "Roll Roycet"  .
 _:d Cars "Bentley"   . 
 _:d Cars "Honda"   . 
 _:d Cars "VW Golf"  .
+
+_:e __type "Person" . /* specify type for blank node */
+_:e Name "Jenny Jones"  .
+_:e Friends _:abc .
+_:e Friends _:b .
+_:e DOB "17 February 1963"  .
+_:e Age "59"	.
+_:e Cars "Renault 302"  .
+_:e Cars "Zonda"  .

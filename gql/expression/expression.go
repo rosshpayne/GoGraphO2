@@ -6,6 +6,7 @@ package expression
 import (
 	"fmt"
 
+	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/ds"
 	"github.com/DynamoGraph/gql/expression/ast"
 	"github.com/DynamoGraph/gql/expression/token"
@@ -104,11 +105,11 @@ func walkPreds(e operand, pred []string) {
 
 }
 
-func (e *Expression) GetPredicates(op operand) []string {
+func (e *Expression) GetPredicates() []string {
 
 	var pred []string
 
-	walkPreds(op, pred)
+	walkPreds(e, pred)
 
 	return pred
 
@@ -157,6 +158,7 @@ func (e *Expression) printName() string {
 func (f *Expression) getPredicates() []string {
 	return nil
 }
+
 func (e *Expression) type_() string {
 	return "expression"
 }
@@ -173,14 +175,18 @@ var active bool
 
 // RootApply filters the Root query result for a single PKey only. The result for each predicate
 // in the zero level of the graph (first node) are held in nv
-func (e *Expression) RootApply(nv ds.NVmap) bool {
-	return e.rootExecute(nv)
+func (e *Expression) RootApply(nv ds.ClientNV) bool {
+	nvm := make(ds.NVmap)
+	for _, v := range nv {
+		nvm[v.Name] = v
+	}
+	return e.rootExecute(nvm)
 }
 
 // Apply will run the filter function over all edges setting the associated NV.State for the edge to soft-deleted (1) if it fails.
 // NV value contains allthe edges associated with the current node stored as [][]<type> for each predicate.
 // see cache.UnmarshalNodeCache for more details of the data structures.
-func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
+func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) bool {
 	//
 	// source NV for current uid-pred
 	nv := nvm[predicate]
@@ -190,17 +196,23 @@ func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
 		// apply filter to all edges and set edge to deleted if it fails
 		for i, u := range x {
 			for k, _ := range u {
-				if nv.State[i][k] == 1 {
+				// if k == 0 { // skip first entry
+				// 	continue
+				// }
+				if nv.State[i][k] == blk.UIDdetached {
 					// soft deleted
 					continue
 				}
-				if !e.execute(nvm, ty, i, k) {
-					// false: set corresponding Xf flag to false (soft delete)
-					nv.State[i][k] = 1 // soft deleted
-				}
+				return e.execute(nvm, ty, i, k)
+				// if !e.execute(nvm, ty, i, k) {
+				// 	// false: set corresponding Xf flag to false (soft delete)
+				// 	nv.State[i][k] = blk.UIDdetached // soft deleted
+				// }
 			}
 		}
 	}
+	return false
+	//return e.execute(nvm, ty, predicate)
 }
 
 // =============================================================================
@@ -248,8 +260,8 @@ func (f *FilterFunc) printName() string {
 	return f.name
 }
 
-func (f *FilterFunc) getPredicates() string {
-	return f.gqlFunc.getPredicates()
+func (f *FilterFunc) getPredicates() []string {
+	return f.gqlFunc.GetPredicates()
 }
 
 func (f *FilterFunc) Print() string {

@@ -59,7 +59,7 @@ func GSIQueryN(attr AttrName, lv float64, op Equality) (QResult, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName("DyGraph").SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {

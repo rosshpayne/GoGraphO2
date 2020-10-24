@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/DynamoGraph/ds"
 	expr "github.com/DynamoGraph/gql/expression"
 	"github.com/DynamoGraph/gql/token"
+	"github.com/DynamoGraph/util"
 	//"github.com/DynamoGraph/rdf/grmgr"
 )
 
@@ -31,6 +33,12 @@ type FilterI interface {
 
 type SelectI interface {
 	AssignSelectList(SelectList)
+	initialise()
+	hasNoData() bool
+	assignData(string, ds.ClientNV, index) ds.NVmap
+	getData(string) (ds.NVmap, ds.ClientNV, bool)
+	getIdx(string) (index, bool)
+	genNV() ds.ClientNV
 }
 
 type SelectList []*EdgeT
@@ -51,10 +59,6 @@ func (sl SelectList) String() string {
 // 	}
 // 	return ps
 // }
-
-func (sl SelectList) Execute() {
-
-}
 
 type EdgeT struct {
 	Alias   name_
@@ -116,7 +120,8 @@ type EdgeI interface {
 // }
 
 type ScalarPred struct {
-	Name_ name_
+	Name_  name_
+	Parent SelectI
 }
 
 func (s ScalarPred) edge() {}
@@ -135,17 +140,37 @@ func (s ScalarPred) Name() string {
 	return s.Name_.Name
 }
 
+type NdNv map[util.UIDb64s]ds.ClientNV
+type NdNvMap map[util.UIDb64s]ds.NVmap
+type NdIdx map[util.UIDb64s]index
+
 // func (s ScalarPred) GetPredicates() []string {
 // 	return []string{s.Name_.Name}
 // }
-
+// type Data struct {
+// 	ScKey ScalarKey
+// 	Nd    map[util.UIDb64s]ds.ClientNV
+// }
 type UidPred struct {
+	//
+	// meta data description
+	//
 	Name_      name_
+	Printed    bool    // false - not printed, true - has been printed
+	Parent     SelectI // *RootStmt, *UidPred
 	Filter     *expr.Expression
 	filterStmt string
 	Select     SelectList
 	//
-	nv ds.ClientNV
+	// data
+	//
+	lvl    int     // depth of grap
+	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
+	nodesc NdNv
+	nodesi NdIdx // nodes's index into parent uid-pred's UL data. e.g. to get Age of this nodes - nv:=nodes.parent.nodes[uid]; age:= nv["Age"].([][]int); age[nodesi.i][nodesi.j]
+
+	// scalar nodes for nodes containing this uid-pred is contained in the parent.
+
 }
 
 func (p UidPred) edge() {}
@@ -162,6 +187,14 @@ func (u *UidPred) AssignFilterStmt(e string) {
 	u.filterStmt = e
 }
 
+func (u *UidPred) GetLvl() int {
+	return u.lvl
+}
+
+// func (u *UidPred) MakeNVM() {
+// 	u.nvm = make(map[string][]ds.ClientNV)
+// }
+
 func (p UidPred) Name() string {
 	return p.Name_.Name
 }
@@ -169,40 +202,89 @@ func (p UidPred) Name() string {
 func (u *UidPred) AssignSelectList(s SelectList) {
 	u.Select = s
 }
+func (u *UidPred) initialise() {
+	u.nodes = make(NdNvMap)
+	u.nodesc = make(NdNv)
+	u.nodesi = make(NdIdx)
+}
+func (u *UidPred) hasNoData() bool {
+	return u.nodes == nil
+}
+func (u *UidPred) getIdx(key string) (index, bool) {
+	i, ok := u.nodesi[key]
+	return i, ok
+}
+
+func (u *UidPred) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
+	// make a ds.NVmap from nvc a ds.ClientNV
+	nvm := make(ds.NVmap)
+	for _, v := range nvc {
+		nvm[v.Name] = v
+	}
+	// add to existing nodes on this edge
+	u.nodes[key] = nvm
+	//
+	fmt.Printf("in assignData  for key %s %d\n", key, len(u.nodes[key]))
+	u.nodesc[key] = nvc
+	u.nodesi[key] = idx
+
+	fmt.Println("End assignData: ", len(nvm), len(u.nodes), len(nvc), len(u.nodesc), len(u.nodesi))
+
+	return nvm
+}
+func (u *UidPred) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
+	nvm, _ := u.nodes[key]
+	nvc, ok := u.nodesc[key]
+	fmt.Println("in getData return %v", ok)
+	return nvm, nvc, ok
+}
 
 // func (u *UidPred) execNode(grl grmgr.Limiter, n util.UID) {...} // see execute.go
-
-func (u *UidPred) genNV() (ds.NVmap, ds.ClientNV) {
-
+// uidp: uid-pred of interest
+//func (u *UidPred) genNV(uidp string) (ds.NVmap, ds.ClientNV) {
+func (u *UidPred) genNV() ds.ClientNV {
 	var nvc ds.ClientNV
-	nvMap := make(ds.NVmap)
+
+	fmt.Printf("\nin uidpred.genNV() .....\n")
+	if u.Filter != nil {
+		for _, x := range u.Filter.GetPredicates() {
+			nv := &ds.NV{Name: x}
+			nvc = append(nvc, nv)
+		}
+	}
 
 	for _, v := range u.Select {
+		fmt.Printf("uidpred.select : %s\n", v.Edge.Name())
 		switch x := v.Edge.(type) {
 
-		case ScalarPred:
-			nv := &ds.NV{Name: x.Name()}
-			nvMap[x.Name()] = nv
-			nvc = append(nvc, nv)
+		// scalar nodes can be sourced from parent uid-pred's NV nodes in UL cache structure - which may be slow unless we keep {i,j} index into it.
+		// other include the below scalar preds which will be stored in the NV structure in uid-pred.nodes
+		//
+		// case *ScalarPred:
+		// 	nv := &ds.NV{Name: x.Name()}
+		// 	nvc = append(nvc, nv)
 
 		case *UidPred:
+			// if uidp != x.Name() {
+			// 	continue // only interested in current uid-pred
+			// }
 			un := x.Name() + ":"
+			fmt.Println("yy genNV un: ", un)
 			nv := &ds.NV{Name: un}
-			nvMap[un] = nv
+			nvc = append(nvc, nv)
 			for _, vv := range x.Select {
 				switch x := vv.Edge.(type) {
-				case ScalarPred:
+				case *ScalarPred:
 					upred := un + x.Name()
+					fmt.Println("xx genNV upred: ", upred)
 					nv := &ds.NV{Name: upred}
-					nvMap[upred] = nv
 					nvc = append(nvc, nv)
 				}
 			}
 		}
 
 	}
-	return nvMap, nvc
-	return nvMap, nvc
+	return nvc
 }
 
 // func (u *UidPred) GetPredicates() []string {
@@ -461,9 +543,11 @@ type RootStmt struct {
 	Select     SelectList
 	//
 	//PredList []string
-	// populated during execution phase = contains slice of predicate,value for current node and child nodes
+	// populated during execution phase = contains slice of predicate,value for current nodes and child nodess
 	//result []rootResult - executor passes nv results to goroutine collector which formats the results and prints out on request
-	nv ds.ClientNV
+	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
+	nodesc NdNv
+	nodesi NdIdx
 }
 
 func (r *RootStmt) AssignName(input string, loc token.Pos) {
@@ -488,52 +572,84 @@ func (r *RootStmt) AssignVarName(input string, loc token.Pos) {
 	r.Var.AssignName(input, loc)
 }
 
-// genNV generates NV data based on type (parameter ty) passed in
-func (r *RootStmt) genNV() (ds.NVmap, ds.ClientNV) {
-	var nvc ds.ClientNV
-	nvMap := make(ds.NVmap)
+func (r *RootStmt) hasNoData() bool {
+	return r.nodes == nil
+}
+func (r *RootStmt) initialise() {
+	r.nodes = make(NdNvMap)
+	r.nodesc = make(NdNv)
+	r.nodesi = make(NdIdx)
+}
 
+func (r *RootStmt) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
+	// create a NVmap
+	nvm := make(ds.NVmap)
+	for _, v := range nvc {
+		nvm[v.Name] = v
+	}
+	// add to existing nodes on this edge
+	r.nodes[key] = nvm
+	r.nodesc[key] = nvc
+	r.nodesi[key] = idx
+
+	fmt.Println("End assignData: ", len(nvm), len(r.nodes), len(nvc), len(r.nodesc), len(r.nodesi))
+	return nvm
+}
+
+func (r *RootStmt) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
+	nvm, ok := r.nodes[key]
+	nvc, ok := r.nodesc[key]
+	return nvm, nvc, ok
+}
+
+func (r *RootStmt) getIdx(key string) (index, bool) {
+	i, ok := r.nodesi[key]
+	return i, ok
+}
+
+// genNV generates NV nodes based on type (parameter ty) passed in
+func (r *RootStmt) genNV() ds.ClientNV {
+	var nvc ds.ClientNV
+
+	fmt.Println("In genNV()............")
 	if r.Filter != nil {
-		for _, nv := range r.Filter.GetPredicates() {
-			nv := &ds.NV{Name: x.Name()}
-			nvMap[x.Name()] = nv
+		for _, x := range r.Filter.GetPredicates() {
+			nv := &ds.NV{Name: x}
 			nvc = append(nvc, nv)
 		}
 	}
 
 	for _, v := range r.Select {
+
+		fmt.Printf("In genNV()..select %T\n", v.Edge)
 		switch x := v.Edge.(type) {
 
-		case ScalarPred:
-			if _, ok := nvMap[x.Name()]; ok {
-				continue
-			}
+		case *ScalarPred:
+			fmt.Println("In genNV()..select scalar ")
 			nv := &ds.NV{Name: x.Name()}
-			nvMap[x.Name()] = nv
+			fmt.Println("In genNV()..select scalar ", nv.Name)
 			nvc = append(nvc, nv)
 
 		case *UidPred:
-			if _, ok := nvMap[x.Name()]; !ok {
-				un := x.Name() + ":"
-				nv := &ds.NV{Name: un}
-				nvMap[un] = nv
-			}
+			var un string
+			un = x.Name() + ":"
+			fmt.Println("root genNV un: ", un)
+			nv := &ds.NV{Name: un}
+			nvc = append(nvc, nv)
+
 			for _, vv := range x.Select {
+				fmt.Printf("Found edge for root uid-pred %T\n", vv.Edge)
 				switch x := vv.Edge.(type) {
-				case ScalarPred:
+				case *ScalarPred:
 					upred := un + x.Name()
-					if _, ok := nvMap[upred]; ok {
-						continue
-					}
+					fmt.Println("root genNV upred: ", upred)
 					nv := &ds.NV{Name: upred}
-					nvMap[upred] = nv
 					nvc = append(nvc, nv)
 				}
 			}
 		}
-
 	}
-	return nvMap, nvc
+	return nvc
 }
 
 func (r *RootStmt) String() string {

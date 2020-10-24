@@ -25,6 +25,22 @@ func (l *MyLogger) On() {
 	l.on = true
 }
 
+func init() {
+	logf := openLogFile()
+	logr := log.New(logf, "DB:", logrFlags)
+	SetLogger(logr)
+	Logr.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	On()
+}
+
+func openLogFile() *os.File {
+	logf, err := os.OpenFile("/home/ec2-user/environment/project/DynamoGraph/logs/DyG.sys.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return logf
+}
+
 func (l *MyLogger) Off() {
 	l.on = false
 }
@@ -75,22 +91,6 @@ func Off() {
 }
 func On() {
 	loggingOn = true
-}
-
-func init() {
-	logf := openLogFile()
-	logr := log.New(logf, "DB:", logrFlags)
-	SetLogger(logr)
-	Logr.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-	On()
-}
-
-func openLogFile() *os.File {
-	logf, err := os.OpenFile("/home/ec2-user/environment/project/DynamoGraph/logs/DyG.sys.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return logf
 }
 
 func Log(prefix string, s string, panic ...bool) {

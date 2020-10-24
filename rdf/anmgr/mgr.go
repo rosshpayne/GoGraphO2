@@ -72,7 +72,9 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			attachRunning = make(attachRunningMap)
 			var dontrun bool
 			if len(edges) > 0 {
-				for {
+				//
+				for len(attachDone) != len(edges)-1 {
+					//
 					for _, e := range edges {
 						dontrun = false
 						slog.Log("anmgr ", fmt.Sprintf("for loop: e = %#v", e))
@@ -81,7 +83,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 							continue
 						}
 						//
-						// check if any running attaches have completed
+						// check if any running attachers have completed
 						//
 						for i := 0; i < 3; i++ {
 							select {
@@ -107,8 +109,8 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 						if dontrun {
 
 							if len(attachDone) == len(edges)-1 {
-								time.Sleep(50 * time.Millisecond)
 								slog.Log("anmgr ", fmt.Sprintf("sleep "))
+								time.Sleep(50 * time.Millisecond)
 								// only one left to run go to top of loop
 								break
 							}
@@ -128,13 +130,14 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 						attachRunning[e] = true
 					}
 					slog.Log("anmgr ", fmt.Sprintf("for loop finished %d  %d ", len(attachDone), len(edges)))
-					if len(attachDone) == len(edges)-1 {
-						break
-					}
+					// if len(attachDone) == len(edges)-1 {
+					// 	break OuterLoop
+					// }
 				}
 			}
+			// all edges joined to respect nodesn - send end-of-data on channel
 			edges = nil
-			AttachNodeCh <- Edge{Cuid: []byte("eol")}
+			AttachNodeCh <- Edge{Cuid: []byte("eod")}
 
 		case <-attachDoneCh:
 

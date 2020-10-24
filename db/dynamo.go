@@ -11,6 +11,7 @@ import (
 	blk "github.com/DynamoGraph/block"
 	//gerr "github.com/DynamoGraph/dygerror"
 	param "github.com/DynamoGraph/dygparam"
+	mon "github.com/DynamoGraph/gql/monitor"
 	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/util"
 
@@ -329,13 +330,16 @@ func NodeExists(uid util.UID, subKey ...string) (bool, error) {
 // FetchNode
 func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 
+	stat := mon.Stat{Id: mon.DBFetch}
+	mon.StatCh <- stat
+
 	var sortk string
 	if len(subKey) > 0 {
 		sortk = subKey[0]
-		slog.Log("FetchNode: ", fmt.Sprintf(" node: %s subKey: %s", uid.String(), subKey[0]))
+		slog.Log("DB FetchNode: ", fmt.Sprintf(" node: %s subKey: %s", uid.String(), sortk))
 	} else {
 		sortk = "A#"
-		slog.Log("FetchNode: ", fmt.Sprintf(" node: %s", uid.String()))
+		slog.Log("DB FetchNode: ", fmt.Sprintf(" node: %s subKey: %s", uid.String(), sortk))
 	}
 
 	keyC := expression.KeyEqual(expression.Key("PKey"), expression.Value(uid)).And(expression.KeyBeginsWith(expression.Key("SortK"), sortk))
@@ -358,7 +362,7 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 	result, err := dynSrv.Query(input)
 	t1 := time.Now()
 	if err != nil {
-		return nil, newDBSysErr("FetchNode", "Query", err)
+		return nil, newDBSysErr("DB FetchNode", "Query", err)
 	}
 	syslog(fmt.Sprintf("FetchNode:consumed capacity for Query  %s. ItemCount %d  Duration: %s", result.ConsumedCapacity.String(), len(result.Items), t1.Sub(t0)))
 	//
@@ -404,7 +408,7 @@ func FetchNodeEncode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(true)
+	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	// Query - returns ALL the node data + any propagated child data
 	//
@@ -487,8 +491,8 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 	//
 	// Marshal primary key of parent node
 	//
-	pkey := pKey{PKey: di.PKey, SortK: di.SortK}
-	av, err := dynamodbattribute.MarshalMap(&pkey)
+	pKey := pKey{PKey: di.PKey, SortK: di.SortK}
+	av, err := dynamodbattribute.MarshalMap(&pKey)
 	if err != nil {
 		return newDBMarshalingErr("SaveCompleteUpred", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)
 	}
@@ -515,7 +519,7 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 }
 
 // SaveUpredAvailability writes availability state of the uid-pred to storage
-func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx int, cnt int, attrNm string) error {
+func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx int, cnt int, attrNm string, ty string) error {
 	//
 	var (
 		err    error
@@ -555,6 +559,7 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx int, cnt int
 	entry := "XF[" + strconv.Itoa(idx) + "]"
 	upd = expression.Set(expression.Name(entry), expression.Value(status))
 	upd = upd.Set(expression.Name("P"), expression.Value(attrNm))
+	upd = upd.Set(expression.Name("Ty"), expression.Value(ty))
 	upd = upd.Add(expression.Name("N"), expression.Value(cnt))
 	expr, err = expression.NewBuilder().WithUpdate(upd).Build()
 	if err != nil {
@@ -566,8 +571,8 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx int, cnt int
 	//
 	// Marshal primary key of parent node
 	//
-	pkey := pKey{PKey: di.PKey, SortK: di.SortK}
-	av, err := dynamodbattribute.MarshalMap(&pkey)
+	pKey := pKey{PKey: di.PKey, SortK: di.SortK}
+	av, err := dynamodbattribute.MarshalMap(&pKey)
 	if err != nil {
 		return newDBMarshalingErr("SaveUpredAvailable", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)
 	}

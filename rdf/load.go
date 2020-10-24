@@ -12,6 +12,7 @@ import (
 	"github.com/DynamoGraph/cache"
 	"github.com/DynamoGraph/client"
 	"github.com/DynamoGraph/db"
+	"github.com/DynamoGraph/gql/monitor"
 	//"github.com/DynamoGraph/es"
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/ds"
@@ -93,22 +94,24 @@ func Load(f io.Reader) error { // S P O
 	//
 	// sync.WorkGroups
 	//
-	wpStart.Add(6)
+	wpStart.Add(7)
 	// check verify and saveNode have finished. Each goroutine is responsible for closing and waiting for all routines they spawn.
 	wpEnd.Add(2)
-	ctxEnd.Add(4)
+	// services
+	ctxEnd.Add(5)
 	//
 	// start pipeline goroutines
 	//
 	go verify(&wpStart, &wpEnd)
 	go saveNode(&wpStart, &wpEnd)
 	//
-	// start autonomous goroutines
+	// start supporting services
 	//
 	go uuid.PowerOn(ctx, &wpStart, &ctxEnd)
 	go grmgr.PowerOn(ctx, &wpStart, &ctxEnd)
 	go elog.PowerOn(ctx, &wpStart, &ctxEnd)
 	go anmgr.PowerOn(ctx, &wpStart, &ctxEnd)
+	go monitor.PowerOn(ctx, &wpStart, &ctxEnd)
 	//
 	// wait for processes to start
 	//
@@ -248,6 +251,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 // 	N    bool   // true: nullable (attribute may not exist) false: not nullable
 // 	Pg   bool   // true: propagate scalar data to parent
 // }
+//unmarshalRDF deconstructs the rdf lines for an individual node (identical subject value) to create NV entries for attribjte
 func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 	defer wg.Done()
 
@@ -284,9 +288,12 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	var attr map[string]*mergedRDF
 	attr = make(map[string]*mergedRDF)
 	//
-	var nv []ds.NV // AttributName-Dynamo-Value
+	var nv []ds.NV // Node's AttributName-Value
 
-	// find predicate in Lines matching type attribute name in ty
+	// find predicate in s-p-o lines matching pred  name in ty name
+	// create attr entry indexed by pred.
+	// may need to merge multiple s-p-o lines with the same pred into one attr entry.
+	// attr will then be used to create NV entries, where the name (pred) gets associated with value (ob)
 
 	for _, v := range ty {
 		var found bool
@@ -294,6 +301,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 
 		for _, n := range node.Lines {
 
+			// match the rdf node pred value to the nodes type attribute
 			if !strings.EqualFold(v.Name, n.Pred) {
 				continue
 			}
@@ -333,6 +341,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 						err := fmt.Errorf("Conflict with SS type at line %d", n.N)
 						node.Err = append(node.Err, err)
 					} else {
+						// merge (append) obj value with existing attr (pred) value
 						syslog(fmt.Sprintf("Add to SS . [%s]", n.Obj))
 						ss = append(ss, n.Obj)
 						attr[v.Name].value = ss
@@ -389,7 +398,9 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 				}
 
 			case Nd:
-
+				// _:d Friends _:abc .
+				// _:d Friends _:b .
+				// _:d Friends _:c .
 				// need to convert n.Obj  value of SName to UID
 				if a, ok := attr[v.Name]; !ok {
 					ss := make([]string, 1)
@@ -399,14 +410,13 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 					//addEdgesCh<-
 				} else {
 					if nd, ok := a.value.([]string); !ok {
-						err := fmt.Errorf("Conflict with SS type at line %d", n.N)
+						err := fmt.Errorf("Conflict with Nd type at line %d", n.N)
 						node.Err = append(node.Err, err)
 					} else {
 						nd = append(nd, n.Obj)
-						attr[v.Name].value = nd
+						attr[v.Name].value = nd // _:abc,_:b,_:c
 					}
 				}
-
 				//	addEdgesCh<-
 			}
 			//
@@ -470,13 +480,16 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	for _, v := range attr {
 		if v.dt == "Nd" {
 			x := v.value.([]string)
+			// for the node create a edge entry to each child node (for the Nd pred) in the anmgr service
+			// These entries will be used later to attach the actual nodes together (propagate child data etc)
 			for _, s := range x {
-				anmgr.EdgeSnCh <- anmgr.EdgeSn{CSn: node.ID, PSn: s, Sortk: v.sortk}
+				//anmgr.EdgeSnCh <- anmgr.EdgeSn{CSn: node.ID, PSn: s, Sortk: v.sortk} // TODO: change channel name to RegisterEdge
+				anmgr.EdgeSnCh <- anmgr.EdgeSn{CSn: s, PSn: node.ID, Sortk: v.sortk}
 			}
 		}
 	}
 	//
-	// pass NV onto database goroutine if no errors detected
+	// pass NV onto save-to-database channel if no errors detected
 	//
 	if len(node.Err) == 0 {
 		slog.Log("unmarshalRDF: ", fmt.Sprintf("send on saveCh: nv: %#v", nv))
@@ -523,16 +536,19 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 	}
 	//	syslog("saveNode  waiting on saveRDFNode routines to finish")
 	wg.Wait()
-	syslog("saveNode finished waiting...exiting")
+	syslog("saveNode finished waiting.....now to attach nodes")
 
 	limiterAttach := grmgr.New("nodeAttach", 6)
-	// retrieve attach node pairs from uuid.edges via channel uuid.AttachNodeCh
+	//
+	// fetch edge node ids from attach-node-manager routine. This will send each edge node pair via its AttachNodeCh.
+	//
 	anmgr.AttachCh <- struct{}{}
 	c = 0
+	//
 	for {
 		c++
 		e := <-anmgr.AttachNodeCh
-		if string(e.Cuid) == "eol" {
+		if string(e.Cuid) == "eod" {
 			break
 		}
 		slog.Log("attachNode: ", fmt.Sprintf("read from AttachNodeCh channel %d now ASK limiter", c))
@@ -544,7 +560,9 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 
 		wg.Add(1)
 		slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
-		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach)
+		//go client.AttachNode(util.UID(e.Puid), util.UID(e.Cuid), e.Sortk, e.E, &wg, limiterAttach) //TODO: possible error. had to swap 1st & 2nd arguments to get right attachment parent->child
+		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach) //TODO: possible error. had to swap 1st & 2nd arguments to get right attachment parent->child
+
 	}
 	syslog("saveNode  waiting on AttachNode to finish")
 	wg.Wait()
@@ -558,7 +576,7 @@ func getType(node *ds.Node) (blk.TyAttrBlock, error) {
 	type loc struct {
 		sync.Mutex
 	}
-	var ll loc
+	//	var ll loc
 	syslog(".  getType..")
 
 	// is there a type defined
@@ -566,9 +584,9 @@ func getType(node *ds.Node) (blk.TyAttrBlock, error) {
 		node.Err = append(node.Err, fmt.Errorf("No type defined for %s", node.ID))
 	}
 	syslog(fmt.Sprintf("node.TyName : [%s]", node.TyName))
-	ll.Lock()
+	//ll.Lock() - all types loaded at startup time - no locks required
 	ty, err := cache.FetchType(node.TyName)
-	ll.Unlock()
+	//ll.Unlock()
 	if err != nil {
 		return nil, err
 	}

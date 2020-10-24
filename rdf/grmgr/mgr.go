@@ -3,7 +3,7 @@ package grmgr
 import (
 	"context"
 	"fmt"
-	"time"
+	//	"time"
 
 	"sync"
 
@@ -51,7 +51,7 @@ func (l Limiter) Ask() {
 }
 
 func (l Limiter) StartR() {
-	StartCh <- l.r
+	//	StartCh <- l.r
 }
 
 func (l Limiter) EndR() {
@@ -149,17 +149,15 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 		select {
 
-		case r = <-StartCh:
+		case l = <-registerCh: // change the ceiling by passing in Limiter struct. As struct is a non-ref type, l is a copy of struct passed into channel. Ref typs, spmfc - slice, pointer, map, func, channel
 
-			rCnt[r] += 1
-
-			slog.Log("grmgr: ", fmt.Sprintf("StartCh received for %s. rCnt = %d ", r, rCnt[r]))
+			rLimit[l.r] = l
+			rCnt[l.r] = 0
 
 		case r = <-EndCh:
 
-			rCnt[r] -= 1
-
 			slog.Log("grmgr: ", fmt.Sprintf("EndCh received for %s. rCnt = %d ", r, rCnt[r]))
+			rCnt[r] -= 1
 
 			if b, ok := rWait[r]; ok {
 				if b && rCnt[r] < rLimit[r].c {
@@ -169,34 +167,12 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 				}
 			}
 
-		case l = <-registerCh: // change the ceiling by passing in Limiter struct. As struct is a non-ref type, l is a copy of struct passed into channel. Ref typs, spmfc - slice, pointer, map, func, channel
-
-			rLimit[l.r] = l
-			rCnt[l.r] = 0
-
 		case r = <-rAskCh:
 
-			// check if any goroutines are starting...particular of the current reoutine
-			for caught, i := false, 0; i < 5; i++ {
-				slog.Log("grmgr: ", fmt.Sprintf("Looping..... %d", i))
-				select {
-				case rr := <-StartCh:
-					rCnt[rr] += 1
-					if r == rr {
-						slog.Log("grmgr: ", fmt.Sprintf("CAUGHT - goroutine started by previous Ask for %s", r))
-						caught = true
-					}
-				default:
-				}
-				if caught {
-					break
-				}
-				time.Sleep(8 * time.Microsecond)
-			}
-
 			if rCnt[r] < rLimit[r].c {
-				slog.Log("grmgr: ", fmt.Sprintf("has ASKed. Under cnt limit. Send ACK on routine channel..%s", r))
 				rLimit[r].ch <- struct{}{} // proceed to run gr
+				rCnt[r] += 1
+				slog.Log("grmgr: ", fmt.Sprintf("has ASKed. Under cnt limit. Send ACK on routine channel..for %s  cnt: %d", r, rCnt[r]))
 			} else {
 				slog.Log("grmgr: ", fmt.Sprintf("has ASKed. Cnt is above limit. Mark %s as waiting", r))
 				rWait[r] = true // log routine as waiting to proceed

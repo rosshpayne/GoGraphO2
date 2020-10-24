@@ -38,9 +38,7 @@ func (g *GraphCache) LockNode(uid util.UID) {
 func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var sortk_ string
 	//	return g.FetchNode(uid, true)
-
 	g.Lock()
-
 	if len(sortk) > 0 {
 		sortk_ = sortk[0]
 	} else {
@@ -48,7 +46,6 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 	}
 	//slog.Log("FetchForUpdate: ", fmt.Sprintf("** Cache FetchForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk_))
 	e := g.cache[uid.String()]
-
 	if e == nil {
 		e = &entry{ready: make(chan struct{})}
 		g.cache[uid.String()] = e
@@ -56,12 +53,12 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 		// nb: type blk.NodeBlock []*DataItem
 		nb, err := db.FetchNode(uid, sortk_)
 		if err != nil {
+			slog.Log("FetchForUpdate: ", fmt.Sprintf("db fetchnode error: %s", err.Error()))
 			return nil, err
 		}
 		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
 		en := e.NodeCache
 		en.Uid = uid
-		slog.Log("FetchForUpdate: ", fmt.Sprintf("len(nb): %d", len(nb)))
 		for _, v := range nb {
 			en.m[v.SortK] = v
 		}
@@ -74,7 +71,6 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 	// lock e to prevent updates from other routines. Must explicitly Unlock() from client.
 	//  Note: e can only be acquired from outside of this package via the Fetch* api.
 	//
-	slog.Log("FetchForUpdate: ", fmt.Sprintf("** About to lock  Key Value: [%s]   sortk: %s", uid.String(), sortk_))
 	e.Lock()
 	//if e != nil && e.NodeCache == nil || e == nil {
 	// node cache has been cleared. Start again.
@@ -129,6 +125,71 @@ func (g *GraphCache) FetchNodeExec_(uid util.UID, sortk string, ty string) (*Nod
 	return nil, nil
 }
 
+func (g *GraphCache) FetchNodeNonCache(uid util.UID, sortk ...string) (*NodeCache, error) {
+	var sortk_ string
+	fmt.Printf("** Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk)
+
+	g.Lock()
+	if len(sortk) > 0 {
+		sortk_ = sortk[0]
+	} else {
+		sortk_ = "A#"
+	}
+	uids := uid.String()
+	e := g.cache[uids]
+	fmt.Printf("**2 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
+	e = nil
+	if e == nil {
+		e = &entry{ready: make(chan struct{})}
+		g.cache[uids] = e
+		g.Unlock()
+		// nb: type blk.NodeBlock []*DataIte
+		fmt.Printf("**3 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
+		nb, err := db.FetchNode(uid, sortk_)
+		if err != nil {
+			return nil, err
+		}
+
+		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
+		en := e.NodeCache
+		en.Uid = uid
+		for _, v := range nb {
+			en.m[v.SortK] = v
+		}
+		close(e.ready)
+	} else {
+		g.Unlock()
+		<-e.ready
+	}
+	//
+	// lock node cache. TODO: when is it unlocked?????
+	//
+	e.RLock()
+	if e.NodeCache == nil {
+		// cache has been cleared. Start again.
+		e = nil
+		g.FetchNode(uid, sortk_)
+	}
+	e.locked = true
+	e.ffuEnabled = false
+	var found bool
+	// check sortk is cached
+	for k := range e.m {
+		if strings.HasPrefix(k, sortk_) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		e.RUnlock()
+		e.fetchItems(sortk_)
+	}
+
+	e.RUnlock()
+
+	return e.NodeCache, nil
+}
+
 func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var sortk_ string
 	fmt.Printf("** Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk)
@@ -141,12 +202,14 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 	}
 	uids := uid.String()
 	e := g.cache[uids]
+	fmt.Printf("**2 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
 
 	if e == nil {
 		e = &entry{ready: make(chan struct{})}
 		g.cache[uids] = e
 		g.Unlock()
 		// nb: type blk.NodeBlock []*DataIte
+		fmt.Printf("**3 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
 		nb, err := db.FetchNode(uid, sortk_)
 		if err != nil {
 			return nil, err

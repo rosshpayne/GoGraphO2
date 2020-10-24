@@ -193,8 +193,10 @@ func (g *GQLFunc) AssignName(input string, loc token.Pos) {
 	g.FName = name_{Name: input, Loc: loc}
 }
 
-func (g *GQLFunc) getPredicates() string {
-	return g.Farg.Name()
+func (g *GQLFunc) GetPredicates() []string {
+	s := make([]string, 1, 1)
+	s[0] = g.Farg.Name()
+	return s
 }
 
 func (g *GQLFunc) Name() string {

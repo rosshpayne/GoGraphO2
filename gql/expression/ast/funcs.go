@@ -69,13 +69,13 @@ func EQ(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) boo
 			// get data from nv
 			data := nv[x.Name()] //data.Value [][][]byte
 
-			if nds, ok := data.Value.([][][]byte); !ok {
+			if nds, ok = data.Value.([][][]byte); !ok {
 				panic(fmt.Errorf("Expression EQ: Expected [][][]byte for NV value"))
 			}
 			// count child nodes
 			n := 0
-			for _, k := range nds {
-				n += len(nds[k])
+			for i, k := range nds {
+				n += len(k[i])
 			}
 			if v, ok := value.(int); ok {
 				return v == n
@@ -170,7 +170,7 @@ func EQ(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) boo
 
 // 	}
 // }
-
+func GT(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool     { return true }
 func HAS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool    { return false }
 func UID(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool    { return false }
 func UID_IN(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool { return false }
