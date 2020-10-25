@@ -61,19 +61,6 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 	//
 	for {
 
-		// probe done channel - do not make heavy use of default in select channel as it must be very heavy on CPU
-		// select {
-
-		// case <-ctx.Done():
-
-		// 	slog.Log("monitor: ", "Powering down...")
-		// 	fmt.Printf("monitor: %#v\n", stats)
-		// 	slog.Log("monitor: ", fmt.Sprintf("monitor: %#v\n", stats))
-		// 	return
-
-		// default:
-		// }
-
 		select {
 
 		case s = <-StatCh:

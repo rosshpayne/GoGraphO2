@@ -562,8 +562,7 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 
 		wg.Add(1)
 		//slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
-		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach) //TODO: possible error. had to swap 1st & 2nd arguments to get right attachment parent->child
-
+		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach)
 	}
 
 	wg.Wait()

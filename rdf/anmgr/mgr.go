@@ -80,7 +80,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			if len(edges) > 0 {
 				//
 				slog.Log(LogLabel, fmt.Sprintf("len(attachDone) < len(edges). % %d", len(attachDone), len(edges)))
-				for len(attachDone) < len(edges)-1 { // 1 accounts for last currently  running attacher which has just been started
+				for len(attachDone) < len(edges) { // 1 accounts for last currently  running attacher which has just been started
 					//
 					for _, e := range edges {
 						dontrun = false
@@ -88,24 +88,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 							continue
 						}
 						//
-						// poll for any running attachers that have completed
-						//
-						for i := 0; i < 2; i++ {
-							select {
-
-							case e := <-attachDoneCh:
-
-								slog.Log(LogLabel, fmt.Sprintf("** received on attachDoneCh.... %#v", e))
-								attachDone[e] = true
-								delete(attachRunning, e)
-
-							default:
-								time.Sleep(5 * time.Millisecond)
-							}
-
-						}
-						//
-						// detect for possible concurrency issues with running attachers
+						// detect for possible concurrency issues with running attachers - for this to work we need to be aware of when attachers have finished (ie. done)
 						//
 						for r, _ := range attachRunning {
 							// if new edge shares any edges with currently running attach jobs move onot next edge
@@ -137,17 +120,16 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 						attachRunning[e] = true
 					}
 					slog.Log(LogLabel, fmt.Sprintf("for edge loop finished %d  %d ", len(attachDone), len(edges)))
-
-				}
-				//
-				// wait for running attachers to complete
-				//
-				slog.Log(LogLabel, fmt.Sprintf("Wait for %d running attach to finish", len(attachRunning)))
-				for i := len(attachRunning); i > 0; i-- {
-					e := <-attachDoneCh
-					slog.Log(LogLabel, fmt.Sprintf("** received on attachDoneCh.... %#v", e))
-					attachDone[e] = true
-					delete(attachRunning, e)
+					//
+					// wait for running attachers to complete
+					//
+					slog.Log(LogLabel, fmt.Sprintf("Wait for %d running attach to finish", len(attachRunning)))
+					for i := len(attachRunning); i > 0; i-- {
+						e := <-attachDoneCh
+						slog.Log(LogLabel, fmt.Sprintf("** received on attachDoneCh.... %#v", e))
+						attachDone[e] = true
+						delete(attachRunning, e)
+					}
 				}
 				edges = nil
 				attachDone = nil
