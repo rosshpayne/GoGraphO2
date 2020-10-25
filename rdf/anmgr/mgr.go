@@ -11,6 +11,10 @@ import (
 	"github.com/DynamoGraph/util"
 )
 
+const (
+	LogLabel = "anmgr: "
+)
+
 type EdgeSn struct {
 	CSn   string
 	PSn   string
@@ -64,33 +68,34 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 		case e := <-EdgeSnCh:
 
 			edges = append(edges, e)
-			slog.Log("anmgr ", fmt.Sprintf("received on EdgeSnCn. %#v", e))
+			slog.Log(LogLabel, fmt.Sprintf("received on EdgeSnCn. %#v", e))
 
 		case <-AttachCh:
 
 			attachDone = make(attachDoneMap)
 			attachRunning = make(attachRunningMap)
-			var dontrun bool
+			var (
+				dontrun bool
+			)
 			if len(edges) > 0 {
 				//
-				for len(attachDone) != len(edges)-1 {
+				slog.Log(LogLabel, fmt.Sprintf("len(attachDone) < len(edges). % %d", len(attachDone), len(edges)))
+				for len(attachDone) < len(edges)-1 { // 1 accounts for last currently  running attacher which has just been started
 					//
 					for _, e := range edges {
 						dontrun = false
-						slog.Log("anmgr ", fmt.Sprintf("for loop: e = %#v", e))
 						if attachRunning[e] || attachDone[e] {
-							slog.Log("anmgr ", fmt.Sprintf("running or done: e = %#v", e))
 							continue
 						}
 						//
-						// check if any running attachers have completed
+						// poll for any running attachers that have completed
 						//
-						for i := 0; i < 3; i++ {
+						for i := 0; i < 2; i++ {
 							select {
 
 							case e := <-attachDoneCh:
 
-								slog.Log("anmgr ", fmt.Sprintf("** received on attachDoneCh.... %d", i))
+								slog.Log(LogLabel, fmt.Sprintf("** received on attachDoneCh.... %#v", e))
 								attachDone[e] = true
 								delete(attachRunning, e)
 
@@ -99,6 +104,9 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 							}
 
 						}
+						//
+						// detect for possible concurrency issues with running attachers
+						//
 						for r, _ := range attachRunning {
 							// if new edge shares any edges with currently running attach jobs move onot next edge
 							if e.CSn == r.CSn || e.PSn == r.CSn || e.CSn == r.PSn || e.PSn == r.PSn {
@@ -109,9 +117,8 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 						if dontrun {
 
 							if len(attachDone) == len(edges)-1 {
-								slog.Log("anmgr ", fmt.Sprintf("sleep "))
+								slog.Log(LogLabel, fmt.Sprintf("sleep "))
 								time.Sleep(50 * time.Millisecond)
-								// only one left to run go to top of loop
 								break
 							}
 							continue
@@ -123,20 +130,31 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 						uuid.ReqCh <- uuid.Request{SName: e.PSn, RespCh: lch}
 						psn := <-lch
 
-						slog.Log("anmgr ", fmt.Sprintf("About to run AttachNodeCh: %s  %s  %s %s", e.CSn, e.PSn, csn.String(), psn.String()))
+						slog.Log(LogLabel, fmt.Sprintf("Run AttachNodeCh: %s  %s  %s %s", e.CSn, e.PSn, csn.String(), psn.String()))
 
 						AttachNodeCh <- Edge{Cuid: csn, Puid: psn, Sortk: e.Sortk, E: e}
 
 						attachRunning[e] = true
 					}
-					slog.Log("anmgr ", fmt.Sprintf("for loop finished %d  %d ", len(attachDone), len(edges)))
-					// if len(attachDone) == len(edges)-1 {
-					// 	break OuterLoop
-					// }
+					slog.Log(LogLabel, fmt.Sprintf("for edge loop finished %d  %d ", len(attachDone), len(edges)))
+
 				}
+				//
+				// wait for running attachers to complete
+				//
+				slog.Log(LogLabel, fmt.Sprintf("Wait for %d running attach to finish", len(attachRunning)))
+				for i := len(attachRunning); i > 0; i-- {
+					e := <-attachDoneCh
+					slog.Log(LogLabel, fmt.Sprintf("** received on attachDoneCh.... %#v", e))
+					attachDone[e] = true
+					delete(attachRunning, e)
+				}
+				edges = nil
+				attachDone = nil
+				attachRunning = nil
 			}
-			// all edges joined to respect nodesn - send end-of-data on channel
-			edges = nil
+			// all edges joined - send end-of-data on channel
+
 			AttachNodeCh <- Edge{Cuid: []byte("eod")}
 
 		case <-attachDoneCh:

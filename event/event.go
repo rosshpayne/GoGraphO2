@@ -21,7 +21,27 @@ func newUID() (util.UID, error) {
 	return uid, nil
 }
 
-func New(eventData interface{}) ([]byte, error) {
+type Event interface {
+	event_()
+	Tag() string
+}
+
+type EventMeta struct {
+	EID    util.UID
+	SEQ    int
+	OP     string
+	Status string
+	Start  string
+	Dur    string
+	Err    string
+}
+
+func (e EventMeta) event_() {}
+func (e EventMeta) Tag() string {
+	return "Meta"
+}
+
+func New(eventData Event) ([]byte, error) {
 
 	eID, err := newUID()
 	if err != nil {
@@ -44,26 +64,6 @@ func New(eventData interface{}) ([]byte, error) {
 
 	return eID, nil
 
-}
-
-type Event interface {
-	event_()
-	Tag() string
-}
-
-type EventMeta struct {
-	EID    util.UID
-	SEQ    int
-	OP     string
-	Status string
-	Start  string
-	Dur    string
-	Err    string
-}
-
-func (e EventMeta) event_() {}
-func (e EventMeta) Tag() string {
-	return "Meta"
 }
 
 func LogEventSuccess(eID util.UID, duration string) error {

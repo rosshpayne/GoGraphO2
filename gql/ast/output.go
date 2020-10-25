@@ -93,7 +93,8 @@ func (r *RootStmt) Output() {
 						}
 						fmt.Print(s.String())
 						//
-						// check for uid-pred attributes belonging to edge x - these will not be cached
+						// walk the graph using uid-pred attributes belonging to edge x.
+						// Output will print the scalar values associated with each child node of x.
 						//
 						for _, p := range x.Select {
 							if y, ok := p.Edge.(*UidPred); ok {
@@ -118,11 +119,9 @@ func (u *UidPred) output(uid_ []uint8) {
 
 	uid := util.UID(uid_).String()
 	//
-	//	fmt.Printf("in output....nodes: %d %d Predicate: %s Level: %d\n", len(u.nodesc), len(u.nodes), u.Name(), u.lvl)
 	nvc, ok := u.nodesc[uid]
 	if !ok {
 		panic(fmt.Errorf("Error in u.output. uid %q not in nodesc for %s", uid, u.Name()))
-
 	}
 	nvm, ok := u.nodes[uid]
 	if !ok {
@@ -181,12 +180,13 @@ func (u *UidPred) output(uid_ []uint8) {
 					s.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", u.lvl+1)))
 					fmt.Print(s.String())
 					//
-					// check for uid-pred attributes belonging to edge x - these will not be cached
+					// walk the graph using uid-pred attributes belonging to edge x.
+					// Output will print the scalar values associated with each child node of x.
 					//
 					for _, p := range x.Select {
 
 						if y, ok := p.Edge.(*UidPred); ok {
-							// only need to run output once for all uid-pred's in x
+							// only need to run output once for all uid-pred's in x. Once filter is incorporated this will change.
 							y.output(v)
 							break
 						}

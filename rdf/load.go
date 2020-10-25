@@ -545,13 +545,15 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 	anmgr.AttachCh <- struct{}{}
 	c = 0
 	//
-	for {
+	// AttachNodeCh is populated by service anmgr (AttachNodeManaGeR)
+	//
+	for e := range anmgr.AttachNodeCh {
 		c++
-		e := <-anmgr.AttachNodeCh
+		//	e := <-anmgr.AttachNodeCh
 		if string(e.Cuid) == "eod" {
 			break
 		}
-		slog.Log("attachNode: ", fmt.Sprintf("read from AttachNodeCh channel %d now ASK limiter", c))
+		//slog.Log("attachNode: ", fmt.Sprintf("read from AttachNodeCh channel %d now ASK limiter", c))
 
 		limiterAttach.Ask()
 		<-limiterAttach.RespCh()
@@ -559,12 +561,11 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 		//slog.Log("attachNode: ", "limiter has ACK and will start goroutine...")
 
 		wg.Add(1)
-		slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
-		//go client.AttachNode(util.UID(e.Puid), util.UID(e.Cuid), e.Sortk, e.E, &wg, limiterAttach) //TODO: possible error. had to swap 1st & 2nd arguments to get right attachment parent->child
+		//slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
 		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach) //TODO: possible error. had to swap 1st & 2nd arguments to get right attachment parent->child
 
 	}
-	syslog("saveNode  waiting on AttachNode to finish")
+
 	wg.Wait()
 	syslog("saveNode finished waiting...exiting")
 }
