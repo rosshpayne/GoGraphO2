@@ -74,9 +74,10 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	// query->cache->unmarshal(nv)
 	//
 	nvc := r.genNV()
-	// for _, v := range nvc {
-	// 	fmt.Printf("nvc: %#v\n", *v)
-	// }
+	for _, v := range nvc {
+		fmt.Printf("nvc: %#v\n", *v)
+	}
+
 	for k, v := range nvc {
 		fmt.Printf("filterRoot: nvm %s %#v\n", k, *v)
 	}
@@ -106,7 +107,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 		panic(err)
 	}
 	//
-	if r.Filter != nil && !r.Filter.RootApply(nvc) {
+	if r.Filter != nil && !r.Filter.RootApply(nvc, result.tyS) {
 		// clear node from cache.
 		// nc.ClearCache() // TODO: implement
 		return
@@ -306,7 +307,7 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, puid, uid util
 		// if !ok {
 		// 	panic(fmt.Errorf("Error in execNode: Cannot find uid key in data map"))
 		// }
-		nvm[u.Name()+":"].Ignore = true
+		nvm[u.Name()+":"].Filtered = true
 	}
 	//
 	for _, p := range u.Select {

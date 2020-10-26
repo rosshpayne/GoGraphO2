@@ -9,11 +9,11 @@ import (
 	"github.com/DynamoGraph/util"
 )
 
-func (r *RootStmt) Output() {
+func (r *RootStmt) MarshalJSON() {
 	//
 	// execute root func - get back slice of unfiltered results
 	//
-	fmt.Printf("in output....nodes: %d \n", len(r.nodesc), len(r.nodes))
+	fmt.Printf("in marshalJSON....nodes: %d \n", len(r.nodesc), len(r.nodes))
 	//
 	// foreach uid in root node map
 	//
@@ -94,12 +94,12 @@ func (r *RootStmt) Output() {
 						fmt.Print(s.String())
 						//
 						// walk the graph using uid-pred attributes belonging to edge x.
-						// Output will print the scalar values associated with each child node of x.
+						// MarshalJSON will print the scalar values associated with each child node of x.
 						//
 						for _, p := range x.Select {
 							if y, ok := p.Edge.(*UidPred); ok {
-								// only need to run output once for all uid-pred's in x
-								y.output(v)
+								// only need to run marshalJSON once for all uid-pred's in x
+								y.marshalJSON(v)
 								break
 							}
 						}
@@ -111,21 +111,21 @@ func (r *RootStmt) Output() {
 	}
 }
 
-// 	fmt.Println("Output root:   ")
+// 	fmt.Println("MarshalJSON root:   ")
 
 // }
 
-func (u *UidPred) output(uid_ []uint8) {
+func (u *UidPred) marshalJSON(uid_ []uint8) {
 
 	uid := util.UID(uid_).String()
 	//
 	nvc, ok := u.nodesc[uid]
 	if !ok {
-		panic(fmt.Errorf("Error in u.output. uid %q not in nodesc for %s", uid, u.Name()))
+		panic(fmt.Errorf("Error in u.marshalJSON. uid %q not in nodesc for %s", uid, u.Name()))
 	}
 	nvm, ok := u.nodes[uid]
 	if !ok {
-		panic(fmt.Errorf("Error in u.output. uid %q not in nodes for %s", uid, u.Name()))
+		panic(fmt.Errorf("Error in u.marshalJSON. uid %q not in nodes for %s", uid, u.Name()))
 	}
 
 	upred := u.Parent.(*UidPred)
@@ -181,13 +181,13 @@ func (u *UidPred) output(uid_ []uint8) {
 					fmt.Print(s.String())
 					//
 					// walk the graph using uid-pred attributes belonging to edge x.
-					// Output will print the scalar values associated with each child node of x.
+					// MarshalJSON will print the scalar values associated with each child node of x.
 					//
 					for _, p := range x.Select {
 
 						if y, ok := p.Edge.(*UidPred); ok {
-							// only need to run output once for all uid-pred's in x. Once filter is incorporated this will change.
-							y.output(v)
+							// only need to run marshalJSON once for all uid-pred's in x. Once filter is incorporated this will change.
+							y.marshalJSON(v)
 							break
 						}
 					}

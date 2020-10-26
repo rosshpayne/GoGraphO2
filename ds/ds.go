@@ -14,10 +14,10 @@ import (
 // See MarshalJSON to see it in use.
 //
 type NV struct {
-	Name   string      // predicate (no type required as its based on contents in cache) Name (S), Age (N), Siblings: (Nds), Siblings:Name (list), Friends: (nds), Friends:Name (list)
-	Value  interface{} // its value from cahe
-	Ignore bool        // for uid-preds only, true indicates item satisifed uid-pred filter condition and should be ignored
-	ItemTy string
+	Name     string      // predicate (no type required as its based on contents in cache) Name (S), Age (N), Siblings: (Nds), Siblings:Name (list), Friends: (nds), Friends:Name (list)
+	Value    interface{} // its value from cahe
+	Filtered bool        // true indicates item satisifed uid-pred filter condition and should be ignored when marshaling
+	ItemTy   string
 	// short name of the type Name belongs to e.g. Pn (for Person)
 	//
 	// used by UnmarshalCache

@@ -52,7 +52,7 @@ func Execute(query string) {
 	fmt.Printf("doc: %s\n", stmt.String())
 	stmt.Execute(golimiter) // []pkey,sortk,ty
 	t1 := time.Now()
-	stmt.Output()
+	stmt.MarshalJSON()
 	t2 := time.Now()
 	fmt.Printf("\nDuration: Execute: %s      Output: %s\n\n", t1.Sub(t0), t2.Sub(t1))
 	syslog(fmt.Sprintf("Duration: Execute: %s      Output: %s", t1.Sub(t0), t2.Sub(t1)))

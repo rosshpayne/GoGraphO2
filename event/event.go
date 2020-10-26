@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DynamoGraph/event/db"
+	"github.com/DynamoGraph/event/internal/db"
 	"github.com/DynamoGraph/util"
 )
 

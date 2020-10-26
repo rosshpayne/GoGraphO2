@@ -215,18 +215,18 @@ func (u *UidPred) getIdx(key string) (index, bool) {
 	return i, ok
 }
 
-func (u *UidPred) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
-	// make a ds.NVmap from nvc a ds.ClientNV
+func (u *UidPred) assignData(uid string, nvc ds.ClientNV, idx index) ds.NVmap {
+	// make a ds.NVmap from nvc
 	nvm := make(ds.NVmap)
 	for _, v := range nvc {
 		nvm[v.Name] = v
 	}
-	// add to existing nodes on this edge
-	u.nodes[key] = nvm
+	// save this edge (represented by key an edge by assigning key to nodes.
+	u.nodes[uid] = nvm
 	//
-	fmt.Printf("in assignData  for key %s %d\n", key, len(u.nodes[key]))
-	u.nodesc[key] = nvc
-	u.nodesi[key] = idx
+	fmt.Printf("in assignData  for key %s %d\n", uid, len(u.nodes[uid]))
+	u.nodesc[uid] = nvc
+	u.nodesi[uid] = idx
 
 	fmt.Println("End assignData: ", len(nvm), len(u.nodes), len(nvc), len(u.nodesc), len(u.nodesi))
 
@@ -613,7 +613,9 @@ func (r *RootStmt) genNV() ds.ClientNV {
 
 	fmt.Println("In genNV()............")
 	if r.Filter != nil {
-		for _, x := range r.Filter.GetPredicates() {
+		s := r.Filter.GetPredicates()
+		fmt.Println("r.Filter.GetPredicates():  ", s)
+		for _, x := range s {
 			nv := &ds.NV{Name: x}
 			nvc = append(nvc, nv)
 		}
@@ -649,6 +651,7 @@ func (r *RootStmt) genNV() ds.ClientNV {
 			}
 		}
 	}
+	nvc = dedup(nvc)
 	return nvc
 }
 
@@ -695,14 +698,33 @@ func (r *RootStmt) String() string {
 // 	return s
 // }
 
-func dedup(s []string) []string {
-	var ss []string
+// func dedup(s []string) []string {
+// 	var ss []string
+// 	var found bool
+// 	ss = append(ss, s[0])
+// 	for _, e := range s[1:] {
+// 		found = false
+// 		for _, d := range ss {
+// 			if d == e {
+// 				found = true
+// 				break
+// 			}
+// 		}
+// 		if !found {
+// 			ss = append(ss, e)
+// 		}
+// 	}
+// 	return ss
+// }
+
+func dedup(s ds.ClientNV) ds.ClientNV {
+	var ss ds.ClientNV
 	var found bool
 	ss = append(ss, s[0])
 	for _, e := range s[1:] {
 		found = false
 		for _, d := range ss {
-			if d == e {
+			if d.Name == e.Name {
 				found = true
 				break
 			}
