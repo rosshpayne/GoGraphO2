@@ -44,11 +44,12 @@ func (e *Expression) rootExecute(nv ds.NVmap, ty string) bool {
 	return e.getResult(nv, v)
 }
 
-func (e *Expression) execute(nv ds.NVmap, ty string, j, k int) bool {
+func (e *Expression) filterExecute(nv ds.NVmap, ty string, j, k int) bool {
 
 	v := node{ty: ty, j: j, k: k}
 	walk(e, nv, v)
-	return e.getResult(nv, v)
+	fmt.Println("filterExecute: result = ", e.result)
+	return e.result //e.getResult(nv, v)
 }
 
 func walk(e operand, nv ds.NVmap, v node) {
@@ -142,7 +143,7 @@ type operand interface {
 type Expression struct { // expr1 and expr2     expr1 or expr2       exp1 or (expr2 and expr3). (expr1 or expr2) and expr3
 	id     uint8           // type of Expression. So far used only to identify the NULL Expression, representing the "(" i.e the left parameter or LPARAM in a mathematical Expression
 	name   string          // optionally give each Expression a name. Maybe useful for debugging purposes.
-	result bool            // store result of "left operator right. Walking the graph will interrogate each operand for its result.
+	result bool            // store result of "left opr right. Walking the graph will interrogate each operand for its result.
 	left   operand         //
 	opr    token.TokenType // for Boolean: AND OR NOT NULL (aka "(")
 	right  operand         //
@@ -189,15 +190,15 @@ func (e *Expression) RootApply(nv ds.ClientNV, ty string) bool {
 	return e.rootExecute(nvm, ty)
 }
 
-// Apply will run the filter function over all edges for a uid-pred
+// Apply will run the filter function over all edges of the particular uid-pred
 // NV value contains all the edges associated with the current uid-pred stored as [][]<type> for each predicate.
 // see cache.UnmarshalNodeCache for more details of the data structure.
-func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) bool {
+func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
 	//
 	// source NV for current uid-pred
-	nv := nvm[predicate]
+	nv := nvm[predicate+":"]
 	if x, ok := nv.Value.([][][]byte); !ok {
-		panic(fmt.Errorf("Expression: nv.Value not a [][][]byte"))
+		panic(fmt.Errorf("Expression: nv.Value not a [][][]byte")) // TODO: should this be. panic or fatal error msg??
 	} else {
 		// apply filter to all edges and set edge to deleted if it fails
 		for i, u := range x {
@@ -209,15 +210,15 @@ func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) bool {
 					// soft deleted
 					continue
 				}
-				return e.execute(nvm, ty, i, k)
-				// if !e.execute(nvm, ty, i, k) {
-				// 	// false: set corresponding Xf flag to false (soft delete)
-				// 	nv.State[i][k] = blk.UIDdetached // soft deleted
-				// }
+				fmt.Println("About to filterExecute on ", ty, i, k)
+				//return e.filterExecute(nvm, ty+"|"+predicate, i, k)
+				if !e.filterExecute(nvm, ty+"|"+predicate, i, k) {
+					// mark edge as deleted (using UIDdetached state)
+					nv.State[i][k] = blk.CuidFiltered
+				}
 			}
 		}
 	}
-	return false
 	//return e.execute(nvm, ty, predicate)
 }
 

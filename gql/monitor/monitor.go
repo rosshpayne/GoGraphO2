@@ -46,7 +46,7 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 	a := make([]int, 1, 1)
 	stats[TouchLvl] = a
 
-	StatCh = make(chan Stat)
+	StatCh = make(chan Stat, 10)
 	ClearCh = make(chan struct{})
 
 	var (

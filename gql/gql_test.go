@@ -171,7 +171,7 @@ func TestUPredFilter1(t *testing.T) {
   directors(func: eq(count(Siblings), 2) ) {
     Age
     Name
-    Friends @filter(gt(Age,60)) {
+    Friends @filter(gt(Age,61)) {
       Age
     	Name
     	Friends {
@@ -179,6 +179,190 @@ func TestUPredFilter1(t *testing.T) {
 		    Age
 	    }
 	    Siblings {
+    		Name
+	   	}
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilter2(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(gt(Age,60)) {
+      Age
+    	Name
+    	Friends @filter(gt(Age,60)) {
+    	  Name
+		    Age
+	    }
+	    Siblings {
+    		Name
+	   	}
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilter3a(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends {
+      Age
+    	Name
+    	Siblings {
+    		Name
+    		Age
+	   	}
+    	Friends  {
+    	  Name
+	    }
+  }
+}
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilter3b(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(gt(Age,50)) {
+      Age
+    	Name
+    	Siblings @filter(gt(Age,5)) {
+    		Name
+    		Age
+	   	}
+    	Friends @filter(gt(Age,50)) {
+    	  Age
+    	  Name
+	    }
+  }
+}
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilter3c(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(gt(Age,60)) {
+      Age
+    	Name
+    	Siblings @filter(gt(Age,60)) {
+    		Name
+    		Age
+	   	}
+    	Friends @filter(gt(Age,50)) {
+    	  Age
+    	  Name
+	    }
+  }
+}
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilter4a(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(gt(Age,60)) {
+      Age
+    	Name
+    	Friends @filter(gt(Age,60)) {
+    	  Name
+    	  Age
+	    }
+    	Siblings @filter(gt(Age,60)) {
+    		Age
+    		Name
+	   	}
+  }
+}
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilter4b(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(gt(Age,60)) {
+      Age
+    	Name
+    	Siblings @filter(gt(Age,60)) {
+    		Name
+	   	}
+    	Friends @filter(gt(Age,60)) {
+    	  Name
+	    }
+
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilter5(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(gt(Age,60)) {
+      Age
+    	Name
+    	Friends @filter(gt(Age,62)) {
+    	  Name
+	    }
+	    Siblings @filter(gt(Age,60)) {
     		Name
 	   	}
     }

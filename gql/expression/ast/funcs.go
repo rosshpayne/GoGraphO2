@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DynamoGraph/block"
+	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/cache"
 	//"github.com/DynamoGraph/db"
 	"github.com/DynamoGraph/ds"
@@ -89,7 +89,7 @@ func LE(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) boo
 //
 func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
 	var (
-		pTy block.TyAttrD
+		pTy blk.TyAttrD
 		ok  bool
 	)
 
@@ -97,7 +97,7 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 		panic("Error in Func: expected a type, got nil")
 	}
 
-	fmt.Println("In ieq: for - ", ie, ty)
+	fmt.Println("In ieq: for - ", ie, ty, j, k)
 	fmt.Println(strings.Repeat("-", 80))
 
 	switch x := predfunc.(type) {
@@ -129,32 +129,61 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 	case ScalarPred:
 		// find value for this predicate
 		var (
-			ok bool
+			nm   string
+			data *ds.NV
 		)
-		nm := x.Name()
-		fmt.Printf("in ScalarPred with %q   ty: %s\n", nm, ty)
-		data, ok := nv[nm]
-		if !ok {
-			panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+		switch j {
+
+		case -1: // root filter
+			nm = x.Name()
+			fmt.Printf("in ScalarPred with %q   ty: %s\n", nm, ty)
+			data, ok = nv[nm]
+			if !ok {
+				panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+			}
+			//
+			// get type of predicate from type info
+			//
+			if pTy, ok = cache.TypeC.TyAttrC[ty+":"+nm]; !ok {
+				// root result type does not contain filter predicate, so root item fails the filter
+				panic(fmt.Errorf("Error in inequality func: predicate %q not found in TypeC.TyAttr", ty+":"+nm))
+				return false
+			}
+
+		default: // uid-pred filter
+			fd := strings.Split(ty, "|")
+			ty = fd[0]
+			predicate := fd[1]
+			//
+			fmt.Printf("XX in ScalarPred with ty: %s predicate: %s\n", ty, predicate)
+			nm = predicate + ":" + x.Name()
+			data, ok = nv[nm]
+			if !ok {
+				panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+			}
+			//
+			// get type of predicate from type info
+			//
+			if pTy, ok = cache.TypeC.TyAttrC[ty+":"+x.Name()]; !ok {
+				// root result type does not contain filter predicate, so root item fails the filter
+				panic(fmt.Errorf("XX Error in inequality func: predicate %q not found in TypeC.TyAttr", ty+":"+x.Name()))
+				return false
+			}
 		}
-		//
-		// get type of predicate from type info
-		if pTy, ok = cache.TypeC.TyAttrC[ty+":"+nm]; !ok {
-			// root result type does not contain filter predicate, so root item fails the filter
-			return false
-		}
+
 		switch pTy.DT {
 
 		case "S":
 
 			switch {
 
-			case j == -1: // scalar value
+			case j == -1: // root filter
 				var (
 					ok      bool
 					dataVal string
 					exprVal string
 				)
+
 				// root query filter expression - node scalar data
 				// check data value (from NV) type matches type of scalarPred from GQL query
 				if dataVal, ok = data.Value.(string); !ok {
@@ -178,12 +207,13 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 					return dataVal <= exprVal
 				}
 
-			default: // uid-pred, args ty, i,j populated have non-zero values
+			default: // uid-pred filter, args ty, i,j populated have non-zero values
 				var (
 					ok      bool
 					dataVal [][]string
 					exprVal string
 				)
+
 				// uid-pred filter expression - multiple child scalar data (propagated data format)
 				// check if null flag set in data
 				if data.Null[j][k] {
@@ -216,9 +246,10 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 
 		case "I":
 
+			fmt.Println("IIIIIIIIIII")
 			switch {
 
-			case j == -1: // scalar value
+			case j == -1: // root filter
 				var (
 					ok      bool
 					dataVal int64
@@ -251,12 +282,13 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 					return dataVal <= exprVal
 				}
 
-			default: // uid-pred, args ty, i,j populated have non-zero values
+			default: // uid-pred filter, args ty, i,j populated have non-zero values
 				var (
 					ok      bool
 					dataVal int64
 					exprVal int64
 				)
+
 				// uid-pred filter expression - multiple child scalar data (propagated data format)
 				// check if null flag set in data
 				if data.Null[j][k] {
@@ -272,6 +304,7 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 				} else {
 					dataVal = y[j][k]
 				}
+				fmt.Println("dataVal is : ", dataVal)
 				// expression value
 				if exprVal, ok = value.(int64); !ok {
 					if y, ok := value.(int); !ok {
@@ -280,6 +313,7 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 						exprVal = int64(y)
 					}
 				}
+				fmt.Println("exprVal is : ", exprVal)
 				switch ie {
 				case eq:
 					return dataVal == exprVal
@@ -297,6 +331,8 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 			// }
 		case "F":
 		case "Bl":
+		default:
+			fmt.Printf("DEFAULT : %T\n", predfunc)
 		}
 
 	}

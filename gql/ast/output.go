@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	//	"strings"
+	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/ds"
 	mon "github.com/DynamoGraph/gql/monitor"
 	"github.com/DynamoGraph/util"
@@ -53,7 +54,9 @@ func (r *RootStmt) MarshalJSON() {
 					if !(strings.Index(v.Name, ":") > -1 && v.Name[:strings.Index(v.Name, ":")] == x.Name() && len(v.Name) > len(x.Name())+1) {
 						continue
 					}
-					spred = append(spred, v)
+					if !v.Ignore {
+						spred = append(spred, v)
+					}
 				}
 				//
 				// get child uids that belong to edge x and print out the scalar attributes for x
@@ -61,12 +64,15 @@ func (r *RootStmt) MarshalJSON() {
 				var s strings.Builder
 				fmt.Printf("%s%s : [ \n", strings.Repeat("\t", 1), x.Name())
 
-				v := nvm[x.Name()+":"]
-				uids := v.Value.([][][]byte)
+				upred := nvm[x.Name()+":"]
+				uids := upred.Value.([][][]byte)
 
 				for i, uidS := range uids {
 					for j, v := range uidS {
 						s.Reset()
+						if upred.State[i][j] == blk.UIDdetached || upred.State[i][j] == blk.CuidFiltered {
+							continue // soft delete set or failed filter condition
+						}
 						//
 						// increment touch counter
 						//
@@ -106,6 +112,7 @@ func (r *RootStmt) MarshalJSON() {
 						fmt.Printf("%s}, \n", strings.Repeat("\t", 2))
 					}
 				}
+				fmt.Printf("%s]\n", strings.Repeat("\t", 1))
 			}
 		}
 	}
@@ -119,11 +126,13 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 
 	uid := util.UID(uid_).String()
 	//
-	nvc, ok := u.nodesc[uid]
+	//nvc, ok := u.nodesc[uid]
+	nvc, ok := u.Parent.getnodes(uid) // changed to parent
 	if !ok {
 		panic(fmt.Errorf("Error in u.marshalJSON. uid %q not in nodesc for %s", uid, u.Name()))
 	}
-	nvm, ok := u.nodes[uid]
+	//nvm, ok := u.nodes[uid]
+	nvm, ok := u.Parent.getnodes(uid) // changed to parent
 	if !ok {
 		panic(fmt.Errorf("Error in u.marshalJSON. uid %q not in nodes for %s", uid, u.Name()))
 	}
@@ -141,7 +150,9 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 				if !(strings.Index(v.Name, ":") > -1 && v.Name[:strings.Index(v.Name, ":")] == x.Name() && len(v.Name) > len(x.Name())+1) {
 					continue
 				}
-				spred = append(spred, v)
+				if !v.Ignore {
+					spred = append(spred, v)
+				}
 			}
 			//
 			// get child uids that belong to edge x and print out the scalar attributes for x
@@ -149,12 +160,15 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 			var s strings.Builder
 			fmt.Printf("%s%s : [ \n", strings.Repeat("\t", u.lvl), x.Name())
 
-			v := nvm[x.Name()+":"]
-			uids := v.Value.([][][]byte)
+			upred := nvm[x.Name()+":"]
+			uids := upred.Value.([][][]byte)
 
 			for i, uidS := range uids {
 				for j, v := range uidS {
 					//fmt.Printf("i, j, UID: %d %d, %s", i, j, util.UID(v).String())
+					if upred.State[i][j] == blk.UIDdetached || upred.State[i][j] == blk.CuidFiltered {
+						continue // soft delete set or failed filter condition
+					}
 					s.Reset()
 					stat := mon.Stat{Id: mon.TouchNode, Lvl: x.lvl}
 					mon.StatCh <- stat
@@ -193,6 +207,7 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 					}
 				}
 			}
+			fmt.Printf("%s]\n", strings.Repeat("\t", u.lvl))
 		}
 	}
 }

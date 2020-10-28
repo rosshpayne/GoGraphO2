@@ -30,7 +30,6 @@ type FilterI interface {
 // type InnerArgI interface {
 // 	innerArg()
 // }
-
 type SelectI interface {
 	AssignSelectList(SelectList)
 	initialise()
@@ -39,6 +38,8 @@ type SelectI interface {
 	getData(string) (ds.NVmap, ds.ClientNV, bool)
 	getIdx(string) (index, bool)
 	genNV() ds.ClientNV
+	getnodes(string) (ds.NVmap, bool)
+	getnodesc(string) (ds.ClientNV, bool)
 }
 
 type SelectList []*EdgeT
@@ -155,19 +156,19 @@ type UidPred struct {
 	//
 	// meta data description
 	//
-	Name_      name_
+	Name_      name_   // gql predicate name
 	Printed    bool    // false - not printed, true - has been printed
 	Parent     SelectI // *RootStmt, *UidPred
 	Filter     *expr.Expression
 	filterStmt string
 	Select     SelectList
 	//
-	// data
+	// node data assoicated with this uidpred in GQL stmt
 	//
 	lvl    int     // depth of grap
 	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
 	nodesc NdNv
-	nodesi NdIdx // nodes's index into parent uid-pred's UL data. e.g. to get Age of this nodes - nv:=nodes.parent.nodes[uid]; age:= nv["Age"].([][]int); age[nodesi.i][nodesi.j]
+	nodesi NdIdx // nodes's index into parent uid-pred's UL data. e.g. to get Age of this node - nv:=nodes.parent.nodes[uid]; age:= nv["Age"].([][]int); age[nodesi.i][nodesi.j]
 
 	// scalar nodes for nodes containing this uid-pred is contained in the parent.
 
@@ -195,8 +196,18 @@ func (u *UidPred) GetLvl() int {
 // 	u.nvm = make(map[string][]ds.ClientNV)
 // }
 
-func (p UidPred) Name() string {
+func (p *UidPred) Name() string {
 	return p.Name_.Name
+}
+
+func (u UidPred) getnodes(uid string) (ds.NVmap, bool) {
+	n, k := u.nodes[uid]
+	return n, k
+}
+
+func (u *UidPred) getnodesc(uid string) (ds.ClientNV, bool) {
+	n, ok := u.nodesc[uid]
+	return n, ok
 }
 
 func (u *UidPred) AssignSelectList(s SelectList) {
@@ -224,66 +235,71 @@ func (u *UidPred) assignData(uid string, nvc ds.ClientNV, idx index) ds.NVmap {
 	// save this edge (represented by key an edge by assigning key to nodes.
 	u.nodes[uid] = nvm
 	//
-	fmt.Printf("in assignData  for key %s %d\n", uid, len(u.nodes[uid]))
 	u.nodesc[uid] = nvc
 	u.nodesi[uid] = idx
-
-	fmt.Println("End assignData: ", len(nvm), len(u.nodes), len(nvc), len(u.nodesc), len(u.nodesi))
-
 	return nvm
 }
 func (u *UidPred) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
 	nvm, _ := u.nodes[key]
 	nvc, ok := u.nodesc[key]
-	fmt.Println("in getData return %v", ok)
 	return nvm, nvc, ok
 }
 
-// func (u *UidPred) execNode(grl grmgr.Limiter, n util.UID) {...} // see execute.go
-// uidp: uid-pred of interest
-//func (u *UidPred) genNV(uidp string) (ds.NVmap, ds.ClientNV) {
+// genNV produces a list of predicate names from the select list of the uid-pred
+// which is inturn sourced from the GQL stmt. The order is important as it determines the
+// order of the output and as its based on the GQL stmt what is specified in the stmt is output.
+// The output of genNV is used to generate the sortk list which ultimately determines
+// what is loaded into the cache from Dynamodb. The only complication is to handle predicates
+// in the filter expressions (if present), as we don't want to upset the order of the final
+// list of predicates. This is where the "ignore" attribute of the NV struct enables a predicate
+// to appear in the list but not impact the output.
 func (u *UidPred) genNV() ds.ClientNV {
 	var nvc ds.ClientNV
 
-	fmt.Printf("\nin uidpred.genNV() .....\n")
-	if u.Filter != nil {
-		for _, x := range u.Filter.GetPredicates() {
-			nv := &ds.NV{Name: x}
-			nvc = append(nvc, nv)
-		}
-	}
-
 	for _, v := range u.Select {
-		fmt.Printf("uidpred.select : %s\n", v.Edge.Name())
+
 		switch x := v.Edge.(type) {
 
-		// scalar nodes can be sourced from parent uid-pred's NV nodes in UL cache structure - which may be slow unless we keep {i,j} index into it.
-		// other include the below scalar preds which will be stored in the NV structure in uid-pred.nodes
-		//
-		// case *ScalarPred:
-		// 	nv := &ds.NV{Name: x.Name()}
-		// 	nvc = append(nvc, nv)
-
 		case *UidPred:
-			// if uidp != x.Name() {
-			// 	continue // only interested in current uid-pred
-			// }
+			// uid-pred entry in NV
 			un := x.Name() + ":"
-			fmt.Println("yy genNV un: ", un)
+			//
 			nv := &ds.NV{Name: un}
 			nvc = append(nvc, nv)
+			// add elements in uid-pred select list
 			for _, vv := range x.Select {
 				switch x := vv.Edge.(type) {
 				case *ScalarPred:
-					upred := un + x.Name()
-					fmt.Println("xx genNV upred: ", upred)
-					nv := &ds.NV{Name: upred}
+					nv := &ds.NV{Name: un + x.Name()}
 					nvc = append(nvc, nv)
+				}
+			}
+			//
+			// finally, add predicates from filter if present.
+			// only include in list if not already already specified via the stmt specification
+			// note: set the ignore attribute
+			//
+			if x.Filter != nil {
+				var found bool
+				for _, v := range u.Filter.GetPredicates() {
+					found = false
+					for _, x := range nvc {
+						if x.Name == un+v {
+							found = true
+							break
+						}
+					}
+					if !found {
+						nv := &ds.NV{Name: un + v, Ignore: true}
+						nvc = append(nvc, nv)
+					}
 				}
 			}
 		}
 
 	}
+	// remove duplicate entries in nvc
+	//return dedup(nvc)
 	return nvc
 }
 
@@ -303,7 +319,7 @@ func (p UidPred) String() string {
 	s.WriteString(p.Name_.Name)
 	// Filter
 	if p.Filter != nil {
-		s.WriteString("@filter( ")
+		s.WriteString(" @filter( ")
 		s.WriteString(p.filterStmt)
 		s.WriteByte(')')
 	}
@@ -581,6 +597,16 @@ func (r *RootStmt) initialise() {
 	r.nodesi = make(NdIdx)
 }
 
+func (r *RootStmt) getnodes(uid string) (ds.NVmap, bool) {
+	n, k := r.nodes[uid]
+	return n, k
+}
+
+func (r *RootStmt) getnodesc(uid string) (ds.ClientNV, bool) {
+	n, ok := r.nodesc[uid]
+	return n, ok
+}
+
 func (r *RootStmt) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
 	// create a NVmap
 	nvm := make(ds.NVmap)
@@ -651,8 +677,7 @@ func (r *RootStmt) genNV() ds.ClientNV {
 			}
 		}
 	}
-	nvc = dedup(nvc)
-	return nvc
+	return dedup(nvc)
 }
 
 func (r *RootStmt) String() string {

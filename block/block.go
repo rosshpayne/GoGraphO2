@@ -19,6 +19,7 @@ const (
 	OvflBlockUID
 	OuidInuse
 	OvflItemFull
+	CuidFiltered // set to true when edge fails GQL uid-pred  filter
 )
 
 const (

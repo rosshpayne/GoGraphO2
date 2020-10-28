@@ -461,7 +461,7 @@ func (p *Parser) parseFilter(r ast.FilterI) *Parser {
 	}
 
 	// @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))
-	fmt.Printf("in parseFilter: %#v\n", p.curToken)
+	fmt.Printf("\nin parseFilter: %#v\n", p.curToken)
 	if p.hasError() || p.curToken.Type != token.ATSIGN {
 		fmt.Printf("in parseFilter: return..\n")
 		return p
@@ -469,10 +469,14 @@ func (p *Parser) parseFilter(r ast.FilterI) *Parser {
 	p.nextToken() // read over @
 	exprInput := p.l.Remaining()
 	//  me(func: .......  @filter(has(Friends)) ) {
-	//                                                     ^ ^ ^
+	//                                        ^ ^ ^
+	//                    @filter(gt(Age,60)) {
 	exprInput = exprInput[:strings.IndexByte(exprInput, '{')]
 	exprInput = exprInput[:strings.LastIndexByte(exprInput, ')')]
 	exprInput = exprInput[:strings.LastIndexByte(exprInput, ')')]
+	if exprInput[len(exprInput)-1] != ')' {
+		exprInput += ")"
+	}
 
 	if p.curToken.Type != token.FILTER {
 		p.addErr(fmt.Sprintf(`Expected keyword "filter" got %s instead`, p.curToken.Literal))
@@ -672,6 +676,7 @@ func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 			if p.curToken.Type == token.ATSIGN {
 				p.parseFilter(uidpred)
 			}
+			fmt.Printf("=======**********************+++++++++++++++************. uidPred %#v\n", uidpred)
 			p.parseSelection(uidpred)
 
 		} else {
