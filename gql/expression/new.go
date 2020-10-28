@@ -92,7 +92,7 @@ func New(input string) *Expression {
 		//
 		tok = p.curToken
 		p.nextToken()
-		fmt.Printf("\ntoken: %#v\n", tok)
+		fmt.Printf("\ntoken: %#v peekToken: %#v\n", tok, p.curToken)
 
 		switch tok.Type {
 		case token.EOF:
@@ -165,7 +165,7 @@ func New(input string) *Expression {
 			p.ParseFunction(d, tok)
 
 			//	for ;p.curToken.Type != token.LBRACE; p.curToken.nextToken(){}
-			fmt.Printf("back to input parser: %#v\n", p.curToken)
+			fmt.Printf("back to input parser: tok: %#v,  peekToken: %#v opr: %s\n", tok, p.curToken, opr)
 
 			//
 			// look ahead to next operator and check for higher precedence operation
@@ -211,8 +211,9 @@ func New(input string) *Expression {
 			} else {
 
 				roperand = d
-
+				fmt.Println("here 5")
 				if loperand != nil {
+					fmt.Println("here 6")
 					en, opr = makeExpr(loperand, opr, roperand)
 					if e == nil {
 						e, en = en, nil
@@ -221,7 +222,7 @@ func New(input string) *Expression {
 					}
 
 				} else {
-
+					fmt.Println("here 7")
 					en, opr = makeExpr(nil, opr, roperand)
 
 					if extendRight {
@@ -234,7 +235,6 @@ func New(input string) *Expression {
 				extendRight = false
 				operandL = false
 				loperand = nil
-
 			}
 
 		case token.OR, token.AND:

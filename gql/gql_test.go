@@ -303,14 +303,14 @@ func TestUPredFilter4a(t *testing.T) {
   directors(func: eq(count(Siblings), 2) ) {
     Age
     Name
-    Friends @filter(gt(Age,60)) {
+    Friends @filter(gt(Age,62) or le(Age,40))) {
       Age
     	Name
-    	Friends @filter(gt(Age,60)) {
+    	Friends   {
     	  Name
     	  Age
 	    }
-    	Siblings @filter(gt(Age,60)) {
+    	Siblings {
     		Age
     		Name
 	   	}

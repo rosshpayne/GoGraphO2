@@ -157,7 +157,7 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 			gqlf.Farg = c
 		}
 
-	case token.GT:
+	case token.GT, token.GE, token.LE, token.LT, token.EQ:
 		// gt(<scalar pred>, <int|float|string>)
 		var err error
 		p.nextToken() // read over (
@@ -165,7 +165,18 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 		h := ast.ScalarPred{}
 		h.AssignName(p.curToken.Literal, p.curToken.Loc)
 
-		gqlf.F = ast.GT
+		switch tc.Literal {
+		case token.GT:
+			gqlf.F = ast.GT
+		case token.GE:
+			gqlf.F = ast.GE
+		case token.LE:
+			gqlf.F = ast.LE
+		case token.LT:
+			gqlf.F = ast.LT
+		case token.EQ:
+			gqlf.F = ast.EQ
+		}
 		gqlf.Farg = h
 
 		p.nextToken() // read over scalar pred
