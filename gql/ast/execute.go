@@ -9,6 +9,7 @@ import (
 	"github.com/DynamoGraph/ds"
 	mon "github.com/DynamoGraph/gql/monitor"
 	"github.com/DynamoGraph/rdf/grmgr"
+	"github.com/DynamoGraph/types"
 	"github.com/DynamoGraph/util"
 )
 
@@ -131,7 +132,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 			)
 			x.lvl = 1
 
-			if aty, ok = cache.TypeC.TyAttrC[result.tyS+":"+x.Name()]; !ok {
+			if aty, ok = types.TypeC.TyAttrC[result.tyS+":"+x.Name()]; !ok {
 				continue // ignore this attribute as it is not in current type
 			}
 			// filter by setting STATE value for each edge in NVM. NVM has been saved to root stmt
@@ -155,7 +156,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 						idx index
 					)
 					// get type of the uid-pred
-					if aty, ok = cache.TypeC.TyAttrC[aty.Ty+":"+y.Name()]; !ok {
+					if aty, ok = types.TypeC.TyAttrC[aty.Ty+":"+y.Name()]; !ok {
 						// if gql attribute not in query data type then ignore the attribute and move onto next
 						continue
 					}
@@ -301,7 +302,7 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 				idx index
 			)
 			// get type of the uid-pred
-			if aty, ok = cache.TypeC.TyAttrC[ty+":"+x.Name()]; !ok {
+			if aty, ok = types.TypeC.TyAttrC[ty+":"+x.Name()]; !ok {
 				continue // ignore this attribute as it is not in current type
 			}
 			// results not in nv for this depth in graph. Must query uids stored in nv[i].Value -> [][][]byte

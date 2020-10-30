@@ -14,6 +14,7 @@ import (
 	"github.com/DynamoGraph/ds"
 	param "github.com/DynamoGraph/dygparam"
 	slog "github.com/DynamoGraph/syslog"
+	"github.com/DynamoGraph/types"
 	"github.com/DynamoGraph/util"
 )
 
@@ -80,81 +81,17 @@ func GetCache() *GraphCache {
 	return &GraphC
 }
 
-// ************************************ Type caches ********************************************
-
-type Ty = string      // type
-type Ty_Attr = string // type:attr
-
-//type FacetIdent string // type:attr:facet
-//
-// Derived Type Attributes cache
-//
-type TyCache map[Ty]blk.TyAttrBlock
-
-//var TyC TyCache
-
-//
-// caches for type-attribute and type-attribute-facet
-//
-type TyAttrCache map[Ty_Attr]blk.TyAttrD // map[Ty_Attr]blk.TyItem
-
-//var TyAttrC TyAttrCache
-
-//
-type TypeCache struct {
-	//sync.RWMutex // as all types are loaded at startup - no concurrency control required
-	TyAttrC TyAttrCache
-	TyC     TyCache
-}
-
-var tyShortNm map[string]string
-
-var TypeC TypeCache
-
 // ====================================== init =====================================================
 
 func init() {
 	GraphC = GraphCache{cache: make(map[util.UIDb64s]*entry)}
 	//
-	// cache holding the attributes belonging to a type
-	///
-	TypeC.TyC = make(TyCache)
-	//
-	// DataTy caches for type-attribute and type-attribute-facet
-	//
-	TypeC.TyAttrC = make(TyAttrCache)
-	//
-	FacetC = make(map[Ty_Attr][]FacetTy)
-	//
-	// Load in to maps the short and long names of all types
-	//
-	tynames, err := db.GetTypeShortNames()
-	if err != nil {
-		panic(err)
-	}
-	//
-	// populate type short name cache. This cache is conccurent safe as it is readonly from now on.
-	//
-	tyShortNm = make(map[string]string)
-	for _, v := range tynames {
-		tyShortNm[v.LongNm] = v.ShortNm
-	}
-	//
-	// Load data dictionary (i.e ALL type info) - makes for concurrent safe FetchType()
-	//
-	{
-		dd, err := db.LoadDataDictionary() // type TyIBlock []TyItem
-		if err != nil {
-			panic(err)
-		}
-		populateTyCaches(dd)
-	}
-
+	//FacetC = make(map[types.TyAttr][]FacetTy)
 }
 
 func IsUidPred(pred string) bool {
 
-	for _, v := range TypeC.TyC {
+	for _, v := range types.TypeC.TyC {
 		for _, vv := range v {
 			if vv.Name == pred && len(vv.Ty) > 0 {
 				// is a uid-pred in one type so presume its ok
@@ -167,7 +104,7 @@ func IsUidPred(pred string) bool {
 
 func IsScalarPred(pred string) bool {
 	fmt.Println("IsScalarPred for ", pred)
-	for _, v := range TypeC.TyC {
+	for _, v := range types.TypeC.TyC {
 		for _, vv := range v {
 			if vv.Name == pred && len(vv.Ty) == 0 {
 				// is a scalar in one type so presume its ok
@@ -179,82 +116,6 @@ func IsScalarPred(pred string) bool {
 	fmt.Println("FALSE")
 	return false
 }
-
-func populateTyCaches(allTypes blk.TyIBlock) {
-	var (
-		a     blk.TyAttrD
-		tc    blk.TyAttrBlock
-		s     strings.Builder
-		tyMap map[string]bool
-	)
-	tyMap = make(map[string]bool)
-
-	for _, v := range allTypes {
-		if _, ok := tyMap[v.Nm]; !ok {
-			tyMap[v.Nm] = true
-		}
-	}
-
-	for ty, _ := range tyMap {
-
-		fmt.Println("load type data for ", ty)
-		for _, v := range allTypes { // database item
-			// if not current ty then
-			if v.Nm != ty {
-				continue
-			}
-			fmt.Println("attr for type data ", ty, v.Atr)
-			genT_Attr := func(ty string, attr string) Ty_Attr {
-				// generte key for TyAttrC:  <typeName>:<attrName> e.g. Person:Age
-				s.Reset()
-				s.WriteString(ty)
-				s.WriteByte(':')
-				s.WriteString(attr)
-				return s.String()
-			}
-			// checl of DT is a UID attribute and gets its base type
-			//	fmt.Printf("DT:%#v \n", v)
-			if len(v.Ty) == 0 {
-				panic(fmt.Errorf("DT not defined for %#v", v))
-			}
-			//
-			// scalar type or abstract type e.g [person]
-			//
-			if v.Ty[0] == '[' {
-				a = blk.TyAttrD{Name: v.Atr, DT: "Nd", C: v.C, Ty: v.Ty[1 : len(v.Ty)-1], P: v.P, Pg: v.Pg, IncP: v.IncP}
-			} else {
-				a = blk.TyAttrD{Name: v.Atr, DT: v.Ty, C: v.C, P: v.P, N: v.N, Pg: v.Pg, IncP: v.IncP}
-			}
-			tc = append(tc, a)
-			//
-			TypeC.TyAttrC[genT_Attr(ty, v.Atr)] = a
-			tyShortNm, ok := GetTyShortNm(ty)
-			if !ok {
-				panic(fmt.Errorf("Error in populateTyCaches: Type short name not found"))
-			}
-			TypeC.TyAttrC[genT_Attr(tyShortNm, v.Atr)] = a
-
-			// fc, _ := FacetCache[tyAttr]
-			// for _, vf := range v.F {
-			// 	vfs := strings.Split(vf, "#")
-			// 	if len(vfs) == 3 {
-			// 		f := FacetTy{Name: vfs[0], DT: vfs[1], C: vfs[2]}
-			// 		fc = append(fc, f)
-			// 	} else {
-			// 		panic(fmt.Errorf("%s", "Facet type information must contain 3 elements: <facetName>#<datatype>#<compressedIdentifer>"))
-			// 	}
-			// }
-			// FacetCache[tyAttr] = fc
-		}
-		//
-		TypeC.TyC[ty] = tc
-		tc = nil
-	}
-}
-
-// func (g gsiResult) String() string {
-// 	return string(g.PKey)
-// }
 
 func (g *GraphCache) IsCached(uid util.UID) (ok bool) {
 	g.Lock()
@@ -315,7 +176,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 	// TyAttrC populated in NodeAttach(). Get Name of attribute that is the attachment point, based on sortk
 	//
 	i := strings.IndexByte(sortK, ':')
-	for _, v := range TypeC.TyAttrC {
+	for _, v := range types.TypeC.TyAttrC {
 		if v.C == sortK[i+1:] {
 			attachAttrNm = v.Name
 			found = true
@@ -328,9 +189,9 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 	//
 	// get type short name
 	//
-	tyShortNm, ok := GetTyShortNm(ty)
+	tyShortNm, ok := types.GetTyShortNm(ty)
 	if !ok {
-		panic(fmt.Errorf("SetUpredAvailable: type not found in GetTyShortNm"))
+		panic(fmt.Errorf("SetUpredAvailable: type not found in  types.GetTyShortNm"))
 	}
 	// cache: update pUID block with latest propagation state; targetUID, XF state
 	//
@@ -385,9 +246,9 @@ func (e NoTypeDefined) Error() string {
 	return fmt.Sprintf("Type %q not defined", e.ty)
 }
 
-func NewNoTypeDefined(ty string) error {
-	return NoTypeDefined{ty: ty}
-}
+// func NewNoTypeDefined(ty string) error {
+// 	return NoTypeDefined{ty: ty}
+// }
 
 // genSortK, generate one or more SortK given NV.
 func GenSortK(nvc ds.ClientNV, ty string) []string {
@@ -416,18 +277,18 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 	//
 	// get type info
 	//
-	// if tyc, ok := TypeC.TyC[ty]; !ok {
+	// if tyc, ok :=  types.TypeC.TyC[ty]; !ok {
 	// 	panic(fmt.Errorf(`genSortK: Type %q does not exist`, ty))
 	// }
 	// get long type name
-	ty, _ = GetTyLongNm(ty)
+	ty, _ = types.GetTyLongNm(ty)
 	fmt.Println("GenSortK: long ty - ", ty)
 	var s strings.Builder
 
 	switch {
 	case uidPreds == 0 && scalarPreds == 1:
 		s.WriteString("A#")
-		if aty, ok = TypeC.TyAttrC[ty+":"+nvc[0].Name]; !ok {
+		if aty, ok = types.TypeC.TyAttrC[ty+":"+nvc[0].Name]; !ok {
 			panic(fmt.Errorf("Predicate %q does not exist in type %q", nvc[0].Name, ty))
 		} else {
 			s.WriteString(aty.P)
@@ -441,7 +302,7 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 
 		parts = make(map[string]bool)
 		for _, nv := range nvc {
-			if aty, ok = TypeC.TyAttrC[ty+":"+nv.Name]; !ok {
+			if aty, ok = types.TypeC.TyAttrC[ty+":"+nv.Name]; !ok {
 				panic(fmt.Errorf("Predicate %q does not exist in type %q", nvc[0].Name, ty))
 			} else {
 				if !parts[aty.P] {
@@ -458,7 +319,7 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 
 	case uidPreds == 1 && scalarPreds == 0:
 		s.WriteString("A#")
-		if aty, ok = TypeC.TyAttrC[ty+":"+nvc[0].Name]; !ok {
+		if aty, ok = types.TypeC.TyAttrC[ty+":"+nvc[0].Name]; !ok {
 			panic(fmt.Errorf("Predicate %q does not exist in type %q", nvc[0].Name, ty))
 		} else {
 			s.WriteString("G#:")
@@ -528,12 +389,12 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 	//TODO: consider checking ty_ against cache type and error if different.
 	fmt.Println("ty: ", ty)
 	// if ty is short name convert to long name
-	if x, ok := GetTyLongNm(ty); ok {
+	if x, ok := types.GetTyLongNm(ty); ok {
 		ty = x
 	}
 	fmt.Println("ty: ", ty)
-	// FetchType populates  struct cache.TypeC with map types TyAttr, TyC
-	if _, err = FetchType(ty); err != nil {
+	// types.FetchType populates  struct cache.TypeC with map types TyAttr, TyC
+	if _, err = types.FetchType(ty); err != nil {
 		return err
 	}
 
@@ -554,7 +415,7 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 				//
 				// check for case of "siblings:" ie. "<uid-pred>:"
 				if len(attr_[len(attr_)-1]) == 0 {
-					if aty, ok = TypeC.TyAttrC[ty+":"+attr_[0]]; !ok {
+					if aty, ok = types.TypeC.TyAttrC[ty+":"+attr_[0]]; !ok {
 						return "", false //fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
 					}
 					pd.WriteString("#:")
@@ -568,19 +429,19 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 				// first check first attribute (Sibling) exists as an attribute in type, cTy.Ty
 				fmt.Println("key: ", ty+":"+attr_[i])
 				// attr_ is the predicate name
-				if aty, ok = TypeC.TyAttrC[ty+":"+attr_[i]]; !ok {
+				if aty, ok = types.TypeC.TyAttrC[ty+":"+attr_[i]]; !ok {
 					return "", false //  fmt.Errorf("Client NC attribute %q does not exist in type %q", attr[i], ty)
 				} else {
 					// now check sibling's (child node) type exists
 					if len(aty.Ty) > 0 { // uidpred type
-						if _, ok := TypeC.TyC[aty.Ty]; !ok {
+						if _, ok := types.TypeC.TyC[aty.Ty]; !ok {
 							panic(fmt.Errorf("UnmarshalNodeCache: Composite NV name %q not defined as a type", aty.Ty))
 						}
 						// shift current type, ty, to child node type, aTy
 						fmt.Printf("change ty to : %#v\n", aty)
 						ty = aty.Ty
 						// get type data
-						if _, err = FetchType(ty); err != nil {
+						if _, err = types.FetchType(ty); err != nil {
 							return "", false
 						}
 					}
@@ -596,7 +457,7 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 			//
 			// scalar e.g. Age
 			//
-			if aty, ok = TypeC.TyAttrC[ty+":"+attr]; !ok {
+			if aty, ok = types.TypeC.TyAttrC[ty+":"+attr]; !ok {
 				return "", false //fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
 			}
 			pd.WriteString("A#")
@@ -907,11 +768,11 @@ func (d *NodeCache) UnmarshalValue(attr string, i interface{}) error {
 	if ty, ok = d.GetType(); !ok {
 		return NoNodeTypeDefinedErr
 	}
-	if _, err := FetchType(ty); err != nil {
+	if _, err := types.FetchType(ty); err != nil {
 		return err
 	}
 
-	if aty, ok = TypeC.TyAttrC[ty+":"+attr]; !ok {
+	if aty, ok = types.TypeC.TyAttrC[ty+":"+attr]; !ok {
 		panic(fmt.Errorf("Attribute %q not found in type %q", attr, ty))
 	}
 	// build a item clause
@@ -973,14 +834,14 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 	if ty, ok = d.GetType(); !ok {
 		return NoNodeTypeDefinedErr
 	}
-	if _, err := FetchType(ty); err != nil {
+	if _, err := types.FetchType(ty); err != nil {
 		return err
 	}
 
 	if ty, ok = d.GetType(); !ok {
 		return NoNodeTypeDefinedErr
 	}
-	if _, err := FetchType(ty); err != nil {
+	if _, err := types.FetchType(ty); err != nil {
 		return err
 	}
 
@@ -989,7 +850,7 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 	)
 
 	genAttrKey := func(attr string) string {
-		if aty, ok = TypeC.TyAttrC[ty+":"+attr]; !ok {
+		if aty, ok = types.TypeC.TyAttrC[ty+":"+attr]; !ok {
 			return ""
 		}
 		// build a item clause
@@ -1076,7 +937,7 @@ func (d *NodeCache) GetType() (tyN string, ok bool) { // TODO: source type from 
 		syslog("in GetType: no A#T entry in NodeCache")
 		return "", ok
 	}
-	ty, _ := db.GetTyLongNm(di.GetTy())
+	ty, _ := types.GetTyLongNm(di.GetTy())
 	return ty, true
 }
 
@@ -1320,107 +1181,9 @@ type FacetTy struct {
 	C    string
 }
 
-type FacetCache map[Ty_Attr][]FacetTy
+type FacetCache map[types.TyAttr][]FacetTy
 
 var FacetC FacetCache
-
-func GetTyShortNm(longNm string) (string, bool) {
-	s, ok := tyShortNm[longNm]
-	return s, ok
-}
-
-func GetTyLongNm(tyNm string) (string, bool) {
-	for longNm, shortNm := range tyShortNm {
-		if tyNm == shortNm {
-			return longNm, true
-		}
-	}
-	return tyNm, true // tyNm is a long ty name
-}
-
-// FetchType returns a type info from table ? and populates the two type cache maps, TyCache, TyAttrCache
-// ty: argument can be either the long or short type name. TODO: check that short names and long names cannot clash.
-func FetchType(ty Ty) (blk.TyAttrBlock, error) {
-
-	// check if ty is long name using GetTyShortNm which presumes the input is a long name
-	if _, ok := GetTyShortNm(ty); !ok {
-		// must be a short name - check it exists using GetTyLongNm which only accepts a short name
-		if longTy, ok := GetTyLongNm(ty); !ok {
-			return nil, fmt.Errorf("FetchType: error %q type not found or short name not defined", ty)
-		} else {
-			ty = longTy
-		}
-	}
-	// No locks required as all types  loaded on startup and readonly after that.
-	//Type.RLock()
-	// TypeC.Lock()
-	// defer TypeC.Unlock()
-	//
-	if ty, ok := TypeC.TyC[ty]; ok { // ty= Person
-		return ty, nil
-	}
-	//
-	// not found in cache, load from db
-	//
-	//defer TypeC.Unlock()
-	//
-	tyIBlk, err := db.FetchType(ty)
-	if err != nil {
-		return nil, err
-	}
-	//
-	// reorg type data into two caches (vars in this pkg): TyC, TyAttrC
-	// with  respective keys: typeName, type-Attribute
-	//
-	var (
-		tc blk.TyAttrBlock
-		s  strings.Builder
-		a  blk.TyAttrD
-	)
-	for _, v := range tyIBlk { // database item
-
-		genT_Attr := func(attr string) Ty_Attr {
-			// generte key for TyAttrC:  <typeName>:<attrName> e.g. Person:Age
-			s.Reset()
-			s.WriteString(ty)
-			s.WriteByte(':')
-			s.WriteString(attr)
-			return s.String()
-		}
-		// checl of DT is a UID attribute and gets its base type
-		//	fmt.Printf("DT:%#v \n", v)
-		if len(v.Ty) == 0 {
-			panic(fmt.Errorf("DT not defined for %#v", v))
-		}
-		//
-		// scalar type or abstract type e.g [person]
-		//
-		if v.Ty[0] == '[' {
-			a = blk.TyAttrD{Name: v.Atr, DT: "Nd", C: v.C, Ty: v.Ty[1 : len(v.Ty)-1], P: v.P, Pg: v.Pg, IncP: v.IncP}
-		} else {
-			a = blk.TyAttrD{Name: v.Atr, DT: v.Ty, C: v.C, P: v.P, N: v.N, Pg: v.Pg, IncP: v.IncP}
-		}
-		tc = append(tc, a)
-		//
-		TypeC.TyAttrC[genT_Attr(v.Atr)] = a
-
-		// fc, _ := FacetCache[tyAttr]
-		// for _, vf := range v.F {
-		// 	vfs := strings.Split(vf, "#")
-		// 	if len(vfs) == 3 {
-		// 		f := FacetTy{Name: vfs[0], DT: vfs[1], C: vfs[2]}
-		// 		fc = append(fc, f)
-		// 	} else {
-		// 		panic(fmt.Errorf("%s", "Facet type information must contain 3 elements: <facetName>#<datatype>#<compressedIdentifer>"))
-		// 	}
-		// }
-		// FacetCache[tyAttr] = fc
-	}
-	//
-	TypeC.TyC[ty] = tc
-
-	return tc, nil
-}
 
 func AddReverseEdge(cuid, puid []byte, pTy string, sortk string) error {
 	return nil

@@ -190,8 +190,10 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 			if gqlf.Value, err = strconv.ParseFloat(p.curToken.Literal, 64); err != nil {
 				panic(fmt.Errorf("cannot convert %s to int", p.curToken.Literal))
 			}
+		case token.STRING:
+			gqlf.Value = p.curToken.Literal
 		default:
-			panic(fmt.Errorf("Expected a float or int as value to function not %s, %s", p.curToken.Type, p.curToken.Literal))
+			panic(fmt.Errorf("Expected a float, string or int as value to function not %s, %s", p.curToken.Type, p.curToken.Literal))
 		}
 		p.nextToken() // read over has value
 		p.nextToken() // read over )

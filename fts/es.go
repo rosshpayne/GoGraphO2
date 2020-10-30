@@ -125,7 +125,7 @@ func scan(thread int64, es *esv7.Client, wg *sync.WaitGroup) {
 				TotalSegments: aws.Int64(totalSegs),
 			}
 		}
-		input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+		input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL") //TODO: FT idx values should not appear in any GSI (P_S) as they are indexed in ES.
 		//
 		t1 = time.Now()
 		result, err = dynSrv.Scan(input)
@@ -206,6 +206,9 @@ func scan(thread int64, es *esv7.Client, wg *sync.WaitGroup) {
 			}
 
 		}
+		//
+		// detect EOF and exit
+		//
 		if len(result.LastEvaluatedKey) == 0 {
 			fmt.Printf("thread: %d  empty lastEvaluatedKEy....read %d \n", thread, c)
 			break

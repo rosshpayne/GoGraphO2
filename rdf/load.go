@@ -9,10 +9,10 @@ import (
 	"sync"
 
 	blk "github.com/DynamoGraph/block"
-	"github.com/DynamoGraph/cache"
 	"github.com/DynamoGraph/client"
-	"github.com/DynamoGraph/db"
 	"github.com/DynamoGraph/gql/monitor"
+	"github.com/DynamoGraph/rdf/internal/db"
+	"github.com/DynamoGraph/types"
 	//"github.com/DynamoGraph/es"
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/ds"
@@ -284,6 +284,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		dt    string
 		sortk string
 		c     string // type attribute short name
+		ix    string // index type
 	}
 	var attr map[string]*mergedRDF
 	attr = make(map[string]*mergedRDF)
@@ -294,9 +295,9 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	// create attr entry indexed by pred.
 	// may need to merge multiple s-p-o lines with the same pred into one attr entry.
 	// attr will then be used to create NV entries, where the name (pred) gets associated with value (ob)
-
+	var found bool
 	for _, v := range ty {
-		var found bool
+		found = false
 		//	fmt.Println("node.Lines: ", len(node.Lines), node.Lines)
 
 		for _, n := range node.Lines {
@@ -317,18 +318,18 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 					node.Err = append(node.Err, err)
 					continue
 				}
-				attr[v.Name] = &mergedRDF{value: i, dt: v.DT}
+				attr[v.Name] = &mergedRDF{value: i, dt: v.DT, ix: v.Ix}
 
 			case F:
 				// check n.Object can be converted to float
-				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT}
+				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT, ix: v.Ix}
 				//attr[v.Name] = n.Obj // keep float as string as Dynamodb transport it as string
 
 			case S:
 				// check n.Object can be converted to float
 
 				//attr[v.Name] = n.Obj
-				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT}
+				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT, ix: v.Ix}
 
 			case SS:
 
@@ -348,6 +349,40 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 					}
 				}
 
+			case SI:
+
+				if a, ok := attr[v.Name]; !ok {
+
+					si := make([]int, 1)
+					i, err := strconv.Atoi(n.Obj)
+					if err != nil {
+						err := fmt.Errorf("expected Integer got %s", n.Obj)
+						node.Err = append(node.Err, err)
+						continue
+					}
+					si[0] = i
+					syslog(fmt.Sprintf("Add to SI . [%d]", i))
+					attr[v.Name] = &mergedRDF{value: si, dt: v.DT, c: v.C}
+
+				} else {
+
+					if si, ok := a.value.([]int); !ok {
+						err := fmt.Errorf("Conflict with SS type at line %d", n.N)
+						node.Err = append(node.Err, err)
+					} else {
+						i, err := strconv.Atoi(n.Obj)
+						if err != nil {
+							err := fmt.Errorf("expected Integer got %s", n.Obj)
+							node.Err = append(node.Err, err)
+							continue
+						}
+						// merge (append) obj value with existing attr (pred) value
+						syslog(fmt.Sprintf("Add to SI . [%d]", i))
+						si = append(si, i)
+						attr[v.Name].value = si
+					}
+				}
+
 			// case SBl:
 			// case SB:
 			// case LBl:
@@ -355,10 +390,10 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 
 			case LS:
 				if a, ok := attr[v.Name]; !ok {
-					ss := make([]string, 1)
-					ss[0] = n.Obj
-					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT, c: v.C}
-					//	attr[v.Name] = ss
+					ls := make([]string, 1)
+					ls[0] = n.Obj
+					attr[v.Name] = &mergedRDF{value: ls, dt: v.DT, c: v.C}
+					//	attr[v.Name] = ls
 				} else {
 					if ls, ok := a.value.([]string); !ok {
 						err := fmt.Errorf("Conflict with SS type at line %d", n.N)
@@ -371,24 +406,24 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 
 			case LI:
 				if a, ok := attr[v.Name]; !ok {
-					ss := make([]int, 1)
+					li := make([]int, 1)
 					i, err := strconv.Atoi(n.Obj)
 					if err != nil {
-						err := fmt.Errorf("expected Integer %s", n.Obj)
+						err := fmt.Errorf("expected Integer got %s", n.Obj)
 						node.Err = append(node.Err, err)
 						continue
 					}
-					ss[0] = i // n.Obj  int
-					//attr[v.Name] = ss
-					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT}
+					li[0] = i // n.Obj  int
+					//attr[v.Name] = li
+					attr[v.Name] = &mergedRDF{value: li, dt: v.DT}
 				} else {
 					if li, ok := a.value.([]int); !ok {
-						err := fmt.Errorf("Conflict with SS type at line %d", n.N)
+						err := fmt.Errorf("Conflict with LI type at line %d", n.N)
 						node.Err = append(node.Err, err)
 					} else {
 						i, err := strconv.Atoi(n.Obj)
 						if err != nil {
-							err := fmt.Errorf("expected Integer %s", n.Obj)
+							err := fmt.Errorf("expected Integer got  %s", n.Obj)
 							node.Err = append(node.Err, err)
 							continue
 						}
@@ -457,7 +492,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 			nv = append(nv, e)
 			addTy = false
 		}
-		e := ds.NV{Sortk: v.sortk, Name: k, SName: node.ID, Value: v.value, DT: v.dt, C: v.c, Ty: node.TyName}
+		e := ds.NV{Sortk: v.sortk, Name: k, SName: node.ID, Value: v.value, DT: v.dt, C: v.c, Ty: node.TyName, Ix: v.ix}
 		nv = append(nv, e)
 	}
 	//
@@ -465,9 +500,6 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	//
 	for _, v := range ty {
 		if v.DT == Nd {
-			// if _, ok := attr[v.Name]; ok {
-			// 	continue
-			// }
 			// create empty item
 			value := []string{"__"}
 			e := ds.NV{Sortk: genSortK(v), Name: v.Name, SName: "__", Value: value, DT: Nd}
@@ -585,7 +617,8 @@ func getType(node *ds.Node) (blk.TyAttrBlock, error) {
 	}
 	syslog(fmt.Sprintf("node.TyName : [%s]", node.TyName))
 	//ll.Lock() - all types loaded at startup time - no locks required
-	ty, err := cache.FetchType(node.TyName)
+	//ty, err := cache.FetchType(node.TyName)
+	ty, err := types.FetchType(node.TyName)
 	//ll.Unlock()
 	if err != nil {
 		return nil, err

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	blk "github.com/DynamoGraph/block"
-	"github.com/DynamoGraph/cache"
+	"github.com/DynamoGraph/types"
 	//"github.com/DynamoGraph/db"
 	"github.com/DynamoGraph/ds"
 )
@@ -144,7 +144,7 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 			//
 			// get type of predicate from type info
 			//
-			if pTy, ok = cache.TypeC.TyAttrC[ty+":"+nm]; !ok {
+			if pTy, ok = types.TypeC.TyAttrC[ty+":"+nm]; !ok {
 				// root result type does not contain filter predicate, so root item fails the filter
 				panic(fmt.Errorf("Error in inequality func: predicate %q not found in TypeC.TyAttr", ty+":"+nm))
 				return false
@@ -164,7 +164,7 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 			//
 			// get type of predicate from type info
 			//
-			if pTy, ok = cache.TypeC.TyAttrC[ty+":"+x.Name()]; !ok {
+			if pTy, ok = types.TypeC.TyAttrC[ty+":"+x.Name()]; !ok {
 				// root result type does not contain filter predicate, so root item fails the filter
 				panic(fmt.Errorf("XX Error in inequality func: predicate %q not found in TypeC.TyAttr", ty+":"+x.Name()))
 				return false

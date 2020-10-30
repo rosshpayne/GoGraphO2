@@ -18,6 +18,7 @@ import (
 	mon "github.com/DynamoGraph/gql/monitor"
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/grmgr"
+	"github.com/DynamoGraph/types"
 	//	"github.com/DynamoGraph/rdf/uuid"
 	"github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/util"
@@ -169,7 +170,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		// get type details from type table for child node
 		//
 		var cty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
-		if cty, err = cache.FetchType(cTyName); err != nil {
+		if cty, err = types.FetchType(cTyName); err != nil {
 			errch <- err
 			return
 		}
@@ -342,7 +343,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	//
 	syslog.Log("AttachNode: main 4a", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
-	if pty, err = cache.FetchType(pTyName); err != nil {
+	if pty, err = types.FetchType(pTyName); err != nil {
 		pnd.Unlock()
 		// send empty payload so concurrent routine will abort -
 		// not necessary to capture nil payload error from routine as it has a buffer size of 1
@@ -535,7 +536,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		// get type details from type table for child node
 		//
 		var cty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
-		if cty, err = cache.FetchType(cTyName); err != nil {
+		if cty, err = types.FetchType(cTyName); err != nil {
 			errch <- err
 			return
 		}
@@ -704,7 +705,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 	// get type details from type table for child node
 	//
 	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
-	if pty, err = cache.FetchType(pTyName); err != nil {
+	if pty, err = types.FetchType(pTyName); err != nil {
 		pnd.Unlock()
 		xch <- chPayload{}
 		wg.Wait()

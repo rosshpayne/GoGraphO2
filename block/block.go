@@ -348,6 +348,7 @@ type TyAttrD struct {
 	N    bool   // true: nullable (attribute may not exist) false: not nullable
 	Pg   bool   // true: propagate scalar data to parent
 	IncP []string
+	Ix   string // index type
 }
 
 type TyAttrBlock []TyAttrD

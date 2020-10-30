@@ -13,6 +13,7 @@ type NV struct {
 	C     string    // type attribute short name
 	Value interface{}
 	Ty    string // node type - used in GSI item
+	Ix    string // type of index for scalars. x : enter into GSI via p attribute, ft: full text using AWS ElasticSearch service
 }
 
 type Line struct {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	blk "github.com/DynamoGraph/block"
+	"github.com/DynamoGraph/dbConn"
 	//gerr "github.com/DynamoGraph/dygerror"
 	param "github.com/DynamoGraph/dygparam"
 	mon "github.com/DynamoGraph/gql/monitor"
@@ -18,7 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
@@ -73,220 +73,12 @@ var (
 	tyShortNm map[string]string
 )
 
-func GetTyShortNm(longNm string) (string, bool) {
-	s, ok := tyShortNm[longNm]
-	return s, ok
-}
-
-func GetTyLongNm(tyNm string) (string, bool) {
-	for shortNm, longNm := range tyShortNm {
-		if tyNm == longNm {
-			return shortNm, true
-		}
-	}
-	return "", false
-}
-
 func init() {
-	// establish dynamodb service
-	dynamodbSrv := func() *dynamodb.DynamoDB {
-		sess, err := session.NewSession(&aws.Config{
-			Region: aws.String("us-east-1"),
-		})
-		if err != nil {
-			logerr(err, true)
-		}
-		return dynamodb.New(sess, aws.NewConfig())
-	}
-
-	dynSrv = dynamodbSrv()
-	//
-	//
-	// Load in to maps the short and long names of all types. The is also shared with cache version.
-	//
-	tynames, err = loadTypeShortNames()
-	if err != nil {
-		panic(err)
-	}
-	//
-	// populate type short name cache. This cache is conccurent safe as it is readonly from now on.
-	//
-	tyShortNm = make(map[string]string)
-	for _, v := range tynames {
-		tyShortNm[v.LongNm] = v.ShortNm
-	}
+	dynSrv = dbConn.New()
 }
 
 func GetTypeShortNames() ([]tyNames, error) {
 	return tynames, nil
-}
-
-// Load Data Dictionary (DD) into memory
-//
-// TODO: create table DyGTypes and populat
-
-func LoadDataDictionary() (blk.TyIBlock, error) {
-
-	filt := expression.BeginsWith(expression.Name("Nm"), "#").Not()
-	expr, err := expression.NewBuilder().WithFilter(filt).Build()
-	if err != nil {
-		return nil, newDBExprErr("LoadDataDictionary", "", "", err)
-	}
-	input := &dynamodb.ScanInput{
-		FilterExpression:          expr.Filter(),
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-	}
-	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
-	//
-	result, err := dynSrv.Scan(input)
-	if err != nil {
-		return nil, newDBSysErr("LoadDataDictionary", "Scan", err)
-	}
-	syslog(fmt.Sprintf("LoadDataDictionary: consumed capacity for Scan %s ", result.ConsumedCapacity))
-	//
-	if int(*result.Count) == 0 {
-		//newDBNoItemFound(rt string, pk string, sk string, api string, err error)
-		return nil, newDBNoItemFound("LoadDataDictionary", "", "", "Scan")
-	}
-	//
-	dd := make(blk.TyIBlock, len(result.Items))
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &dd)
-	if err != nil {
-		//func newDBUnmarshalErr(rt string, pk string, sk string, api string, err error) error {
-		return nil, newDBUnmarshalErr("UnmarshalListOfMaps", "", "", "UnmarshalListOfMaps", err)
-	}
-
-	return dd, nil
-
-}
-
-func loadTypeShortNames() ([]tyNames, error) {
-
-	syslog(fmt.Sprintf("db.loadTypeShortNames "))
-	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#T"))
-	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
-	if err != nil {
-		return nil, newDBExprErr("loadTypeShortNames", "", "", err)
-	}
-	//
-	input := &dynamodb.QueryInput{
-		KeyConditionExpression:    expr.KeyCondition(),
-		FilterExpression:          expr.Filter(),
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-	}
-	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
-	//
-	t0 := time.Now()
-	result, err := dynSrv.Query(input)
-	t1 := time.Now()
-	if err != nil {
-		return nil, newDBSysErr("loadTypeShortNames", "Query", err)
-	}
-	syslog(fmt.Sprintf("loadTypeShortNames: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
-	if int(*result.Count) == 0 {
-		return nil, newDBNoItemFound("loadTypeShortNames", "", "", "Query")
-	}
-	//
-	// Unmarshal result into
-	//
-	items := make([]tyNames, *result.Count, *result.Count)
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &items)
-	if err != nil {
-		return nil, newDBUnmarshalErr("loadTypeShortNames", "", "", "UnmarshalListOfMaps", err)
-	}
-	return items, nil
-}
-
-// Has return list of types containing the attribute
-// func Has(attrNm string) ([]string, error) {
-
-// 	type tyNameItem struct {
-// 		Nm string
-// 	}
-// 	syslog(fmt.Sprintf("db.Has "))
-// 	keyC := expression.KeyEqual(expression.Key("Atr"), expression.Value(attrNm))
-// 	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
-// 	if err != nil {
-// 		return nil, newDBExprErr("Has", "", "", err)
-// 	}
-// 	//
-// 	input := &dynamodb.QueryInput{
-// 		KeyConditionExpression:    expr.KeyCondition(),
-// 		FilterExpression:          expr.Filter(),
-// 		ExpressionAttributeNames:  expr.Names(),
-// 		ExpressionAttributeValues: expr.Values(),
-// 	}
-// 	input = input.SetTableName("DyGTypes").SetIndexName("Atr-Nm-index").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
-// 	//
-// 	t0 := time.Now()
-// 	result, err := dynSrv.Query(input)
-// 	t1 := time.Now()
-// 	if err != nil {
-// 		return nil, newDBSysErr("Has", "Query", err)
-// 	}
-// 	syslog(fmt.Sprintf("Has: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
-// 	if int(*result.Count) == 0 {
-// 		return nil, newDBNoItemFound("Has", "", "", "Query")
-// 	}
-// 	ty := make([]string, *result.Count, *result.Count)
-// 	item := make([]tyNameItem, *result.Count, *result.Count)
-
-// 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &item)
-// 	if err != nil {
-// 		return nil, newDBUnmarshalErr("Has", "", "", "UnmarshalList", err)
-// 	}
-// 	//
-// 	for i, v := range item {
-// 		ty[i] = v.Nm
-
-// 	}
-// 	return ty, nil
-// }
-
-//TODO: move to table DyGTypes
-func FetchType(ty string) (blk.TyIBlock, error) {
-
-	syslog(fmt.Sprintf("db.FetchTye for type %s", ty))
-	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value(ty))
-	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
-	if err != nil {
-		return nil, newDBExprErr("FetchType", ty, "", err)
-	}
-	//
-	input := &dynamodb.QueryInput{
-		KeyConditionExpression:    expr.KeyCondition(),
-		FilterExpression:          expr.Filter(),
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-	}
-	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
-	//
-	syslog(fmt.Sprintf("db.FetchTye  1. for type %s", ty))
-	t0 := time.Now()
-	result, err := dynSrv.Query(input)
-	t1 := time.Now()
-	if err != nil {
-		return nil, newDBSysErr("FetchType", "Query", err)
-	}
-	syslog(fmt.Sprintf("db.FetchTye 2. for type %s", ty))
-	//
-	syslog(fmt.Sprintf("FetchType: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
-	if int(*result.Count) == 0 {
-		return nil, newDBNoItemFound("FetchType", ty, "", "Query")
-	}
-	//
-	// Unmarshal result into
-	//
-	dd := make(blk.TyIBlock, len(result.Items))
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &dd)
-	if err != nil {
-		return nil, newDBUnmarshalErr("FetchType", ty, "", "UnmarshalListOfMaps", err)
-	}
-
-	return dd, nil
-
 }
 
 // NodeExists
