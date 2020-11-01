@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	slog "github.com/DynamoGraph/syslog"
 
@@ -41,6 +42,8 @@ func syslog(s string) {
 
 var (
 	cfg esv7.Config
+	es  *esv7.Client
+	err error
 )
 
 func init() {
@@ -51,7 +54,7 @@ func init() {
 		},
 		// ...
 	}
-	es, err := esv7.NewClient(cfg)
+	es, err = esv7.NewClient(cfg)
 	if err != nil {
 		syslog(fmt.Sprintf("Error creating the client: %s", err))
 	}
@@ -69,6 +72,7 @@ func init() {
 		syslog(fmt.Sprintf("Error: %s", res.String()))
 	}
 	// Deserialize the response into a map.
+	var r map[string]interface{}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		syslog(fmt.Sprintf("Error parsing the response body: %s", err))
 	}
@@ -79,15 +83,13 @@ func init() {
 
 func Load(d *Doc) {
 
-	syslog(fmt.Sprintf("in saveFTS. UID: [%s] %#v\n", d.Id, d))
+	syslog(fmt.Sprintf("in saveFTS. UID: [%s] %#v\n", d.PKey, d))
 	// Initialize a client with the default settings.
 	//
-	// An `ELASTICSEARCH_URL` environment variable will be used when exported.
-	//
-	es, err := esv7.NewClient(cfg)
-	if err != nil {
-		syslog(fmt.Sprintf("Error creating the client: %s", err))
-	}
+	//	es, err := esv7.NewClient(cfg)
+	// if err != nil {
+	// 	syslog(fmt.Sprintf("Error creating the client: %s", err))
+	// }
 	//
 	// 2. Index documents concurrently
 	//
@@ -95,18 +97,17 @@ func Load(d *Doc) {
 	var b strings.Builder
 	b.WriteString(`{"attr" : "`)
 	b.WriteString(d.Attr)
-	b.WriteString(`"value" : "`)
+	b.WriteString(`","value" : "`)
 	b.WriteString(d.Value)
-	b.WriteString(`",`)
-	b.WriteString(`"sortk" : "`)
+	b.WriteString(`","sortk" : "`)
 	b.WriteString(d.SortK)
-	b.WriteString(`",`)
-	b.WriteString(`"type" : "`)
+	b.WriteString(`","type" : "`)
 	b.WriteString(d.Type)
 	b.WriteString(`"}`)
 
 	syslog(fmt.Sprintf("Body: %s", b.String()))
 	// Set up the request object.
+	t0 := time.Now()
 	req := esapi.IndexRequest{
 		Index:      "myidx001",
 		DocumentID: d.PKey,
@@ -116,13 +117,14 @@ func Load(d *Doc) {
 
 	// Perform the request with the client.
 	res, err := req.Do(context.Background(), es)
+	t1 := time.Now()
 	if err != nil {
 		syslog(fmt.Sprintf("Error getting response: %s", err))
 	}
 	defer res.Body.Close()
 
 	if res.IsError() {
-		syslog(fmt.Sprintf("Error indexing document ID=%s. Status: %v ", d.Id, res.Status()))
+		syslog(fmt.Sprintf("Error indexing document ID=%s. Status: %v ", d.PKey, res.Status()))
 	} else {
 		// Deserialize the response into a map.
 		var r map[string]interface{}
@@ -130,7 +132,7 @@ func Load(d *Doc) {
 			syslog(fmt.Sprintf("Error parsing the response body: %s", err))
 		} else {
 			// Print the response status and indexed document version.
-			syslog(fmt.Sprintf("[%s] %s; version=%d", res.Status(), r["result"], int(r["_version"].(float64))))
+			syslog(fmt.Sprintf("[%s] %s; version=%d   API Duration: %s", res.Status(), r["result"].(string), int(r["_version"].(float64)), t1.Sub(t0)))
 		}
 	}
 	//

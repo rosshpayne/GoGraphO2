@@ -181,7 +181,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				SortK string
 				S     string
 				P     string `json:",omitempty"`
-				Ty    string // node type (short name)
+				Ty    string
 			}
 
 			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
