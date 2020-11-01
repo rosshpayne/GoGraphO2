@@ -19,7 +19,7 @@ func (r *RootStmt) MarshalJSON() {
 	// foreach uid in root node map
 	//
 	for uid, nvc := range r.nodesc {
-
+		// monitor: increment node touched counter
 		stat := mon.Stat{Id: mon.TouchNode, Lvl: 0}
 		mon.StatCh <- stat
 
@@ -30,7 +30,7 @@ func (r *RootStmt) MarshalJSON() {
 
 		for _, s := range r.Select {
 
-			switch x := s.Edge.(type) {
+			switch x := s.Edge.(type) { // AAA
 
 			case *ScalarPred:
 
@@ -47,43 +47,43 @@ func (r *RootStmt) MarshalJSON() {
 				}
 
 			case *UidPred: // child of child, R.N.N
-				// grab the predicates (scalars) belonging to uid-pred x: e.g. Friends:Name, Friednds:Age
+				// save the scalar predicates belonging to uid-pred x: e.g. Friends:Name, Friednds:Age
 				var spred []*ds.NV
 
 				for _, v := range nvc {
 					if !(strings.Index(v.Name, ":") > -1 && v.Name[:strings.Index(v.Name, ":")] == x.Name() && len(v.Name) > len(x.Name())+1) {
 						continue
 					}
+					// save to spred only if edge is not Ignored. Ignore set during genNV().
 					if !v.Ignore {
 						spred = append(spred, v)
 					}
 				}
 				//
-				// get child uids that belong to edge x and print out the scalar attributes for x
+				// get child uids that belong to edge x and print out the scalar attributes for x (see AAA)
 				//
 				var s strings.Builder
 				fmt.Printf("%s%s : [ \n", strings.Repeat("\t", 1), x.Name())
-
+				//
+				//  see method cache.UnmarshalNodeCache for description of the design of the node cache which the following code interragates.
+				//
 				upred := nvm[x.Name()+":"]
-				uids := upred.Value.([][][]byte)
-
-				for i, uidS := range uids {
-					for j, v := range uidS {
+				for i, uids := range upred.Value.([][][]byte) {
+					for j, v := range uids {
 						s.Reset()
-						if upred.State[i][j] == blk.UIDdetached || upred.State[i][j] == blk.CuidFiltered {
-							continue // soft delete set or failed filter condition
+						if upred.State[i][j] == blk.UIDdetached || upred.State[i][j] == blk.EdgeFiltered {
+							continue // edge soft delete set or edge failed filter condition in GQL stmt
 						}
-						//
-						// increment touch counter
-						//
+						// monitor: increment touch counter
 						stat := mon.Stat{Id: mon.TouchNode, Lvl: x.lvl}
 						mon.StatCh <- stat
+
 						s.WriteString(fmt.Sprintf("%s{ \n", strings.Repeat("\t", 2)))
 						s.WriteString(fmt.Sprintf("%sidx: { i: %d, j: %d }\n", strings.Repeat("\t", 2), i, j))
 						s.WriteString(fmt.Sprintf("%suid: %s\n", strings.Repeat("\t", 2), util.UID(v).String()))
 						for _, scalar := range spred {
 
-							pred := scalar.Name[strings.Index(scalar.Name, ":")+1:] // Friends:Age
+							pred := scalar.Name[strings.Index(scalar.Name, ":")+1:] // Friends:Age -> Age
 
 							switch z := scalar.Value.(type) {
 							case [][]string:
@@ -100,7 +100,7 @@ func (r *RootStmt) MarshalJSON() {
 						fmt.Print(s.String())
 						//
 						// walk the graph using uid-pred attributes belonging to edge x.
-						// MarshalJSON will print the scalar values associated with each child node of x.
+						// marshalJSON will print the scalar values associated with each child node of x.
 						//
 						for _, p := range x.Select {
 							if y, ok := p.Edge.(*UidPred); ok {
@@ -138,6 +138,7 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 	}
 
 	upred := u.Parent.(*UidPred)
+
 	for _, s := range upred.Select {
 
 		switch x := s.Edge.(type) {
@@ -161,17 +162,16 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 			fmt.Printf("%s%s : [ \n", strings.Repeat("\t", u.lvl), x.Name())
 
 			upred := nvm[x.Name()+":"]
-			uids := upred.Value.([][][]byte)
-
-			for i, uidS := range uids {
-				for j, v := range uidS {
+			for i, uids := range upred.Value.([][][]byte) {
+				for j, v := range uids {
 					//fmt.Printf("i, j, UID: %d %d, %s", i, j, util.UID(v).String())
-					if upred.State[i][j] == blk.UIDdetached || upred.State[i][j] == blk.CuidFiltered {
+					if upred.State[i][j] == blk.UIDdetached || upred.State[i][j] == blk.EdgeFiltered {
 						continue // soft delete set or failed filter condition
 					}
 					s.Reset()
 					stat := mon.Stat{Id: mon.TouchNode, Lvl: x.lvl}
 					mon.StatCh <- stat
+
 					s.WriteString(fmt.Sprintf("%s{ \n", strings.Repeat("\t", u.lvl+1)))
 					s.WriteString(fmt.Sprintf("%sidx: { i: %d, j: %d }\n", strings.Repeat("\t", u.lvl+1), i, j))
 					s.WriteString(fmt.Sprintf("%suid: %s\n", strings.Repeat("\t", u.lvl+1), util.UID(v).String()))

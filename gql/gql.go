@@ -56,7 +56,7 @@ func Execute(query string) {
 	t2 := time.Now()
 	fmt.Printf("\nDuration: Execute: %s      Output: %s\n\n", t1.Sub(t0), t2.Sub(t1))
 	syslog(fmt.Sprintf("Duration: Execute: %s      Output: %s", t1.Sub(t0), t2.Sub(t1)))
-	//	time.Sleep(2 * time.Second) // give time for monitor to empty its channel queues
+	time.Sleep(2 * time.Second) // give time for monitor to empty its channel queues
 	cancel()
 
 	ctxEnd.Wait()

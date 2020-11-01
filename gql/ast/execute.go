@@ -30,11 +30,7 @@ func (r *RootStmt) Execute(grl grmgr.Limiter) {
 	//
 	// execute root func - get back slice of unfiltered results
 	//
-	fmt.Printf("About to run root func..argument type: .%T %v\n", r.RootFunc.Farg, r.RootFunc.F)
-
 	result := r.RootFunc.F(r.RootFunc.Farg, r.RootFunc.Value)
-
-	fmt.Printf("result: %#v\n", result)
 
 	if len(result) == 0 {
 		return
@@ -138,7 +134,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 			// filter by setting STATE value for each edge in NVM. NVM has been saved to root stmt
 			// and is used by MarshalJSON to output edges from the root node.
 			if x.Filter != nil {
-				x.Filter.Apply(nvm, aty.Ty, x.Name()) // AAA - on first uid-pred - on each edge mark as CuidFiltered true|false
+				x.Filter.Apply(nvm, aty.Ty, x.Name()) // AAA - on first uid-pred - on each edge mark as EdgeFiltered true|false
 			}
 
 			for _, p := range x.Select {
@@ -178,7 +174,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 						for j, uid := range u {
 
 							// check the result of the filter condition on x determined at AAA ie. filter on child nodes whose age > 62
-							if data.State[i][j] == blk.UIDdetached || data.State[i][j] == blk.CuidFiltered { // soft delete set
+							if data.State[i][j] == blk.UIDdetached || data.State[i][j] == blk.EdgeFiltered { // soft delete set
 								fmt.Println("continue......due to detached XF entry")
 								continue
 							}
@@ -320,7 +316,7 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 			for i, k := range nds {
 				for j, cUid := range k {
 
-					if data.State[i][j] == blk.UIDdetached || data.State[i][j] == blk.CuidFiltered {
+					if data.State[i][j] == blk.UIDdetached || data.State[i][j] == blk.EdgeFiltered {
 						continue // soft delete set or failed filter condition
 					}
 

@@ -102,7 +102,7 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 
 func loadTypeShortNames() ([]tyNames, error) {
 
-	syslog(fmt.Sprintf("db.loadTypeShortNames "))
+	syslog("db.loadTypeShortNames ")
 	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#T"))
 	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
 	if err != nil {

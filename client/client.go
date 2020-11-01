@@ -131,7 +131,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		return addErr(err)
 
 	}
-	fmt.Println("Edge does NOT exit....")
 	//
 	// log Event
 	//
@@ -150,7 +149,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		//
 		// Grab child scalar data and lock child  node. Unlocked in UnmarshalCache and defer.(?? no need for cUID lock after Unmarshal - I think?)  ALL SCALARS SHOUD BEGIN WITH sortk "A#"
 		//
-		syslog.Log("AttachNode: gr1 ", fmt.Sprintf("FetchForUpdate: for child    %s", cUID.String()))
 		cnd, err := gc.FetchForUpdate(cUID, "A#")
 		defer cnd.Unlock("ON cUID for AttachNode second goroutine..") // note unmarshalCache nolonger release the lock
 		if err != nil {
@@ -309,7 +307,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	//
 	// fetch parent node to find its type. This will lock parent node for update (no shared locks). Explicit unlocked in defer
 	//
-	syslog.Log("AttachNode: main X", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	idx := strings.IndexByte(sortK, '#')
 
 	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1]) //TODO: query all items in UID partition. Sortk should not be shortened. It should search based on entire sortk like below.
@@ -324,7 +321,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		wg.Wait()
 		return addErr(err)
 	}
-	syslog.Log("AttachNode: main 3", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	//
 	// get type of child node from A#T sortk e.g "Person"
 	//
@@ -337,11 +333,9 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		wg.Wait()
 		return addErr(err)
 	}
-	syslog.Log("AttachNode: main 4", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	//
 	// get type details from type table for child node
 	//
-	syslog.Log("AttachNode: main 4a", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	var pty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
 	if pty, err = types.FetchType(pTyName); err != nil {
 		pnd.Unlock()
@@ -351,7 +345,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		wg.Wait()
 		return addErr(err)
 	}
-	syslog.Log("AttachNode: main 5", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	//
 	targetUID, id, err := pnd.ConfigureUpred(sortK, pUID, cUID)
 	if err != nil {
@@ -368,12 +361,9 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	// get concurrent goroutine to write event items
 	//
 	pass := chPayload{tUID: targetUID, itemId: id, nd: pnd, pTy: pty}
-	syslog.Log("AttachNode: main 6", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
-	fmt.Println("passed payload to other attachnode routine...waiting ")
 	xch <- pass
 
 	wg.Wait()
-	syslog.Log("AttachNode: main 7", fmt.Sprintf("FetchForUpdate: for parent    %s  sortk: %s", pUID.String(), sortK))
 	//
 	setAvailable(targetUID, id, 1, pTyName)
 	//

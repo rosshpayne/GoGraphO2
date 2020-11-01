@@ -7,17 +7,18 @@ import (
 	"time"
 
 	blk "github.com/DynamoGraph/block"
+	"github.com/DynamoGraph/dbConn"
 	"github.com/DynamoGraph/rdf/ds"
+	"github.com/DynamoGraph/rdf/es"
 	"github.com/DynamoGraph/rdf/grmgr"
 	"github.com/DynamoGraph/rdf/uuid"
 	slog "github.com/DynamoGraph/syslog"
+	"github.com/DynamoGraph/types"
 	"github.com/DynamoGraph/util"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 )
 
 const (
@@ -49,82 +50,8 @@ func syslog(s string) {
 	slog.Log(logid, s)
 }
 
-func GetTyShortNm(longNm string) (string, bool) {
-	s, ok := tyShortNm[longNm]
-	return s, ok
-}
-
-func GetTyLongNm(tyNm string) (string, bool) {
-	for shortNm, longNm := range tyShortNm {
-		if tyNm == longNm {
-			return shortNm, true
-		}
-	}
-	return "", false
-}
-
 func init() {
-	// TODO: source session info from a central package, maybe, DynamGraph/db package
-	dynamodbSrv := func() *dynamodb.DynamoDB {
-		sess, err := session.NewSession(&aws.Config{
-			Region: aws.String("us-east-1"),
-		})
-		if err != nil {
-			logerr(err, true)
-		}
-		return dynamodb.New(sess, aws.NewConfig())
-	}
-
-	dynSrv = dynamodbSrv()
-	//
-	tynames, err = loadTypeShortNames()
-	if err != nil {
-		panic(err)
-	}
-	//
-	tyShortNm = make(map[string]string)
-	for _, v := range tynames {
-		tyShortNm[v.LongNm] = v.ShortNm
-	}
-
-}
-
-func loadTypeShortNames() ([]tyNames, error) {
-
-	syslog(fmt.Sprintf("db.loadTypeShortNames "))
-	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#T"))
-	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
-	if err != nil {
-		return nil, newDBExprErr("loadTypeShortNames", "", "", err)
-	}
-	//
-	input := &dynamodb.QueryInput{
-		KeyConditionExpression:    expr.KeyCondition(),
-		FilterExpression:          expr.Filter(),
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-	}
-	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
-	//
-	t0 := time.Now()
-	result, err := dynSrv.Query(input)
-	t1 := time.Now()
-	if err != nil {
-		return nil, newDBSysErr("loadTypeShortNames", "Query", err)
-	}
-	syslog(fmt.Sprintf("loadTypeShortNames: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
-	if int(*result.Count) == 0 {
-		return nil, newDBNoItemFound("loadTypeShortNames", "", "", "Query")
-	}
-	//
-	// Unmarshal result into
-	//
-	items := make([]tyNames, *result.Count, *result.Count)
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &items)
-	if err != nil {
-		return nil, newDBUnmarshalErr("loadTypeShortNames", "", "", "UnmarshalListOfMaps", err)
-	}
-	return items, nil
+	dynSrv = dbConn.New()
 }
 
 //TODO: this routine requires an error log service. Code below  writes errors to the screen in some cases but not most. Errors are returned but calling routines is a goroutine so thqt get lost.
@@ -206,8 +133,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				P     string
 				Ty    string // node type
 			}
-			if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
@@ -231,8 +158,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				P     string
 				Ty    string // node type
 			}
-			if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
@@ -249,45 +176,49 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "S":
 
-			if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+			type Item struct {
+				PKey  []byte
+				SortK string
+				S     string
+				P     string `json:",omitempty"`
+				Ty    string // node type (short name)
+			}
+
+			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
-			if f, ok := nv.Value.(string); ok {
+			if v, ok := nv.Value.(string); ok {
 				//
 				// use Ix attribute to determine whether the P attribute (PK of GSI) should be populated.
 				//  For Ix value of FT (full text search)the S attribute will not appear in the GSI (P_S) as ElasticSearch has it covered
 				//  TODO: is it worthwhile have an FTGSI attribute to have it both index in ES and GSI
 				//
 				switch nv.Ix {
+
 				case "FT", "ft":
-					type Item struct {
-						PKey  []byte
-						SortK string
-						S     string
-						Ty    string // node type
-					}
-					fmt.Println("nv.IX = FT ")
-					a := Item{PKey: UID, SortK: nv.Sortk, S: f, Ty: tyShortNm} //nv.Ty}
+					// don't load into GSI by eliminating attribute P from item. GSI use P as their PKey.
+					a := Item{PKey: UID, SortK: nv.Sortk, S: v, Ty: tyShortNm} //nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
-					}
+					} //
+					// load item into ElasticSearch index
+					//
+
+					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
+
+					go es.Load(ea)
+
 				default:
-					type Item struct {
-						PKey  []byte
-						SortK string
-						S     string
-						P     string
-						Ty    string // node type
-					}
-					fmt.Println("default.... ")
-					a := Item{PKey: UID, SortK: nv.Sortk, S: f, P: nv.Name, Ty: tyShortNm} //nv.Ty}
+					// load into GSI by including attribute P in item
+					a := Item{PKey: UID, SortK: nv.Sortk, S: v, P: nv.Name, Ty: tyShortNm} //nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 					}
+
 				}
 			} else {
 				err = fmt.Errorf(" nv.Value is not an string ")
@@ -302,8 +233,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				P     string
 				Ty    string // node type
 			}
-			if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
 			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
@@ -329,8 +260,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if s, ok := nv.Value.(string); ok {
-				if tyShortNm, ok = GetTyShortNm(s); !ok {
-					syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+				if tyShortNm, ok = types.GetTyShortNm(s); !ok {
+					syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 					return
 				}
 				a := Item{PKey: UID, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
@@ -351,8 +282,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				P     string
 				Ty    string // node type
 			}
-			if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
 			}
 			if f, ok := nv.Value.(bool); ok {
@@ -375,8 +306,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				P     string
 				Ty    string // node type
 			}
-			if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
 			}
 			if f, ok := nv.Value.([]byte); ok {
@@ -642,8 +573,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				//
 				for i, s := range ss {
 
-					if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-						syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+					if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+						syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 						return
 					}
 
@@ -684,8 +615,8 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				//
 				for i, s := range si {
 
-					if tyShortNm, ok = GetTyShortNm(nv.Ty); !ok {
-						syslog(fmt.Sprintf("Error: type name %q not found in GetTyShortNm \n", nv.Ty))
+					if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+						syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 						return
 					}
 

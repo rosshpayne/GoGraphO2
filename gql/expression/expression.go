@@ -200,7 +200,7 @@ func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
 	if x, ok := nv.Value.([][][]byte); !ok {
 		panic(fmt.Errorf("Expression: nv.Value not a [][][]byte")) // TODO: should this be. panic or fatal error msg??
 	} else {
-		// apply filter to all edges and set edge to blk.CuidFiltered if it fails
+		// apply filter to all edges and set edge to blk.EdgeFiltered if it fails
 		for i, u := range x {
 			for k, _ := range u {
 				// if k == 0 { // skip first entry
@@ -213,7 +213,7 @@ func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
 				//return e.filterExecute(nvm, ty+"|"+predicate, i, k)
 				if !e.filterExecute(nvm, ty+"|"+predicate, i, k) {
 					// mark edge as deleted (using UIDdetached state)
-					nv.State[i][k] = blk.CuidFiltered
+					nv.State[i][k] = blk.EdgeFiltered
 				}
 			}
 		}
