@@ -203,10 +203,10 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
 						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
-					} //
+					}
+					//
 					// load item into ElasticSearch index
 					//
-
 					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
 
 					go es.Load(ea)
