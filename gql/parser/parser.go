@@ -47,8 +47,11 @@ func init() {
 	// regiser Parser methods for each statement type
 	registerFn(token.EQ, ast.EQ)
 	registerFn(token.GT, ast.GT)
-	registerFn(token.ALLOFTERMS, ast.ALLOFTERMS)
-	registerFn(token.ANYOFTERMS, ast.ANYOFTERMS)
+	registerFn(token.GE, ast.GE)
+	registerFn(token.LT, ast.LT)
+	registerFn(token.LE, ast.LE)
+	registerFn(token.ALLOFTERMS, ast.AllOfTerms)
+	registerFn(token.ANYOFTERMS, ast.AnyOfTerms)
 
 	//	registerFn(token.HAS, has)
 }

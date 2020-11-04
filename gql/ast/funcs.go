@@ -13,7 +13,6 @@ const (
 	logid = "gqlAstFunc: "
 )
 const (
-	esIndex    = "myidx001"
 	allofterms = " AND "
 	anyofterms = " OR "
 )
@@ -22,52 +21,32 @@ func syslog(s string) {
 	slog.Log(logid, s)
 }
 
-// eq(predicate, value)
-// eq(val(varName), value)
-// eq(predicate, val(varName))
-// eq(count(predicate), value)
-// eq(predicate, [val1, val2, ..., valN])
-// eq(predicate, [$var1, "value", ..., $varN])
-
-// type QResultT struct {
-// 	PKey  util.UID
-// 	SortK string
-// 	Ty    string
-// }
-
-// ==========================================================================================================
-
-// func Count(p Predicate) int {
-// 	// parsing will have confirmed p is a uid-pred only
-// 	cnt, err := db.GetCount(p)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	return cnt
-
-// }
-
-// type ValOut interface{}
-
-// func Val(v Variable) ValOut {
-// 	if v, ok := variable[v]; !ok {
-// 		panic(fmt.Errorf("%q does not exist as variable", v))
-// 	} else {
-// 		return v
-// 	}
-// 	return nil
-// }
-
 // eq function for root query called during execution-root-query phase
 // Each QResult will be Fetched then Unmarshalled (via UnmarshalCache) into []NV for each predicate.
 // The []NV will then be processed by the Filter function if present to reduce the number of elements in []NV
 func EQ(a FargI, value interface{}) db.QResult {
+	return eqie(db.EQ, a, value)
+}
+func GT(a FargI, value interface{}) db.QResult {
+	return eqie(db.GT, a, value)
+}
+func GE(a FargI, value interface{}) db.QResult {
+	return eqie(db.GE, a, value)
+}
+func LT(a FargI, value interface{}) db.QResult {
+	return eqie(db.LT, a, value)
+}
+func LE(a FargI, value interface{}) db.QResult {
+	return eqie(db.LE, a, value)
+}
+
+func eqie(opr db.Equality, a FargI, value interface{}) db.QResult {
 
 	var (
 		err    error
 		result db.QResult
 	)
-	fmt.Println("in EQ...............................")
+
 	switch x := a.(type) {
 
 	case *CountFunc:
@@ -80,11 +59,11 @@ func EQ(a FargI, value interface{}) db.QResult {
 			switch v := value.(type) {
 			case int:
 				fmt.Printf("in int......%v/n", v)
-				result, err = db.GSIQueryN(y.Name(), float64(v), db.EQ)
+				result, err = db.GSIQueryN(y.Name(), float64(v), opr)
 			case float64:
-				result, err = db.GSIQueryN(y.Name(), v, db.EQ)
+				result, err = db.GSIQueryN(y.Name(), v, opr)
 			case string:
-				result, err = db.GSIQueryS(y.Name(), v, db.EQ)
+				result, err = db.GSIQueryS(y.Name(), v, opr)
 			case []interface{}:
 				//case Variable: // not on root func
 			}
@@ -98,11 +77,11 @@ func EQ(a FargI, value interface{}) db.QResult {
 
 		switch v := value.(type) {
 		case int:
-			result, err = db.GSIQueryN(x.Name(), float64(v), db.EQ)
+			result, err = db.GSIQueryN(x.Name(), float64(v), opr)
 		case float64:
-			result, err = db.GSIQueryN(x.Name(), v, db.EQ)
+			result, err = db.GSIQueryN(x.Name(), v, opr)
 		case string:
-			result, err = db.GSIQueryS(x.Name(), v, db.EQ)
+			result, err = db.GSIQueryS(x.Name(), v, opr)
 		case []interface{}:
 			//case Variable: // not on root func
 		}
@@ -112,17 +91,11 @@ func EQ(a FargI, value interface{}) db.QResult {
 	return result
 }
 
-// The []NV will then be processed by the Filter function if present to reduce the number of elements in []NV
-func GT(a FargI, value interface{}) db.QResult {
-	return nil
-
-}
-
-func ALLOFTERMS(a FargI, value interface{}) db.QResult {
+func AllOfTerms(a FargI, value interface{}) db.QResult {
 	return terms(allofterms, a, value)
 }
 
-func ANYOFTERMS(a FargI, value interface{}) db.QResult {
+func AnyOfTerms(a FargI, value interface{}) db.QResult {
 	return terms(anyofterms, a, value)
 }
 

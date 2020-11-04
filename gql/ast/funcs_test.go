@@ -13,7 +13,7 @@ func TestAllOfTerms1(t *testing.T) {
 	pred.AssignName("Name", pos)
 	val := "Payne Ian"
 
-	result := ALLOFTERMS(pred, val)
+	result := AllOfTerms(pred, val)
 
 	fmt.Printf("result: %#v %s\n", result, result[0].PKey)
 }
@@ -24,7 +24,7 @@ func TestAllOfTerms2(t *testing.T) {
 	pred.AssignName("Comment", pos)
 	val := "Payne Germany"
 
-	result := ALLOFTERMS(pred, val)
+	result := AllOfTerms(pred, val)
 
 	fmt.Printf("result: %#v %s\n", result, result[0].PKey)
 }
@@ -35,7 +35,7 @@ func TestAnyOfTerms1(t *testing.T) {
 	pred.AssignName("Comment", pos)
 	val := "Payne Germany"
 
-	result := ANYOFTERMS(pred, val)
+	result := AnyOfTerms(pred, val)
 
 	for _, v := range result {
 		fmt.Printf("result: %#v %s\n", v, v.PKey)
