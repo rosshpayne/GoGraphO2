@@ -110,7 +110,7 @@ func Load(d *Doc) {
 	t0 := time.Now()
 	req := esapi.IndexRequest{
 		Index:      "myidx001",
-		DocumentID: d.PKey,
+		DocumentID: d.PKey + "|" + d.Attr,
 		Body:       strings.NewReader(b.String()),
 		Refresh:    "true",
 	}

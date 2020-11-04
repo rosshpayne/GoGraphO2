@@ -14,7 +14,7 @@ func (r *RootStmt) MarshalJSON() {
 	//
 	// execute root func - get back slice of unfiltered results
 	//
-	fmt.Printf("in marshalJSON....nodes: %d \n", len(r.nodesc), len(r.nodes))
+	//fmt.Printf("in marshalJSON....nodes: %d \n", len(r.nodesc), len(r.nodes))
 	//
 	// foreach uid in root node map
 	//

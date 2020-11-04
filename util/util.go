@@ -34,6 +34,18 @@ func (u UID) ToString() string {
 	return uuid.String()
 }
 
+func FromString(u string) UID {
+	uuid, err := uuid.FromString(u)
+	if err != nil {
+		panic(err)
+	}
+	uuibin, err := uuid.MarshalBinary()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	return uuibin
+}
+
 func (uid UID) Encodeb64() UIDb64 {
 	if len(uid) == 16 {
 		u := make([]byte, len(uid)*3/2, len(uid)*3/2)

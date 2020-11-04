@@ -246,7 +246,6 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 
 		case "I":
 
-			fmt.Println("IIIIIIIIIII")
 			switch {
 
 			case j == -1: // root filter

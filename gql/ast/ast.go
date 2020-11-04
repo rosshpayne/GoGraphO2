@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DynamoGraph/db"
 	"github.com/DynamoGraph/ds"
 	expr "github.com/DynamoGraph/gql/expression"
+	"github.com/DynamoGraph/gql/internal/db"
 	"github.com/DynamoGraph/gql/token"
 	"github.com/DynamoGraph/util"
 	//"github.com/DynamoGraph/rdf/grmgr"

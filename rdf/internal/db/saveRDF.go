@@ -58,6 +58,27 @@ func init() {
 
 func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
+	type Item struct {
+		PKey  []byte
+		SortK string
+		Bl    bool     `json:",omitempty"`
+		B     []byte   `json:",omitempty"`
+		DT    string   `json:",omitempty"`
+		S     string   `json:",omitempty"`
+		P     string   `json:",omitempty"`
+		N     string   `json:",omitempty"`
+		Ix    string   `json:",omitempty"`
+		LN    []int64  `json:",omitempty"`
+		SN    []int    `json:",omitempty"`
+		SBl   []bool   `json:",omitempty"`
+		SS    []string `json:",omitempty"`
+		SB    [][]byte `json:",omitempty"`
+		Nd    [][]byte `json:",omitempty"`
+		XF    []int    `json:",omitempty"`
+		Id    []int    `json:",omitempty"`
+		Ty    string
+	}
+
 	defer wg.Done()
 	defer func() func() {
 		return func() {
@@ -133,6 +154,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				P     string
 				Ty    string // node type
 			}
+
 			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
@@ -151,13 +173,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "F":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				N     string // float kept in program as string - this is a trial to see if keeping as string works.
-				P     string
-				Ty    string // node type
-			}
 			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
@@ -176,14 +191,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "S":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				S     string
-				P     string `json:",omitempty"`
-				Ty    string
-			}
-
 			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
@@ -197,19 +204,33 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				//
 				switch nv.Ix {
 
-				case "FT", "ft":
-					// don't load into GSI by eliminating attribute P from item. GSI use P as their PKey.
-					a := Item{PKey: UID, SortK: nv.Sortk, S: v, Ty: tyShortNm} //nv.Ty}
-					av, err = dynamodbattribute.MarshalMap(a)
-					if err != nil {
-						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
-					}
+				case "FTg", "ftg":
 					//
 					// load item into ElasticSearch index
 					//
 					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
 
 					go es.Load(ea)
+
+					// load into GSI by including attribute P in item
+					a := Item{PKey: UID, SortK: nv.Sortk, S: v, P: nv.Name, Ty: tyShortNm} //nv.Ty}
+					av, err = dynamodbattribute.MarshalMap(a)
+					if err != nil {
+						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					}
+
+				case "FT", "ft":
+
+					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
+
+					go es.Load(ea)
+
+					// don't load into GSI by eliminating attribute P from item. GSI use P as their PKey.
+					a := Item{PKey: UID, SortK: nv.Sortk, S: v, Ty: tyShortNm} //nv.Ty}
+					av, err = dynamodbattribute.MarshalMap(a)
+					if err != nil {
+						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					}
 
 				default:
 					// load into GSI by including attribute P in item
@@ -226,13 +247,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "DT": // DateTime
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				DT    string
-				P     string
-				Ty    string // node type
-			}
 			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
@@ -251,13 +265,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "ty": // node type entry
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				Ty    string // node type
-				Ix    string
-			}
-
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if s, ok := nv.Value.(string); ok {
 				if tyShortNm, ok = types.GetTyShortNm(s); !ok {
@@ -275,13 +282,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "Bl":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				Bl    bool
-				P     string
-				Ty    string // node type
-			}
 			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
@@ -299,13 +299,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "B":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				B     []byte
-				P     string
-				Ty    string // node type
-			}
 			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 				return
@@ -327,10 +320,12 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				PKey  []byte
 				SortK string
 				LN    []int64
+				Ty    string
 			}
+
 			if f, ok := nv.Value.([]int64); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, LN: f}
+				a := Item{PKey: UID, SortK: nv.Sortk, LN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -345,10 +340,12 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				PKey  []byte
 				SortK string
 				LN    []float64
+				Ty    string
 			}
+
 			if f, ok := nv.Value.([]float64); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, LN: f}
+				a := Item{PKey: UID, SortK: nv.Sortk, LN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -359,14 +356,9 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "SI":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				SN    []int
-			}
 			if f, ok := nv.Value.([]int); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, SN: f}
+				a := Item{PKey: UID, SortK: nv.Sortk, SN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -381,10 +373,11 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				PKey  []byte
 				SortK string
 				SN    []float64
+				Ty    string
 			}
 			if f, ok := nv.Value.([]float64); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, SN: f}
+				a := Item{PKey: UID, SortK: nv.Sortk, SN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -395,14 +388,9 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "SBl":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				SBl   []bool
-			}
 			if f, ok := nv.Value.([]bool); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, SBl: f}
+				a := Item{PKey: UID, SortK: nv.Sortk, SBl: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -413,14 +401,9 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "SS":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				SS    []string // Dynamo will use AV List type - will convert to SS in convertSet2list()
-			}
 			if f, ok := nv.Value.([]string); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, SS: f}
+				a := Item{PKey: UID, SortK: nv.Sortk, SS: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -431,14 +414,9 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "SB":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				SB    [][]byte
-			}
 			if f, ok := nv.Value.([][]byte); ok {
 				// populate with dummy item to establish LIST
-				a := Item{PKey: UID, SortK: nv.Sortk, SB: f}
+				a := Item{PKey: UID, SortK: nv.Sortk, SB: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -449,13 +427,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "Nd":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				Nd    [][]byte
-				XF    []int
-				Id    []int
-			}
 			// convert node blank name to UID
 			xf := make([]int, 1, 1)
 			xf[0] = blk.ChildUID
@@ -481,7 +452,7 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 				}
 				NdUid = UID // save to use to create a Type item
 				syslog(fmt.Sprintf("Received UID: %T %v %s\n", UID, UID, UID.String()))
-				a := Item{PKey: UID, SortK: nv.Sortk, Nd: uid, XF: xf, Id: id}
+				a := Item{PKey: UID, SortK: nv.Sortk, Nd: uid, XF: xf, Id: id, Ty: tyShortNm}
 				//e:= uuid.Edges{	PKey  : UID, SortK: nv.SortK, Nd : uid}
 				//execute AttachNode based on data in a
 				//uuid.EdgesCh <- uuid.Edges(a)
@@ -561,13 +532,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "SS":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				P     string // Dynamo will use AV List type - will convert to SS in convertSet2list()
-				S     string
-				Ty    string
-			}
 			var sk string
 			if ss, ok := nv.Value.([]string); ok {
 				//
@@ -646,12 +610,6 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 		case "LS":
 
-			type Item struct {
-				PKey  []byte
-				SortK string
-				P     string // Dynamo will use AV List type - will convert to SS in convertSet2list()
-				S     string
-			}
 			var sk string
 			if ss, ok := nv.Value.([]string); ok {
 				//

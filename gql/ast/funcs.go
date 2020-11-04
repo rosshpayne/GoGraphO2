@@ -2,8 +2,25 @@ package ast
 
 import (
 	"fmt"
-	"github.com/DynamoGraph/db"
+	"strings"
+
+	"github.com/DynamoGraph/gql/internal/db"
+	"github.com/DynamoGraph/gql/internal/es"
+	slog "github.com/DynamoGraph/syslog"
 )
+
+const (
+	logid = "gqlAstFunc: "
+)
+const (
+	esIndex    = "myidx001"
+	allofterms = " AND "
+	anyofterms = " OR "
+)
+
+func syslog(s string) {
+	slog.Log(logid, s)
+}
 
 // eq(predicate, value)
 // eq(val(varName), value)
@@ -102,112 +119,37 @@ func GT(a FargI, value interface{}) db.QResult {
 }
 
 func ALLOFTERMS(a FargI, value interface{}) db.QResult {
-	return nil
-
+	return terms(allofterms, a, value)
 }
 
-// Filter EQ function called during execution-filter phase
-// predfunc can be either the expression predicate or a modifying function (val, count)
-// value is the predicate value as appears in the expression e.g. eq(<pred>, 5) where 5 is the value.
-// nv is the contents of the cache (predicate,value) for the UID returned from the root func
-// ty is the type of the cache entry
-// bool dictates whether QResult element (represented by nv argument) will be ignored or displayeda
-//
+func ANYOFTERMS(a FargI, value interface{}) db.QResult {
+	return terms(anyofterms, a, value)
+}
 
-//func eqFilter(predfunc Arg1, value interface{}, nv []ds.NV, ty string) bool {
-// 	var (
-// 		pTy    block.TyAttrD
-// 		ok     bool
-// 		nvPred string
-// 		nvVal  interface{}
-// 	)
-// 	// _, err := cache.FetchType(ty) // performed outside of FilterEQ maybe
-// 	// if err != nil {
-// 	// 	panic(fmt.Errorf("Type %q not found", ty))
-// 	// }
+func terms(termOpr string, a FargI, value interface{}) db.QResult {
 
-// 	switch x := predfunc.(type) {
+	// a => predicate
+	// value => space delimited list of terms
 
-// 	case InnerFuncT:
+	type data struct {
+		field string
+		query string
+	}
 
-// 		var c interface{}
-
-// 		c := x() // var(<variable>), count(<predicate>)
-
-// 		switch x.(type) {
-// 		case int64:
-// 			// check value is an int
-// 			if v, ok := value.(int64); !ok {
-
-// 			} else {
-// 				if v == x {
-// 					return true
-// 				}
-// 				return false
-// 			}
-// 		case float:
-// 		}
-
-// 	case ScalarPred:
-// 		// find value for this predicate
-// 		var (
-// 			found bool
-// 		)
-// 		// search NV for expression predicate
-// 		for _, v := range nv {
-// 			if x == v.Name {
-// 				found = true
-// 				nvPred = v.Name
-// 				nvVal = v.Value
-// 				break
-// 			}
-// 		}
-// 		if !found {
-// 			panic(fmt.Errorf("predicate %q not found in ds.NV", x))
-// 		}
-// 		//
-// 		// get type of predicate from type info
-// 		if pTy, ok = cache.TyAttrC[ty+":"+x]; !ok { // TODO is this concurrent safe??
-// 			panic(fmt.Errorf("predicate %q not found in type map", x))
-// 		}
-// 		switch pTy.DT {
-// 		case "S":
-// 			var (
-// 				ok       bool
-// 				cacheVal string
-// 				exprVal  string
-// 			)
-// 			if cacheVal, ok = nvVal.(string); !ok {
-// 				panic(fmt.Errorf("predicate %q value type %q does not match type for predicate in type %q", nvPred, nvVal, ty))
-// 			}
-// 			// compare
-// 			if exprVal, ok = value.(string); !ok {
-// 				panic(fmt.Errorf("value %q for predicate %q does not match type %q", cacheVal, nvPred, ty))
-// 			}
-// 			//
-// 			//
-// 			//
-// 			if exprVal == cacheVal {
-// 				return true
-// 			}
-// 			return false
-// 		case "I":
-// 		case "F":
-// 		case "Bl":
-// 		}
-
-// 	}
-// 	return false
-// }
-
-// func lt() []ast.Result  { return nil }
-// func has() []ast.Result { return nil }
-
-// funcs Var(varNm Variable) ValOut {
-// 	item:=variable.Get(varNm)
-// 	switch x:=item.(type);x {
-// 	case ast.EdgeT:
-// 	default:
-
-// 	}
-// }
+	var (
+		qs strings.Builder
+		t  ScalarPred
+		ok bool
+	)
+	ss := strings.Split(value.(string), " ")
+	for i, v := range ss {
+		qs.WriteString(v)
+		if i < len(ss)-1 {
+			qs.WriteString(termOpr)
+		}
+	}
+	if t, ok = a.(ScalarPred); !ok {
+		panic(fmt.Errorf("Error in all|any ofterms func: expected a scalar predicate"))
+	}
+	return es.Query(t.Name(), qs.String())
+}

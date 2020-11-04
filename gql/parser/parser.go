@@ -48,6 +48,8 @@ func init() {
 	registerFn(token.EQ, ast.EQ)
 	registerFn(token.GT, ast.GT)
 	registerFn(token.ALLOFTERMS, ast.ALLOFTERMS)
+	registerFn(token.ANYOFTERMS, ast.ANYOFTERMS)
+
 	//	registerFn(token.HAS, has)
 }
 
