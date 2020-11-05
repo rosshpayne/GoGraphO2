@@ -37,8 +37,8 @@ func init() {
 	register(token.HAS, ast.HAS)
 	register(token.UID, ast.UID)
 	register(token.UID_IN, ast.UID_IN)
-	register(token.ANYOFTERMS, ast.ANYOFTERMS)
-	register(token.ALLOFTERMS, ast.ALLOFTERMS)
+	register(token.ANYOFTERMS, ast.AnyOfTerms)
+	register(token.ALLOFTERMS, ast.AllOfTerms)
 }
 
 func New(input string) *Expression {

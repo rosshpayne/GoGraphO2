@@ -113,8 +113,11 @@ func (r *RootStmt) MarshalJSON() {
 					}
 				}
 				fmt.Printf("%s]\n", strings.Repeat("\t", 1))
+				fmt.Println(" }")
 			}
 		}
+		fmt.Printf("%s]\n", strings.Repeat("\t", 1))
+		fmt.Println(" }")
 	}
 }
 

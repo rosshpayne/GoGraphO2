@@ -1,13 +1,20 @@
 package ast
 
 import (
+	"bufio"
 	"fmt"
 	"strings"
 
 	blk "github.com/DynamoGraph/block"
+	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/types"
 	//"github.com/DynamoGraph/db"
 	"github.com/DynamoGraph/ds"
+)
+
+const (
+	logid = "exprFunc"
+	fatal = true
 )
 
 type inEQ uint8
@@ -19,6 +26,14 @@ const (
 	ge
 	gt
 )
+
+func syslog(s string, panic_ ...bool) {
+	if len(panic_) > 0 && panic_[0] {
+		slog.Log(logid, s, panic_[0])
+		panic(fmt.Errorf(s))
+	}
+	slog.Log(logid, s)
+}
 
 // eq(predicate, value)
 // eq(val(varName), value)
@@ -84,7 +99,7 @@ func LE(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) boo
 // predFunc - argument to inequality function. consists of a predicate or innerfunction like count()
 // value - literal value from GQL statement to be compared to data-cache (nv) value
 // nv - GQL predicates and their associated node cache data
-// ty - type of result item from root query
+// ty - type of result item from root query. It is also appended with uid-pred name (as a workaround) e.g. Person|Sibling or Person|Friend which is used to get access to the node data relevant to the uid-pred..
 // j,k - index into node cache map for uid-pred predicates
 //
 func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
@@ -281,7 +296,7 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 					return dataVal <= exprVal
 				}
 
-			default: // uid-pred filter, args ty, i,j populated have non-zero values
+			default: // uid-pred filter, args: ty, i,j contain non-zero values
 				var (
 					ok      bool
 					dataVal int64
@@ -354,9 +369,218 @@ func HAS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bo
 func UID(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool    { return false }
 func UID_IN(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool { return false }
 func VAL(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool    { return false }
-func ANYOFTERMS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
+
+func AnyOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
+	// AnyOfTerms(Comment,"Payne Germany") ie. anyofterms(<predicate>,<list of terms>)
+	// where comment is a predicate in the type.
+	// Type is sourced from GSI in the case of root filter or sourced from the type of the current uid-pred type
+	// in the of uid-pred filter. In the above Comment is a predicate belonging to the uid-pred being executed.
+	// get string data from NV for relevent predicate
+	var (
+		nm   string
+		data *ds.NV
+		//		aTy  blk.TyAttrD
+		pred ScalarPred
+		ok   bool
+	)
+	fmt.Println("In AnyOfTerms....")
+	fmt.Printf("predfunc: %T\n", predfunc)
+	fmt.Printf("nv: %#v\n", nv)
+	fmt.Printf("ty: %s %d %d\n", ty, j, k)
+
+	if pred, ok = predfunc.(ScalarPred); !ok {
+		syslog("Expected Scalar Predicate in AnyOfTerms", fatal)
+	}
+	switch j {
+
+	case -1: // root filter
+
+		//  GSI-item @filter(<gsi-item-type-predicate>, <list-of-terms>)
+
+		fmt.Printf("in ScalarPred with %q   ty: %s\n", pred.Name(), ty)
+		data, ok = nv[pred.Name()]
+		if !ok {
+			panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+		}
+
+	default: // uid-pred filter
+
+		// ....uid-pred @filter(<uid-pred-predicate>,<list-of-terms>)  - ty is uid-pred type "Person"
+
+		// retrieve uid-pred name (Sibling, Friend) from ty argument.
+		// This is a work around as I forgot to add this data in the original list of arguments.
+		fd := strings.Split(ty, "|")
+		ty = fd[0]
+		predicate := fd[1]
+		// retrieve uid-pred data from NV
+		nm = predicate + ":" + pred.Name()
+		data, ok = nv[nm]
+		if !ok {
+			panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+		}
+	}
+	var (
+		dataVal string
+		exprVal string
+	)
+	switch {
+	case j == -1: // root filter
+
+		// root query filter expression - node scalar data
+		// check data value (from NV) type matches type of scalarPred from GQL query
+		if dataVal, ok = data.Value.(string); !ok {
+			syslog(fmt.Sprintf("predicate %q value type %q does not match type for predicate in type %q", nm, dataVal, ty), fatal)
+		}
+		// expression value
+		if exprVal, ok = value.(string); !ok {
+			syslog(fmt.Sprintf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty), fatal)
+		}
+
+	default: // uid-pred filter, args ty, i,j populated have non-zero values
+
+		// uid-pred filter expression - multiple child scalar data (propagated data format)
+		// check if null flag set in data
+		if data.Null[j][k] {
+			return false
+		}
+		// data value type
+		if dataVal_, ok := data.Value.([][]string); !ok {
+			panic(fmt.Errorf("predicate %q value type %q does not match type for predicate in type %q", nm, data.Value, ty))
+		} else {
+			dataVal = dataVal_[j][k]
+		}
+		// expression value
+		if exprVal, ok = value.(string); !ok {
+			panic(fmt.Errorf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty))
+		}
+	}
+	fmt.Printf("exprVal, dataVal: %s [%s]\n ", exprVal, dataVal)
+	// check if any term in exprVal exists in dataVal
+	bsExpr := bufio.NewScanner(strings.NewReader(exprVal))
+	bsExpr.Split(bufio.ScanWords)
+
+	bsData := bufio.NewScanner(strings.NewReader(dataVal))
+	bsData.Split(bufio.ScanWords)
+
+	for bsExpr.Scan() {
+		for bsData.Scan() {
+			if bsExpr.Text() == bsData.Text() {
+				return true
+			}
+		}
+		bsData = bufio.NewScanner(strings.NewReader(dataVal))
+		bsData.Split(bufio.ScanWords)
+	}
 	return false
+
 }
-func ALLOFTERMS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
-	return false
+
+func AllOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
+	// AnyOfTerms(Comment,"Payne Germany") ie. anyofterms(<predicate>,<list of terms>)
+	// where comment is a predicate in the type.
+	// Type is sourced from GSI in the case of root filter or sourced from the type of the current uid-pred type
+	// in the of uid-pred filter. In the above Comment is a predicate belonging to the uid-pred being executed.
+	// get string data from NV for relevent predicate
+	var (
+		nm   string
+		data *ds.NV
+		//		aTy  blk.TyAttrD
+		pred ScalarPred
+		ok   bool
+	)
+	fmt.Println("In AnyOfTerms....")
+	fmt.Printf("predfunc: %T\n", predfunc)
+	fmt.Printf("nv: %#v\n", nv)
+	fmt.Printf("ty: %s %d %d\n", ty, j, k)
+
+	if pred, ok = predfunc.(ScalarPred); !ok {
+		syslog("Expected Scalar Predicate in AnyOfTerms", fatal)
+	}
+	switch j {
+
+	case -1: // root filter
+
+		//  GSI-item @filter(<gsi-item-type-predicate>, <list-of-terms>)
+
+		fmt.Printf("in ScalarPred with %q   ty: %s\n", pred.Name(), ty)
+		data, ok = nv[pred.Name()]
+		if !ok {
+			panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+		}
+
+	default: // uid-pred filter
+
+		// ....uid-pred @filter(<uid-pred-predicate>,<list-of-terms>)  - ty is uid-pred type "Person"
+
+		// retrieve uid-pred name (Sibling, Friend) from ty argument.
+		// This is a work around as I forgot to add this data in the original list of arguments.
+		fd := strings.Split(ty, "|")
+		ty = fd[0]
+		predicate := fd[1]
+		// retrieve uid-pred data from NV
+		nm = predicate + ":" + pred.Name()
+		data, ok = nv[nm]
+		if !ok {
+			panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+		}
+	}
+	var (
+		dataVal string
+		exprVal string
+	)
+	switch {
+	case j == -1: // root filter
+
+		// root query filter expression - node scalar data
+		// check data value (from NV) type matches type of scalarPred from GQL query
+		if dataVal, ok = data.Value.(string); !ok {
+			syslog(fmt.Sprintf("predicate %q value type %q does not match type for predicate in type %q", nm, dataVal, ty), fatal)
+		}
+		// expression value
+		if exprVal, ok = value.(string); !ok {
+			syslog(fmt.Sprintf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty), fatal)
+		}
+
+	default: // uid-pred filter, args ty, i,j populated have non-zero values
+
+		// uid-pred filter expression - multiple child scalar data (propagated data format)
+		// check if null flag set in data
+		if data.Null[j][k] {
+			return false
+		}
+		// data value type
+		if dataVal_, ok := data.Value.([][]string); !ok {
+			panic(fmt.Errorf("predicate %q value type %q does not match type for predicate in type %q", nm, data.Value, ty))
+		} else {
+			dataVal = dataVal_[j][k]
+		}
+		// expression value
+		if exprVal, ok = value.(string); !ok {
+			panic(fmt.Errorf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty))
+		}
+	}
+	fmt.Printf("exprVal, dataVal: %s [%s]\n ", exprVal, dataVal)
+	// check if any term in exprVal exists in dataVal
+	bsExpr := bufio.NewScanner(strings.NewReader(exprVal))
+	bsExpr.Split(bufio.ScanWords)
+
+	bsData := bufio.NewScanner(strings.NewReader(dataVal))
+	bsData.Split(bufio.ScanWords)
+
+	var found bool
+	for bsExpr.Scan() {
+		for bsData.Scan() {
+			if bsExpr.Text() == bsData.Text() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+		bsData = bufio.NewScanner(strings.NewReader(dataVal))
+		bsData.Split(bufio.ScanWords)
+	}
+	return true
+
 }

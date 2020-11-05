@@ -48,7 +48,6 @@ func (e *Expression) filterExecute(nv ds.NVmap, ty string, j, k int) bool {
 
 	v := node{ty: ty, j: j, k: k}
 	walk(e, nv, v)
-	fmt.Println("filterExecute: result = ", e.result)
 	return e.result //e.getResult(nv, v)
 }
 
@@ -209,8 +208,6 @@ func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
 				if nv.State[i][k] == blk.UIDdetached {
 					continue
 				}
-				fmt.Println("About to filterExecute on ", ty, i, k)
-				//return e.filterExecute(nvm, ty+"|"+predicate, i, k)
 				if !e.filterExecute(nvm, ty+"|"+predicate, i, k) {
 					// mark edge as deleted (using UIDdetached state)
 					nv.State[i][k] = blk.EdgeFiltered

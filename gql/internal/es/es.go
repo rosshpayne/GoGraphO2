@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/DynamoGraph/gql/internal/db"
 	slog "github.com/DynamoGraph/syslog"
@@ -106,22 +107,20 @@ func Query(name string, qstring string) db.QResult {
 				   }
 				}
 			}`
-
 	//
 	// process text template, esQuery
 	//
 	{
 		input := data{Field: name, Query: qstring}
-		tp := template.Must(template.New("input").Parse(esQuery))
+		tp := template.Must(template.New("query").Parse(esQuery))
 		err := tp.Execute(&buf, input)
 		if err != nil {
 			syslog(fmt.Sprintf("Error in template execute: %s", err.Error()), fatal)
 		}
 	}
-	fmt.Printf("buf: [%s]\n", buf.String())
 
 	// Perform the search request.
-
+	t0 := time.Now()
 	res, err := es.Search(
 		es.Search.WithContext(context.Background()),
 		es.Search.WithIndex(idxNm),
@@ -129,11 +128,13 @@ func Query(name string, qstring string) db.QResult {
 		es.Search.WithTrackTotalHits(true),
 		es.Search.WithPretty(),
 	)
+	t1 := time.Now()
 	if err != nil {
 		syslog(fmt.Sprintf("Error getting response: %s", err), fatal)
 	}
 	defer res.Body.Close()
 
+	syslog(fmt.Sprintf("ES Search duration: %s", t1.Sub(t0)))
 	if res.IsError() {
 		var e map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
@@ -154,17 +155,16 @@ func Query(name string, qstring string) db.QResult {
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		syslog(fmt.Sprintf("Error parsing the response body: %s", err), fatal)
 	}
-	// Print the response status, number of results, and request duration.
-	//syslog(fmt.Sprintf("[%v] %d hits; took: %dms", res.Status(), int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)), int(r["took"].(float64))))
-
 	// package the ID and document source for each hit into db.QResult.
 	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
-		//log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
+
 		source := hit.(map[string]interface{})["_source"]
+
 		pkey_ := hit.(map[string]interface{})["_id"].(string)
 		pkey := pkey_[:strings.Index(pkey_, "|")]
 		sortk := source.(map[string]interface{})["sortk"].(string)
 		ty := source.(map[string]interface{})["type"].(string)
+
 		dbres := db.NodeResult{PKey: util.FromString(pkey), SortK: sortk, Ty: ty}
 		result = append(result, dbres)
 	}

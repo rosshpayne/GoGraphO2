@@ -389,7 +389,7 @@ func TestSimpleRootQuery2(t *testing.T) {
 
 }
 
-func TestFilter1(t *testing.T) {
+func TestRootFilter2(t *testing.T) {
 
 	// 	input := `{
 	//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
@@ -408,5 +408,34 @@ func TestFilter1(t *testing.T) {
 
 	Execute(input)
 	//
+
+}
+
+func TestRootFilteranyofterms1(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2) @filter( anyofterms(Comment,"sodium Germany Chris"))) {
+	    Name
+			Comment
+	    }
+	  }`
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+}
+
+func TestRootFilteranyofterms1a(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2) @filter( anyofterms(Comment,"sodium Germany Chris"))) {
+	    Name
+	    }
+	  }`
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 
 }

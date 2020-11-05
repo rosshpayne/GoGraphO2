@@ -178,7 +178,7 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 			gqlf.F = ast.EQ
 		}
 		gqlf.Farg = h
-
+		// TODO: assigning to value is performed at end of switch. Is the code below redundant? Hence the return.
 		p.nextToken() // read over scalar pred
 		fmt.Printf("curToken: %#v\n", p.curToken)
 		switch p.curToken.Type {
@@ -242,8 +242,26 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 
 		gqlf.F = ast.UID_IN
 		gqlf.Farg = uin
+
+	case token.ALLOFTERMS, token.ANYOFTERMS:
+
+		fmt.Println("Here in ALLOFTERMS...................")
+		p.nextToken() // read over (
+		fmt.Printf("** curToken: %#v\n", p.curToken)
+
+		h := ast.ScalarPred{}
+		h.AssignName(p.curToken.Literal, p.curToken.Loc)
+
+		p.nextToken() // read over argument name
+		fmt.Printf("** curToken: %#v\n", p.curToken)
+		switch token.TokenType(tc.Literal) {
+		case token.ALLOFTERMS:
+			gqlf.F = ast.AllOfTerms
+		case token.ANYOFTERMS:
+			gqlf.F = ast.AnyOfTerms
+		}
+		gqlf.Farg = h
 	}
-	p.nextToken() // read over )
 	// parse value
 
 	switch p.curToken.Type {

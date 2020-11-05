@@ -25,22 +25,22 @@ func syslog(s string) {
 // Each QResult will be Fetched then Unmarshalled (via UnmarshalCache) into []NV for each predicate.
 // The []NV will then be processed by the Filter function if present to reduce the number of elements in []NV
 func EQ(a FargI, value interface{}) db.QResult {
-	return eqie(db.EQ, a, value)
+	return ieq(db.EQ, a, value)
 }
 func GT(a FargI, value interface{}) db.QResult {
-	return eqie(db.GT, a, value)
+	return ieq(db.GT, a, value)
 }
 func GE(a FargI, value interface{}) db.QResult {
-	return eqie(db.GE, a, value)
+	return ieq(db.GE, a, value)
 }
 func LT(a FargI, value interface{}) db.QResult {
-	return eqie(db.LT, a, value)
+	return ieq(db.LT, a, value)
 }
 func LE(a FargI, value interface{}) db.QResult {
-	return eqie(db.LE, a, value)
+	return ieq(db.LE, a, value)
 }
 
-func eqie(opr db.Equality, a FargI, value interface{}) db.QResult {
+func ieq(opr db.Equality, a FargI, value interface{}) db.QResult {
 
 	var (
 		err    error

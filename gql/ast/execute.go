@@ -236,7 +236,6 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 		//
 		// as the data is sourced from u-parent so must the NV listing. Only interested in the uid-preds and its scalar types, as this includes the data for u (and its uid-pred siblings)
 		//
-		fmt.Println("Generate NV for uid ", uid)
 		nvc = u.Parent.genNV()
 		for _, n := range nvc {
 			fmt.Println("genNV: ", n.Name)
@@ -244,7 +243,7 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 		//
 		// generate sortk - source from node type and NV - merge of two.
 		//                  determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible to minimise RCUs.
-		//                  ty is the type of the node (uid passed in)
+		//                  ty is the type of the parent uid-pred (uid passed in)
 		//
 		sortkS := cache.GenSortK(nvc, ty)
 		//
@@ -265,10 +264,9 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("\n**** assign to uid-pred nv:\n")
-		for k, v := range nvc {
-			fmt.Printf("nvc: %d  %#v\n", k, *v)
-		}
+		// for k, v := range nvc {
+		// 	fmt.Printf("nvc: %d  %#v\n", k, *v)
+		// }
 		//
 		// save NV data to a map with uid key and map to u's parent, as it is the source of the NV
 		//
@@ -277,9 +275,8 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 	}
 	//
 	// for a filter: update nvm edges related to u. Note: filter  is the only component  we make use of u directly. Most other access is via u's parent uid-pred
-	// as u.Filter will modify the map elements (which are pointers to NV), any change will be also seen by u's parent, where NV has been assigned.
+	// as u.Filter will modify the map elements (which are pointers to NV), any change will be visible to u's parent, where NV has been assigned.
 	//
-	fmt.Printf("about to test filter on data = [%#v]\n", nvm)
 	if u.Filter != nil {
 		u.Filter.Apply(nvm, ty, u.Name())
 	}
@@ -325,7 +322,6 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 					// <-grl.RespCh()
 
 					wg.Add(1)
-					fmt.Printf("********* DDD **************************** in execNode() %s, %s Depth: %d\n\n", util.UID(cUid), ty, u.lvl+1)
 					idx = index{i, j}
 					x.execNode(grl, wg, util.UID(cUid), aty.Ty, u.lvl+1, x.Name(), idx)
 				}
