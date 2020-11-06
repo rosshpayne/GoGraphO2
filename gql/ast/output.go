@@ -25,8 +25,8 @@ func (r *RootStmt) MarshalJSON() {
 
 		nvm := r.nodes[uid]
 
-		fmt.Printf("{ \n uid: %q ,\n", uid)
 		fmt.Println(" data: {")
+		fmt.Printf("\tuid: %q ,\n", uid)
 
 		for _, s := range r.Select {
 

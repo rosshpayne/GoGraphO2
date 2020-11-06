@@ -383,10 +383,6 @@ func AnyOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k 
 		pred ScalarPred
 		ok   bool
 	)
-	fmt.Println("In AnyOfTerms....")
-	fmt.Printf("predfunc: %T\n", predfunc)
-	fmt.Printf("nv: %#v\n", nv)
-	fmt.Printf("ty: %s %d %d\n", ty, j, k)
 
 	if pred, ok = predfunc.(ScalarPred); !ok {
 		syslog("Expected Scalar Predicate in AnyOfTerms", fatal)
@@ -454,7 +450,6 @@ func AnyOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k 
 			panic(fmt.Errorf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty))
 		}
 	}
-	fmt.Printf("exprVal, dataVal: %s [%s]\n ", exprVal, dataVal)
 	// check if any term in exprVal exists in dataVal
 	bsExpr := bufio.NewScanner(strings.NewReader(exprVal))
 	bsExpr.Split(bufio.ScanWords)

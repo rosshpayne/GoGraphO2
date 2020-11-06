@@ -105,9 +105,11 @@ func walkPreds(e operand, pred []string) []string {
 		// 	pred = append(pred, p...)
 		// }
 
+		fmt.Println("walkPreds: ", pred)
 		return pred
 
 	}
+	fmt.Println("walkPreds: ", pred)
 	return pred
 }
 
@@ -208,6 +210,7 @@ func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
 				if nv.State[i][k] == blk.UIDdetached {
 					continue
 				}
+				// ty|predicate -> Person|Siblings
 				if !e.filterExecute(nvm, ty+"|"+predicate, i, k) {
 					// mark edge as deleted (using UIDdetached state)
 					nv.State[i][k] = blk.EdgeFiltered

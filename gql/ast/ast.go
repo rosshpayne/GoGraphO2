@@ -281,7 +281,7 @@ func (u *UidPred) genNV() ds.ClientNV {
 			//
 			if x.Filter != nil {
 				var found bool
-				for _, v := range u.Filter.GetPredicates() {
+				for _, v := range x.Filter.GetPredicates() {
 					found = false
 					for _, x := range nvc {
 						if x.Name == un+v {
@@ -300,6 +300,9 @@ func (u *UidPred) genNV() ds.ClientNV {
 	}
 	// remove duplicate entries in nvc
 	//return dedup(nvc)
+	for _, v := range nvc {
+		fmt.Println("genNV: ", v.Name)
+	}
 	return nvc
 }
 
@@ -558,9 +561,8 @@ type RootStmt struct {
 	Filter     *expr.Expression //
 	Select     SelectList
 	//
-	//PredList []string
-	// populated during execution phase = contains slice of predicate,value for current nodes and child nodess
-	//result []rootResult - executor passes nv results to goroutine collector which formats the results and prints out on request
+	//  Node data associated with stmt. Data stored as map with UUID as key and ds.NV containing attribute data.
+	//
 	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
 	nodesc NdNv
 	nodesi NdIdx
@@ -637,10 +639,8 @@ func (r *RootStmt) getIdx(key string) (index, bool) {
 func (r *RootStmt) genNV() ds.ClientNV {
 	var nvc ds.ClientNV
 
-	fmt.Println("In genNV()............")
 	if r.Filter != nil {
 		s := r.Filter.GetPredicates()
-		fmt.Println("r.Filter.GetPredicates():  ", s)
 		for _, x := range s {
 			nv := &ds.NV{Name: x}
 			nvc = append(nvc, nv)
@@ -649,33 +649,39 @@ func (r *RootStmt) genNV() ds.ClientNV {
 
 	for _, v := range r.Select {
 
-		fmt.Printf("In genNV()..select %T\n", v.Edge)
 		switch x := v.Edge.(type) {
 
 		case *ScalarPred:
-			fmt.Println("In genNV()..select scalar ")
 			nv := &ds.NV{Name: x.Name()}
-			fmt.Println("In genNV()..select scalar ", nv.Name)
 			nvc = append(nvc, nv)
 
 		case *UidPred:
 			var un string
 			un = x.Name() + ":"
-			fmt.Println("root genNV un: ", un)
 			nv := &ds.NV{Name: un}
 			nvc = append(nvc, nv)
 
+			if x.Filter != nil {
+				s := x.Filter.GetPredicates()
+				for _, x := range s {
+					upred := un + x
+					nv := &ds.NV{Name: upred}
+					nvc = append(nvc, nv)
+				}
+			}
+
 			for _, vv := range x.Select {
-				fmt.Printf("Found edge for root uid-pred %T\n", vv.Edge)
 				switch x := vv.Edge.(type) {
 				case *ScalarPred:
 					upred := un + x.Name()
-					fmt.Println("root genNV upred: ", upred)
 					nv := &ds.NV{Name: upred}
 					nvc = append(nvc, nv)
 				}
 			}
 		}
+	}
+	for _, v := range nvc {
+		fmt.Println("rootStmt preds: ", v.Name)
 	}
 	return dedup(nvc)
 }

@@ -282,10 +282,10 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 	// }
 	// get long type name
 	ty, _ = types.GetTyLongNm(ty)
-	fmt.Println("GenSortK: long ty - ", ty)
 	var s strings.Builder
 
 	switch {
+
 	case uidPreds == 0 && scalarPreds == 1:
 		s.WriteString("A#")
 		if aty, ok = types.TypeC.TyAttrC[ty+":"+nvc[0].Name]; !ok {
@@ -301,9 +301,9 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 		var parts map[string]bool
 
 		parts = make(map[string]bool)
-		for _, nv := range nvc {
+		for i, nv := range nvc {
 			if aty, ok = types.TypeC.TyAttrC[ty+":"+nv.Name]; !ok {
-				panic(fmt.Errorf("Predicate %q does not exist in type %q", nvc[0].Name, ty))
+				panic(fmt.Errorf("Predicate %q does not exist in type %q", nvc[i].Name, ty))
 			} else {
 				if !parts[aty.P] {
 					parts[aty.P] = true

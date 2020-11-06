@@ -83,8 +83,67 @@ func TestSimpleRootQuery1d(t *testing.T) {
 	t1 := time.Now()
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 }
+func TestRootQuery1e1(t *testing.T) {
 
-func TestSimpleRootQuery1e(t *testing.T) {
+	// Friends {
+	// 	Age
+	// }
+	input := `{
+  directors(func: anyofterms(Comment,"sodium Germany Chris")) {
+    Age
+    Name
+    Comment
+    Friends {
+    	Name
+    	Age
+    	Siblings {
+    		Name
+    		Friends {
+    			Name
+    			Age
+    		}
+    	}
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestRootQuery1e2(t *testing.T) {
+
+	// Friends {
+	// 	Age
+	// }
+	input := `{
+  directors(func: anyofterms(Comment,"sodium Germany Chris")  @filter(gt(Age,60))) {
+    Age
+    Name
+    Comment
+    Friends {
+    	Name
+    	Age
+    	Siblings {
+    		Name
+    		Friends {
+    			Name
+    			Age
+    			Comment
+    		}
+    	}
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+func TestRootQuery1f(t *testing.T) {
 
 	input := `{
   directors(func: eq(count(Siblings), 2)) {
@@ -109,7 +168,7 @@ func TestSimpleRootQuery1e(t *testing.T) {
 	t1 := time.Now()
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 }
-func TestSimpleRootQuery1f(t *testing.T) {
+func TestRootQuery1g(t *testing.T) {
 
 	input := `{
   directors(func: eq(count(Siblings), 2)) {
@@ -429,7 +488,7 @@ func TestRootFilteranyofterms1(t *testing.T) {
 func TestRootFilteranyofterms1a(t *testing.T) {
 
 	input := `{
-	  me(func: eq(count(Siblings),2) @filter( anyofterms(Comment,"sodium Germany Chris"))) {
+	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris"))) {
 	    Name
 	    }
 	  }`
@@ -438,4 +497,96 @@ func TestRootFilteranyofterms1a(t *testing.T) {
 	t1 := time.Now()
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 
+}
+
+func TestRootFilteranyofterms1b(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(Name,"Ross Payne"))) {
+	    Name
+	    }
+	  }`
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+}
+
+func TestRootFilteranyofterms1c(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") or eq(Name,"Ross Payne"))) {
+	    Name
+	    }
+	  }`
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+}
+func TestRootFilteranyofterms1d(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(name,"Ross Payne"))) {
+	    Name
+	    }
+	  }`
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+}
+
+func TestUPredFilterterms1a(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends  {
+      Age
+    	Name
+    	Comment
+    	Friends{
+    	  Name
+	    }
+	    Siblings {
+    		Name
+	   	}
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+}
+
+func TestUPredFilterterms1b(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(anyofterms(Comment,"sodium Germany Chris")) {
+      Age
+    	Name
+    	Friends @filter(gt(Age,62)) {
+    	  Name
+	    }
+	    Siblings @filter(gt(Age,55)) {
+    		Name
+	   	}
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 }

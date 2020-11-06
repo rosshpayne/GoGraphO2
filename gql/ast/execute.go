@@ -71,6 +71,9 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	// query->cache->unmarshal(nv)
 	//
 	nvc := r.genNV()
+	for _, n := range nvc {
+		fmt.Println("genNV__: ", n.Name)
+	}
 	//
 	// generate sortk - determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible.
 	//
@@ -94,6 +97,8 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 		panic(err)
 	}
 	//
+	// root filter
+	//
 	if r.Filter != nil && !r.Filter.RootApply(nvc, result.tyS) {
 		// nc.ClearCache() // TODO: implement
 		return
@@ -104,8 +109,6 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	if r.hasNoData() {
 		r.initialise()
 	}
-	// save nvc, nvm (will be built dynamically) to uid-pred u
-	//
 	nvm := r.assignData(result.uid.String(), nvc, index{0, 0})
 	//
 	//

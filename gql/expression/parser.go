@@ -245,15 +245,11 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 
 	case token.ALLOFTERMS, token.ANYOFTERMS:
 
-		fmt.Println("Here in ALLOFTERMS...................")
 		p.nextToken() // read over (
-		fmt.Printf("** curToken: %#v\n", p.curToken)
-
 		h := ast.ScalarPred{}
 		h.AssignName(p.curToken.Literal, p.curToken.Loc)
 
 		p.nextToken() // read over argument name
-		fmt.Printf("** curToken: %#v\n", p.curToken)
 		switch token.TokenType(tc.Literal) {
 		case token.ALLOFTERMS:
 			gqlf.F = ast.AllOfTerms

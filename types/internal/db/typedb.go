@@ -71,6 +71,7 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 	if err != nil {
 		return nil, newDBExprErr("LoadDataDictionary", "", "", err)
 	}
+
 	input := &dynamodb.ScanInput{
 		FilterExpression:          expr.Filter(),
 		ExpressionAttributeNames:  expr.Names(),
@@ -78,11 +79,13 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 	}
 	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
+	t0 := time.Now()
 	result, err := dynSrv.Scan(input)
+	t1 := time.Now()
 	if err != nil {
 		return nil, newDBSysErr("LoadDataDictionary", "Scan", err)
 	}
-	syslog(fmt.Sprintf("LoadDataDictionary: consumed capacity for Scan %s ", result.ConsumedCapacity))
+	syslog(fmt.Sprintf("LoadDataDictionary: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
 	//
 	if int(*result.Count) == 0 {
 		//newDBNoItemFound(rt string, pk string, sk string, api string, err error)
