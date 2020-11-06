@@ -299,11 +299,7 @@ func (u *UidPred) genNV() ds.ClientNV {
 
 	}
 	// remove duplicate entries in nvc
-	//return dedup(nvc)
-	for _, v := range nvc {
-		fmt.Println("genNV: ", v.Name)
-	}
-	return nvc
+	return dedup(nvc)
 }
 
 // func (u *UidPred) GetPredicates() []string {
@@ -550,6 +546,10 @@ func (f *GQLFunc) String() string {
 
 // ============== RootStmt ==============
 
+// type NdNv map[util.UIDb64s]ds.ClientNV
+// type NdNvMap map[util.UIDb64s]ds.NVmap
+// type NdIdx map[util.UIDb64s]index
+
 type RootStmt struct {
 	Name name_
 	Var  *Variable
@@ -563,9 +563,11 @@ type RootStmt struct {
 	//
 	//  Node data associated with stmt. Data stored as map with UUID as key and ds.NV containing attribute data.
 	//
-	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
-	nodesc NdNv
-	nodesi NdIdx
+	uidList []util.UIDb64s // slice of uids that satisify root filter. Used to drive uid order of MarshalJSON for consistent output for testing purposes.
+	qResult db.QResult     // slice of result - drives MarshalJSON output so order of node listing is consistent
+	nodes   NdNvMap        // scalar nodes including PKey associated with each nodes belonging to this edge.
+	nodesc  NdNv
+	nodesi  NdIdx
 }
 
 func (r *RootStmt) AssignName(input string, loc token.Pos) {
@@ -616,6 +618,7 @@ func (r *RootStmt) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
 		nvm[v.Name] = v
 	}
 	// add to existing nodes on this edge
+	r.uidList = append(r.uidList, key)
 	r.nodes[key] = nvm
 	r.nodesc[key] = nvc
 	r.nodesi[key] = idx
@@ -680,9 +683,7 @@ func (r *RootStmt) genNV() ds.ClientNV {
 			}
 		}
 	}
-	for _, v := range nvc {
-		fmt.Println("rootStmt preds: ", v.Name)
-	}
+
 	return dedup(nvc)
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/DynamoGraph/util"
 )
 
-func (r *RootStmt) MarshalJSON() {
+func (r *RootStmt) MarshalJSON() string {
 	//
 	// execute root func - get back slice of unfiltered results
 	//
@@ -18,15 +18,18 @@ func (r *RootStmt) MarshalJSON() {
 	//
 	// foreach uid in root node map
 	//
-	for uid, nvc := range r.nodesc {
+	var out strings.Builder
+
+	for _, uid := range r.uidList {
+
+		nvc := r.nodesc[uid]
+		nvm := r.nodes[uid]
 		// monitor: increment node touched counter
 		stat := mon.Stat{Id: mon.TouchNode, Lvl: 0}
 		mon.StatCh <- stat
 
-		nvm := r.nodes[uid]
-
-		fmt.Println(" data: {")
-		fmt.Printf("\tuid: %q ,\n", uid)
+		out.WriteString(fmt.Sprintf(" data: {"))
+		//	out.WriteString(fmt.Sprintf("\tuid: %q ,\n", uid)
 
 		for _, s := range r.Select {
 
@@ -37,13 +40,13 @@ func (r *RootStmt) MarshalJSON() {
 				nv := nvm[x.Name()]
 				switch x := nv.Value.(type) {
 				case int64:
-					fmt.Printf("%s%s : %v,\n", strings.Repeat("\t", 1), nv.Name, x)
+					out.WriteString(fmt.Sprintf("%s%s : %v,\n", strings.Repeat("\t", 1), nv.Name, x))
 				case string:
-					fmt.Printf("%s%s : %q,\n", strings.Repeat("\t", 1), nv.Name, x)
+					out.WriteString(fmt.Sprintf("%s%s : %q,\n", strings.Repeat("\t", 1), nv.Name, x))
 				case float64:
-					fmt.Printf("%s%s : %f,\n", strings.Repeat("\t", 1), nv.Name, x)
+					out.WriteString(fmt.Sprintf("%s%s : %f,\n", strings.Repeat("\t", 1), nv.Name, x))
 				default:
-					fmt.Printf("%s %s : %v,\n", strings.Repeat("\t", 1), nv.Name, x)
+					out.WriteString(fmt.Sprintf("%s %s : %v,\n", strings.Repeat("\t", 1), nv.Name, x))
 				}
 
 			case *UidPred: // child of child, R.N.N
@@ -63,7 +66,7 @@ func (r *RootStmt) MarshalJSON() {
 				// get child uids that belong to edge x and print out the scalar attributes for x (see AAA)
 				//
 				var s strings.Builder
-				fmt.Printf("%s%s : [ \n", strings.Repeat("\t", 1), x.Name())
+				out.WriteString(fmt.Sprintf("%s%s : [ \n", strings.Repeat("\t", 1), x.Name()))
 				//
 				//  see method cache.UnmarshalNodeCache for description of the design of the node cache which the following code interragates.
 				//
@@ -79,8 +82,8 @@ func (r *RootStmt) MarshalJSON() {
 						mon.StatCh <- stat
 
 						s.WriteString(fmt.Sprintf("%s{ \n", strings.Repeat("\t", 2)))
-						s.WriteString(fmt.Sprintf("%sidx: { i: %d, j: %d }\n", strings.Repeat("\t", 2), i, j))
-						s.WriteString(fmt.Sprintf("%suid: %s\n", strings.Repeat("\t", 2), util.UID(v).String()))
+						// s.WriteString(fmt.Sprintf("%sidx: { i: %d, j: %d }\n", strings.Repeat("\t", 2), i, j))
+						// s.WriteString(fmt.Sprintf("%suid: %s\n", strings.Repeat("\t", 2), util.UID(v).String()))
 						for _, scalar := range spred {
 
 							pred := scalar.Name[strings.Index(scalar.Name, ":")+1:] // Friends:Age -> Age
@@ -97,7 +100,7 @@ func (r *RootStmt) MarshalJSON() {
 								// TODO: what about other data types, sets in particular SS,SN..
 							}
 						}
-						fmt.Print(s.String())
+						out.WriteString(s.String())
 						//
 						// walk the graph using uid-pred attributes belonging to edge x.
 						// marshalJSON will print the scalar values associated with each child node of x.
@@ -105,37 +108,38 @@ func (r *RootStmt) MarshalJSON() {
 						for _, p := range x.Select {
 							if y, ok := p.Edge.(*UidPred); ok {
 								// only need to run marshalJSON once for all uid-pred's in x
-								y.marshalJSON(v)
+								y.marshalJSON(v, &out)
 								break
 							}
 						}
-						fmt.Printf("%s}, \n", strings.Repeat("\t", 2))
+						out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 2)))
 					}
 				}
-				fmt.Printf("%s]\n", strings.Repeat("\t", 1))
-				fmt.Println(" }")
+				out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
+				out.WriteString(fmt.Sprintf(" }"))
 			}
 		}
-		fmt.Printf("%s]\n", strings.Repeat("\t", 1))
-		fmt.Println(" }")
+		out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
+		out.WriteString(fmt.Sprintf(" }"))
+		//		}
 	}
+	fmt.Println(out.String())
+	return out.String()
 }
 
 // 	fmt.Println("MarshalJSON root:   ")
 
 // }
 
-func (u *UidPred) marshalJSON(uid_ []uint8) {
+func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 
 	uid := util.UID(uid_).String()
 	//
-	//nvc, ok := u.nodesc[uid]
-	nvc, ok := u.Parent.getnodes(uid) // changed to parent
+	nvc, ok := u.Parent.getnodesc(uid)
 	if !ok {
 		panic(fmt.Errorf("Error in u.marshalJSON. uid %q not in nodesc for %s", uid, u.Name()))
 	}
-	//nvm, ok := u.nodes[uid]
-	nvm, ok := u.Parent.getnodes(uid) // changed to parent
+	nvm, ok := u.Parent.getnodes(uid)
 	if !ok {
 		panic(fmt.Errorf("Error in u.marshalJSON. uid %q not in nodes for %s", uid, u.Name()))
 	}
@@ -162,7 +166,7 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 			// get child uids that belong to edge x and print out the scalar attributes for x
 			//
 			var s strings.Builder
-			fmt.Printf("%s%s : [ \n", strings.Repeat("\t", u.lvl), x.Name())
+			out.WriteString(fmt.Sprintf("%s%s : [ \n", strings.Repeat("\t", u.lvl), x.Name()))
 
 			upred := nvm[x.Name()+":"]
 			for i, uids := range upred.Value.([][][]byte) {
@@ -176,8 +180,8 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 					mon.StatCh <- stat
 
 					s.WriteString(fmt.Sprintf("%s{ \n", strings.Repeat("\t", u.lvl+1)))
-					s.WriteString(fmt.Sprintf("%sidx: { i: %d, j: %d }\n", strings.Repeat("\t", u.lvl+1), i, j))
-					s.WriteString(fmt.Sprintf("%suid: %s\n", strings.Repeat("\t", u.lvl+1), util.UID(v).String()))
+					// s.WriteString(fmt.Sprintf("%sidx: { i: %d, j: %d }\n", strings.Repeat("\t", u.lvl+1), i, j))
+					// s.WriteString(fmt.Sprintf("%suid: %s\n", strings.Repeat("\t", u.lvl+1), util.UID(v).String()))
 
 					for _, scalar := range spred {
 
@@ -195,7 +199,7 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 						}
 					}
 					s.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", u.lvl+1)))
-					fmt.Print(s.String())
+					out.WriteString(s.String())
 					//
 					// walk the graph using uid-pred attributes belonging to edge x.
 					// MarshalJSON will print the scalar values associated with each child node of x.
@@ -204,13 +208,13 @@ func (u *UidPred) marshalJSON(uid_ []uint8) {
 
 						if y, ok := p.Edge.(*UidPred); ok {
 							// only need to run marshalJSON once for all uid-pred's in x. Once filter is incorporated this will change.
-							y.marshalJSON(v)
+							y.marshalJSON(v, out)
 							break
 						}
 					}
 				}
 			}
-			fmt.Printf("%s]\n", strings.Repeat("\t", u.lvl))
+			out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", u.lvl)))
 		}
 	}
 }

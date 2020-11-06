@@ -241,7 +241,7 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 		//
 		nvc = u.Parent.genNV()
 		for _, n := range nvc {
-			fmt.Println("genNV: ", n.Name)
+			fmt.Println("XgenNV: ", n.Name)
 		}
 		//
 		// generate sortk - source from node type and NV - merge of two.

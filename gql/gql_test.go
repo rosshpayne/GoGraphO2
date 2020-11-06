@@ -2,9 +2,59 @@ package gql
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
+
+func compare(t *testing.T, doc, expected string) int {
+
+	return strings.Compare(trimWS(doc), trimWS(expected))
+
+}
+
+// trimWS trims whitespaces from input string. Objective is to compare strings real content - not influenced by whitespaces
+func trimWS(input string) string {
+
+	var out strings.Builder
+	for _, v := range input {
+		if !(v == '\u0009' || v == '\u0020' || v == '\u000A' || v == '\u000D' || v == ',') {
+			out.WriteRune(v)
+		}
+	}
+	return out.String()
+
+}
+
+// checkErrors compares actual errors from test against slice of expected errors
+func checkErrors(errs []error, expectedErr []string, t *testing.T) {
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}
 
 func TestSimpleRootQuery1a(t *testing.T) {
 
@@ -436,18 +486,6 @@ func TestUPredFilter5(t *testing.T) {
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 }
 
-func TestSimpleRootQuery2(t *testing.T) {
-
-	input := `{
-  directors(func: gt(count(director.film), 5)) {
-    totalDirectors : count(uid)
-  }
-}`
-
-	Execute(input)
-
-}
-
 func TestRootFilter2(t *testing.T) {
 
 	// 	input := `{
@@ -568,14 +606,89 @@ func TestUPredFilterterms1a(t *testing.T) {
 
 func TestUPredFilterterms1b(t *testing.T) {
 
+	expected := ` data: {    Age : 67,
+                Name : "Ian Payne",
+                Friends : [ 
+                        { 
+                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
+                        Age: 62,
+                        Name: Ross Payne,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ]
+                        Siblings : [ 
+                                { 
+                                Name: Paul Payne,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                }, 
+                        ]
+                        }, 
+                        { 
+                        Comment: A foggy snowy morning lit with Smith sodium lamps is an absolute dream,
+                        Age: 58,
+                        Name: Paul Payne,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ]
+                        Siblings : [ 
+                                { 
+                                Name: Ian Payne,
+                                }, 
+                                { 
+                                Name: Ross Payne,
+                                }, 
+                        ]
+                        }, 
+                ]
+         }      ]
+         } data: {      Age : 58,
+                Name : "Paul Payne",
+                Friends : [ 
+                        { 
+                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
+                        Age: 62,
+                        Name: Ross Payne,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ]
+                        Siblings : [ 
+                                { 
+                                Name: Paul Payne,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                }, 
+                        ]
+                        }, 
+                ]
+         }      ]
+         } data: {      Age : 62,
+                Name : "Ross Payne",
+                Friends : [ 
+                ]
+         }      ]
+         }`
+
 	input := `{
   directors(func: eq(count(Siblings), 2) ) {
     Age
     Name
     Friends @filter(anyofterms(Comment,"sodium Germany Chris")) {
-      Age
+        Age
     	Name
     	Friends @filter(gt(Age,62)) {
+    	  Age
     	  Name
 	    }
 	    Siblings @filter(gt(Age,55)) {
@@ -586,7 +699,14 @@ func TestUPredFilterterms1b(t *testing.T) {
 }`
 
 	t0 := time.Now()
-	Execute(input)
+	stmt := Execute_(input)
 	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	if compare(t, result, expected) != 0 {
+		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
+	}
+	t.Log(result)
 }
