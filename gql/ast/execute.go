@@ -72,7 +72,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	//
 	nvc := r.genNV()
 	for _, n := range nvc {
-		fmt.Println("genNV__: ", n.Name)
+		fmt.Println("genNV__: ", n.Name, n.Ignore)
 	}
 	//
 	// generate sortk - determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible.

@@ -630,7 +630,7 @@ func TestUPredFilterterms1a(t *testing.T) {
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 }
 
-func TestUPredFilterterms1b(t *testing.T) {
+func TestUPredFilterterms1b1(t *testing.T) {
 
 	expected := ` data: {   
 				Age : 62,
@@ -643,7 +643,6 @@ func TestUPredFilterterms1b(t *testing.T) {
                 Name : "Ian Payne",
                 Friends : [ 
                         { 
-                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
                         Age: 62,
                         Name: Ross Payne,
                         Friends : [ 
@@ -662,7 +661,6 @@ func TestUPredFilterterms1b(t *testing.T) {
                         ]
                         }, 
                         { 
-                        Comment: A foggy snowy morning lit with Smith sodium lamps is an absolute dream,
                         Age: 58,
                         Name: Paul Payne,
                         Friends : [ 
@@ -687,7 +685,6 @@ func TestUPredFilterterms1b(t *testing.T) {
                 Name : "Paul Payne",
                 Friends : [ 
                         { 
-                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
                         Age: 62,
                         Name: Ross Payne,
                         Friends : [ 
@@ -721,7 +718,7 @@ func TestUPredFilterterms1b(t *testing.T) {
     	  Name
 	    }
 	    Siblings @filter(gt(Age,55)) {
-    		Name
+    	  Name
 	   	}
     }
   }
@@ -733,9 +730,37 @@ func TestUPredFilterterms1b(t *testing.T) {
 	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
 
 	result := stmt.MarshalJSON()
-
+	t.Log(result)
 	if compare(t, result, expected) != 0 {
+		t.Log("Error: result JSON does not match expected JSONs")
 		t.Fail()
 	}
-	t.Log(result)
+
+}
+
+func TestUPredFilterterms1b2(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(anyofterms(Comment,"sodium Germany Chris")) {
+        Age
+    	Name
+    	Friends @filter(gt(Age,62)) {
+    	  Age
+    	  Name
+	    }
+	    Siblings @filter(gt(Age,55)) {
+    		Name
+	   	}
+    }
+  }
+}`
+
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
 }

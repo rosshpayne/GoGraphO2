@@ -661,21 +661,29 @@ func (r *RootStmt) genNV() ds.ClientNV {
 			nv := &ds.NV{Name: un}
 			nvc = append(nvc, nv)
 
-			if x.Filter != nil {
-				s := x.Filter.GetPredicates()
-				for _, x := range s {
-					upred := un + x
-					nv := &ds.NV{Name: upred}
-					nvc = append(nvc, nv)
-				}
-			}
-
 			for _, vv := range x.Select {
 				switch x := vv.Edge.(type) {
 				case *ScalarPred:
 					upred := un + x.Name()
 					nv := &ds.NV{Name: upred}
 					nvc = append(nvc, nv)
+				}
+			}
+			if x.Filter != nil {
+				var found bool
+				for _, v := range x.Filter.GetPredicates() {
+					found = false
+					for _, x := range nvc {
+						if x.Name == un+v {
+							found = true
+							break
+						}
+					}
+					if !found {
+						// filter predicate not in select list - add NV entry but mark as invisible (ignore) so it is not output
+						nv := &ds.NV{Name: un + v, Ignore: true}
+						nvc = append(nvc, nv)
+					}
 				}
 			}
 		}

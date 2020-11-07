@@ -1,5 +1,5 @@
 _:abc __type "Person" . /* specify type for blank node */
-_:abc __ID "66PNdV1TSKOpDRlO71+Aow==" .
+_:abc __ID "66PNdV1TSKOpDRlO71+Aow==" . /* user supplied node UUID rather than system generated. Why? For more consistent testing*/
 _:abc Name "Ross Payne" .
 _:abc DOB "13 March 1958" .
 _:abc Age "62" .
