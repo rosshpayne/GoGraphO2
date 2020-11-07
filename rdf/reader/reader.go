@@ -159,12 +159,23 @@ func (rn RDFReader) Read(n []*ds.Node) (int, bool, error) {
 
 		case subj == prevSubj:
 
-			if pred == "__type" {
+			switch pred {
+			case "__type", "__TYPE":
 
 				v.TyName = obj[1 : len(obj)-1] // remove ""
 				v.ID = subj
 
-			} else {
+			case "__id", "__ID":
+
+				id := util.UIDb64(obj[1 : len(obj)-1])
+				if len(id) != 24 {
+					v.PKey = obj[1 : len(obj)-1]
+				} else {
+					// treat as base64 UUID
+					v.UUID = util.UIDb64(id).Decode()
+				}
+
+			default:
 
 				if obj[0] == '"' {
 					obj = obj[1 : len(obj)-1]

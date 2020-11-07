@@ -2,8 +2,9 @@ package ast
 
 import (
 	"fmt"
+	"sort"
 	"strings"
-	//	"strings"
+
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/ds"
 	mon "github.com/DynamoGraph/gql/monitor"
@@ -12,15 +13,17 @@ import (
 
 func (r *RootStmt) MarshalJSON() string {
 	//
-	// execute root func - get back slice of unfiltered results
-	//
-	//fmt.Printf("in marshalJSON....nodes: %d \n", len(r.nodesc), len(r.nodes))
-	//
-	// foreach uid in root node map
-	//
+
 	var out strings.Builder
 
-	for _, uid := range r.uidList {
+	// marshal UIDs by sorted order
+	var uids sort.StringSlice
+	for k, _ := range r.nodesc {
+		uids = append(uids, k)
+	}
+	sort.Sort(uids)
+
+	for _, uid := range uids {
 
 		nvc := r.nodesc[uid]
 		nvm := r.nodes[uid]

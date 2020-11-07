@@ -208,7 +208,7 @@ func (f *GQLFunc) String() string {
 }
 
 func (g *GQLFunc) GetPredicates(pred []string) []string {
-	fmt.Printf("in Getpredicates for Farg: %T %s\n", g.Farg, g.Farg.Name())
+	fmt.Printf("\nin Getpredicates for Farg: %T %s\n", g.Farg, g.Farg.Name())
 	s := g.Farg.Name()
 	fmt.Println("s = ", s)
 	pred = append(pred, s)

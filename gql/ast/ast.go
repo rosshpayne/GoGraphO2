@@ -563,11 +563,9 @@ type RootStmt struct {
 	//
 	//  Node data associated with stmt. Data stored as map with UUID as key and ds.NV containing attribute data.
 	//
-	uidList []util.UIDb64s // slice of uids that satisify root filter. Used to drive uid order of MarshalJSON for consistent output for testing purposes.
-	qResult db.QResult     // slice of result - drives MarshalJSON output so order of node listing is consistent
-	nodes   NdNvMap        // scalar nodes including PKey associated with each nodes belonging to this edge.
-	nodesc  NdNv
-	nodesi  NdIdx
+	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
+	nodesc NdNv
+	nodesi NdIdx
 }
 
 func (r *RootStmt) AssignName(input string, loc token.Pos) {
@@ -618,7 +616,6 @@ func (r *RootStmt) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
 		nvm[v.Name] = v
 	}
 	// add to existing nodes on this edge
-	r.uidList = append(r.uidList, key)
 	r.nodes[key] = nvm
 	r.nodesc[key] = nvc
 	r.nodesi[key] = idx

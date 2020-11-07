@@ -1,5 +1,9 @@
 package ds
 
+import (
+	"github.com/DynamoGraph/util"
+)
+
 type NdShortNm = string
 
 type ErrNodes map[NdShortNm]*Node
@@ -26,6 +30,8 @@ type Line struct {
 // channel type
 type Node struct {
 	ID     NdShortNm // blank-node-id, may not be that short
+	PKey   string    // (optional) source from predicate, __ID. User supplied pkey. Not fully implemented as code currently relieds on UUID as PKey. May store PKey as attribute and keep using UUID as solution.
+	UUID   util.UID  // (optional) source from predicate, __ID. User supplied UUID - typically used for testing to get consistent order in results
 	TyName string
 	Lines  []Line
 	Err    []error // used by verification process to record any errors

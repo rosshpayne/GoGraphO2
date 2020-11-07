@@ -58,14 +58,39 @@ func checkErrors(errs []error, expectedErr []string, t *testing.T) {
 
 func TestSimpleRootQuery1a(t *testing.T) {
 
+	expected := ` 
+data: {       
+	    Age : 67,
+        Name : "Ian Payne",
+        ]
+ } data: {      
+        Age : 58,
+        Name : "Paul Payne",
+        ]
+ } data: {      
+        Age : 62,
+        Name : "Ross Payne",
+        ]
+ }`
+
 	input := `{
   directors(func: eq(count(Siblings), 2)) {
-  Age
+    Age
     Name
   }
 }`
 
-	Execute(input)
+	t0 := time.Now()
+	stmt := Execute_(input)
+	t1 := time.Now()
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	if compare(t, result, expected) != 0 {
+		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
+	}
+	//t.Log(result)
 
 }
 
@@ -133,6 +158,7 @@ func TestSimpleRootQuery1d(t *testing.T) {
 	t1 := time.Now()
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 }
+
 func TestRootQuery1e1(t *testing.T) {
 
 	// Friends {
@@ -606,7 +632,14 @@ func TestUPredFilterterms1a(t *testing.T) {
 
 func TestUPredFilterterms1b(t *testing.T) {
 
-	expected := ` data: {    Age : 67,
+	expected := ` data: {   
+				Age : 62,
+                Name : "Ross Payne",
+                Friends : [ 
+                ]
+         }      ]
+         } data: {      
+        		Age : 67,
                 Name : "Ian Payne",
                 Friends : [ 
                         { 
@@ -621,10 +654,10 @@ func TestUPredFilterterms1b(t *testing.T) {
                         ]
                         Siblings : [ 
                                 { 
-                                Name: Paul Payne,
+                                Name: Ian Payne,
                                 }, 
                                 { 
-                                Name: Ian Payne,
+                                Name: Paul Payne,
                                 }, 
                         ]
                         }, 
@@ -649,7 +682,8 @@ func TestUPredFilterterms1b(t *testing.T) {
                         }, 
                 ]
          }      ]
-         } data: {      Age : 58,
+         } data: {      
+        		Age : 58,
                 Name : "Paul Payne",
                 Friends : [ 
                         { 
@@ -664,18 +698,13 @@ func TestUPredFilterterms1b(t *testing.T) {
                         ]
                         Siblings : [ 
                                 { 
-                                Name: Paul Payne,
+                                Name: Ian Payne,
                                 }, 
                                 { 
-                                Name: Ian Payne,
+                                Name: Paul Payne,
                                 }, 
                         ]
                         }, 
-                ]
-         }      ]
-         } data: {      Age : 62,
-                Name : "Ross Payne",
-                Friends : [ 
                 ]
          }      ]
          }`
@@ -706,7 +735,7 @@ func TestUPredFilterterms1b(t *testing.T) {
 	result := stmt.MarshalJSON()
 
 	if compare(t, result, expected) != 0 {
-		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
+		t.Fail()
 	}
 	t.Log(result)
 }

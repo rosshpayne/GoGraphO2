@@ -11,6 +11,8 @@ type UIDb64s = string
 
 type UID []byte
 
+type UIDs []UIDb64s
+
 func MakeUID() (UID, error) {
 	u := uuid.Must(uuid.NewV4())
 	uuibin, err := u.MarshalBinary()

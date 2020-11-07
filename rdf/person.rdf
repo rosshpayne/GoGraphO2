@@ -1,4 +1,5 @@
 _:abc __type "Person" . /* specify type for blank node */
+_:abc __ID "66PNdV1TSKOpDRlO71+Aow==" .
 _:abc Name "Ross Payne" .
 _:abc DOB "13 March 1958" .
 _:abc Age "62" .
@@ -15,6 +16,7 @@ _:abc SalaryLast3Year "152000" .
 _:abc SalaryLast3Year "218000" .
 
 _:b __type "Person" . /* specify type for blank node */
+_:b __ID "TsI2Qay8T2SxnOcuI3pPeg==" .
 _:b Name "Paul Payne" .
 _:b DOB "2 June 1960"  .
 _:b Age "58"  .
@@ -31,6 +33,7 @@ _:b SalaryLast3Year "122000" .
 _:b SalaryLast3Year "145000" .
 
 _:c __type "Person" . /* specify type for blank node */
+_:c __ID "6KIuWuyTRKSgDqwYAghl7A==" .
 _:c Name "Ian Payne"  .
 _:c DOB "29 Jan 1953"  .
 _:c Age "67"	.
@@ -50,6 +53,7 @@ _:c SalaryLast3Year "1000" .
 
 
 _:d __type "Person" . /* specify type for blank Payne node */
+_:d __ID "OlTBKXemTNWATwDDt6U5/A==" . 
 _:d Name "Phil Smith"  .
 _:d Siblings _:e	.
 _:d Friends _:abc .
@@ -64,6 +68,7 @@ _:d Cars "VW Golf"  .
 _:d Comment "It seems to me the camera's Smith focus is better, clearer, thank you for sharing, I think Austria is a beautiful country I'm not surprised that it produced so many great classical musicians." .
 
 _:e __type "Person" . /* specify type for blank node */
+_:e __ID "6nG/Cd+dSoyD48CrXQjrLQ==" .
 _:e Name "Jenny Jones"  .
 _:e Friends _:abc .
 _:e Friends _:b .

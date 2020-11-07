@@ -55,8 +55,10 @@ func init() {
 }
 
 //TODO: this routine requires an error log service. Code below  writes errors to the screen in some cases but not most. Errors are returned but calling routines is a goroutine so thqt get lost.
-
-func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
+// sname : node id, short name  aka blank-node-id
+// uuid  : user supplied node id (util.UIDb64 converted to util.UID)
+// nv_ : node attribute data
+func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 
 	type Item struct {
 		PKey  []byte
@@ -121,15 +123,11 @@ func SaveRDFNode(nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 			}
 		}
 	}
-
-	// for _, nv := range nv_ {
-	// 	slog.Log("SaveRDFNode: xxx ", fmt.Sprintf("NV = %#v\n ", nv))
-	// }
-	//	syslog( fmt.Sprintf("SaveRDFNode : %d ", len(nv_))) //, nv_[0]))
-
+	//
+	// generate UUID using uuid service
+	//
 	localCh := make(chan util.UID)
-
-	request := uuid.Request{SName: nv_[0].SName, RespCh: localCh}
+	request := uuid.Request{SName: sname, SuppliedUUID: suppliedUUID, RespCh: localCh}
 
 	uuid.ReqCh <- request
 

@@ -45,10 +45,17 @@ const (
 )
 
 //
+type savePayload struct {
+	sname        string   // node ID aka ShortName or blank-node-id
+	suppliedUUID util.UID // user supplied UUID
+	attributes   []ds.NV
+}
+
+//
 // channels
 //
 var verifyCh chan verifyNd
-var saveCh chan []ds.NV
+var saveCh chan savePayload //[]ds.NV // TODO: consider using a struct {SName, UUID, []ds.NV}
 
 //
 //
@@ -66,7 +73,8 @@ func syslog(s string) {
 func init() {
 	errNodes = make(ds.ErrNodes)
 	verifyCh = make(chan verifyNd, 2)
-	saveCh = make(chan []ds.NV, 2*readBatchSize)
+	//	saveCh = make(chan []ds.NV, 2*readBatchSize)
+	saveCh = make(chan savePayload, 2*readBatchSize)
 }
 
 // uid PKey of the sname-UID pairs - consumed and populated by the SaveRDFNode()
@@ -107,11 +115,11 @@ func Load(f io.Reader) error { // S P O
 	//
 	// start supporting services
 	//
-	go uuid.PowerOn(ctx, &wpStart, &ctxEnd)
-	go grmgr.PowerOn(ctx, &wpStart, &ctxEnd)
-	go elog.PowerOn(ctx, &wpStart, &ctxEnd)
-	go anmgr.PowerOn(ctx, &wpStart, &ctxEnd)
-	go monitor.PowerOn(ctx, &wpStart, &ctxEnd)
+	go uuid.PowerOn(ctx, &wpStart, &ctxEnd)    // generate and store UUIDs service
+	go grmgr.PowerOn(ctx, &wpStart, &ctxEnd)   // concurrent goroutine manager service
+	go elog.PowerOn(ctx, &wpStart, &ctxEnd)    // error logging service
+	go anmgr.PowerOn(ctx, &wpStart, &ctxEnd)   // attach node service
+	go monitor.PowerOn(ctx, &wpStart, &ctxEnd) // repository of system statistics service
 	//
 	// wait for processes to start
 	//
@@ -219,7 +227,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 		// unmarshal (& validate) each node in its own goroutine
 		for i := 0; i < nodes_.n; i++ {
 
-			if len(nodes[i].Lines) == 0 { //TODO: should i be ii
+			if len(nodes[i].Lines) == 0 { // a line is a s-p-o tuple.//TODO: should i be ii
 				break
 			}
 			ii := i
@@ -486,9 +494,12 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 			continue
 		}
 		if addTy {
-			// add type of node to NV
+			// add type of node to NV -
+			//
+			// ***  Note: any requested UUID drives off this NV entry only - see saveRDFnode()
+			//      SName, UUID have the same value for each ds.NV entry for an individual node. TODO: this could be improved by separating these values from NV.
+			//
 			e := ds.NV{Sortk: "A#T", SName: node.ID, Value: node.TyName, DT: "ty"}
-			fmt.Println("NV: ", e)
 			nv = append(nv, e)
 			addTy = false
 		}
@@ -528,7 +539,8 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		if len(nv) == 0 {
 			panic(fmt.Errorf("unmarshalRDF: nv is nil "))
 		}
-		saveCh <- nv
+		payload := savePayload{sname: node.ID, suppliedUUID: node.UUID, attributes: nv}
+		saveCh <- payload //nv
 	} else {
 		node.Lines = nil
 		errNodes[node.ID] = node
@@ -553,17 +565,15 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 
 	// upto 5 concurrent save routines
 	var c int
-	for nv := range saveCh {
+	for py := range saveCh {
 		c++
 
 		//	slog.Log("saveNode: ", fmt.Sprintf("read from saveCH channel %d ", c))
 		limiterSave.Ask()
 		<-limiterSave.RespCh()
 
-		//	slog.Log("saveNode: ", "limiter has ACK and will start goroutine...")
-
 		wg.Add(1)
-		go db.SaveRDFNode(nv, &wg, limiterSave)
+		go db.SaveRDFNode(py.sname, py.suppliedUUID, py.attributes, &wg, limiterSave)
 
 	}
 	//	syslog("saveNode  waiting on saveRDFNode routines to finish")
@@ -603,11 +613,9 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 
 func getType(node *ds.Node) (blk.TyAttrBlock, error) {
 
-	// TODO - replace with goroutine + channel req/resp
-
-	type loc struct {
-		sync.Mutex
-	}
+	// type loc struct {
+	// 	sync.Mutex
+	// }
 	//	var ll loc
 	syslog(".  getType..")
 
