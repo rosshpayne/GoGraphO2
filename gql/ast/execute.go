@@ -42,13 +42,13 @@ func (r *RootStmt) Execute(grl grmgr.Limiter) {
 
 	for _, v := range result {
 
-		grl.Ask()
-		<-grl.RespCh()
+		// grl.Ask()
+		// <-grl.RespCh()
 
 		wgRoot.Add(1)
 		result := &rootResult{uid: v.PKey, tyS: v.Ty, sortk: v.SortK, path: "root"}
 
-		go r.filterRootResult(grl, &wgRoot, result) // go 	r.filterRootResult(grl, &wgRoot, result)
+		r.filterRootResult(grl, &wgRoot, result)
 
 	}
 	wgRoot.Wait()
@@ -71,9 +71,9 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	// query->cache->unmarshal(nv)
 	//
 	nvc := r.genNV()
-	for _, n := range nvc {
-		fmt.Println("genNV__: ", n.Name, n.Ignore)
-	}
+	// for _, n := range nvc {
+	// 	fmt.Println("genNV__: ", n.Name, n.Ignore)
+	// }
 	//
 	// generate sortk - determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible.
 	//
@@ -83,7 +83,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	//
 	gc := cache.GetCache()
 	for _, sortk := range sortkS {
-		fmt.Println("filterRoot - FetchNodeNonCache for : ", result.uid, sortk)
+		//		fmt.Println("filterRoot - FetchNodeNonCache for : ", result.uid, sortk)
 		stat := mon.Stat{Id: mon.NodeFetch}
 		mon.StatCh <- stat
 
@@ -106,9 +106,6 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	//
 	// save nvm to parent
 	//
-	if r.hasNoData() {
-		r.initialise()
-	}
 	nvm := r.assignData(result.uid.String(), nvc, index{0, 0})
 	//
 	//
@@ -225,10 +222,6 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 	//
 	u.lvl = lvl // depth in graph as determined from GQL stmt
 
-	if u.Parent.hasNoData() {
-		u.Parent.initialise() // TODO: make concurrent safe - as multiple goroutines could access parent concurrently. INitialise in parser???
-	}
-
 	if nvm, nvc, ok = u.Parent.getData(uid); !ok {
 		//
 		// first uid-pred in node to be executed. All other uid-preds in this node can ignore fetching data from db as its data was included in the first uid-pred query.
@@ -240,9 +233,9 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 		// as the data is sourced from u-parent so must the NV listing. Only interested in the uid-preds and its scalar types, as this includes the data for u (and its uid-pred siblings)
 		//
 		nvc = u.Parent.genNV()
-		for _, n := range nvc {
-			fmt.Println("XgenNV: ", n.Name)
-		}
+		// for _, n := range nvc {
+		// 	fmt.Println("XgenNV: ", n.Name)
+		// }
 		//
 		// generate sortk - source from node type and NV - merge of two.
 		//                  determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible to minimise RCUs.

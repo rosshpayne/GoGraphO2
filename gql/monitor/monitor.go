@@ -29,6 +29,7 @@ type Stat struct {
 var (
 	StatCh  chan Stat
 	ClearCh chan struct{}
+	PrintCh chan struct{}
 	stats   []interface{}
 )
 
@@ -46,12 +47,15 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 	a := make([]int, 1, 1)
 	stats[TouchLvl] = a
 
-	StatCh = make(chan Stat, 100)
+	StatCh = make(chan Stat)
 	ClearCh = make(chan struct{})
+	PrintCh = make(chan struct{})
 
 	var (
-		n int
-		s Stat
+		n   int
+		s   Stat
+		val int
+		ok  bool
 	)
 	//
 	// Note: Select on channel can be a performance killer if not implemented correctly
@@ -89,20 +93,33 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 					a[s.Lvl] += 1
 				}
 
-			default:
+			default: // increment ... must be int
+				if s.Value == nil {
+					val = 1
+				} else {
+					if val, ok = s.Value.(int); !ok {
+						val = 1
+					}
+				}
 				if stats[x] == nil {
-					stats[x] = 1
+					stats[x] = val
 				} else {
 					switch n := stats[s.Id].(type) {
 					case int64:
-						stats[s.Id] = n + 1
+						stats[s.Id] = n + int64(val)
 					case int:
-						stats[s.Id] = n + 1
+						stats[s.Id] = n + val
 					}
 				}
 			}
 
 		case <-ClearCh:
+
+		case <-PrintCh:
+
+			slog.Log("monitor: ", "Powering down...")
+			fmt.Printf("monitor: %#v\n", stats)
+			slog.Log("monitor: ", fmt.Sprintf("monitor: %#v\n", stats))
 
 		case <-ctx.Done():
 

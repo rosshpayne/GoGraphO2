@@ -1,9 +1,9 @@
 package ast
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DynamoGraph/ds"
 	expr "github.com/DynamoGraph/gql/expression"
@@ -32,8 +32,8 @@ type FilterI interface {
 // }
 type SelectI interface {
 	AssignSelectList(SelectList)
-	initialise()
-	hasNoData() bool
+	Initialise()
+	//	hasNoData() bool
 	assignData(string, ds.ClientNV, index) ds.NVmap
 	getData(string) (ds.NVmap, ds.ClientNV, bool)
 	getIdx(string) (index, bool)
@@ -169,7 +169,7 @@ type UidPred struct {
 	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
 	nodesc NdNv
 	nodesi NdIdx // nodes's index into parent uid-pred's UL data. e.g. to get Age of this node - nv:=nodes.parent.nodes[uid]; age:= nv["Age"].([][]int); age[nodesi.i][nodesi.j]
-
+	sync.Mutex
 	// scalar nodes for nodes containing this uid-pred is contained in the parent.
 
 }
@@ -213,14 +213,15 @@ func (u *UidPred) getnodesc(uid string) (ds.ClientNV, bool) {
 func (u *UidPred) AssignSelectList(s SelectList) {
 	u.Select = s
 }
-func (u *UidPred) initialise() {
+func (u *UidPred) Initialise() {
 	u.nodes = make(NdNvMap)
 	u.nodesc = make(NdNv)
 	u.nodesi = make(NdIdx)
 }
-func (u *UidPred) hasNoData() bool {
-	return u.nodes == nil
-}
+
+// func (u *UidPred) hasNoData() bool {
+// 	return u.nodes == nil
+// }
 func (u *UidPred) getIdx(key string) (index, bool) {
 	i, ok := u.nodesi[key]
 	return i, ok
@@ -233,10 +234,11 @@ func (u *UidPred) assignData(uid string, nvc ds.ClientNV, idx index) ds.NVmap {
 		nvm[v.Name] = v
 	}
 	// save this edge (represented by key an edge by assigning key to nodes.
+	//	u.Lock() // TODO: have a "concurrent eabled" parameter to determine whether to use lock
 	u.nodes[uid] = nvm
-	//
 	u.nodesc[uid] = nvc
 	u.nodesi[uid] = idx
+	//	u.Unlock()
 	return nvm
 }
 func (u *UidPred) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
@@ -290,6 +292,7 @@ func (u *UidPred) genNV() ds.ClientNV {
 						}
 					}
 					if !found {
+						// filter predicate not in select list - add NV entry but mark as invisible (ignore) so it is not output
 						nv := &ds.NV{Name: un + v, Ignore: true}
 						nvc = append(nvc, nv)
 					}
@@ -563,9 +566,11 @@ type RootStmt struct {
 	//
 	//  Node data associated with stmt. Data stored as map with UUID as key and ds.NV containing attribute data.
 	//
-	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
+	nodes NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
+	//	sync.Mutex
 	nodesc NdNv
 	nodesi NdIdx
+	sync.Mutex
 }
 
 func (r *RootStmt) AssignName(input string, loc token.Pos) {
@@ -590,10 +595,10 @@ func (r *RootStmt) AssignVarName(input string, loc token.Pos) {
 	r.Var.AssignName(input, loc)
 }
 
-func (r *RootStmt) hasNoData() bool {
-	return r.nodes == nil
-}
-func (r *RootStmt) initialise() {
+// func (r *RootStmt) hasNoData() bool {
+// 	return r.nodes == nil
+// }
+func (r *RootStmt) Initialise() {
 	r.nodes = make(NdNvMap)
 	r.nodesc = make(NdNv)
 	r.nodesi = make(NdIdx)
@@ -616,11 +621,12 @@ func (r *RootStmt) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
 		nvm[v.Name] = v
 	}
 	// add to existing nodes on this edge
+	//	r.Lock()
 	r.nodes[key] = nvm
 	r.nodesc[key] = nvc
 	r.nodesi[key] = idx
+	//	r.Unlock()
 
-	fmt.Println("End assignData: ", len(nvm), len(r.nodes), len(nvc), len(r.nodesc), len(r.nodesi))
 	return nvm
 }
 

@@ -85,7 +85,7 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 	if err != nil {
 		return nil, newDBSysErr("LoadDataDictionary", "Scan", err)
 	}
-	syslog(fmt.Sprintf("LoadDataDictionary: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
+	syslog(fmt.Sprintf("LoadDataDictionary: consumed capacity for Scan: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
 	//
 	if int(*result.Count) == 0 {
 		//newDBNoItemFound(rt string, pk string, sk string, api string, err error)

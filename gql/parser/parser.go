@@ -172,6 +172,7 @@ func (p *Parser) parseRootStmt() []*ast.RootStmt {
 
 	for p.curToken.Type != token.EOF {
 		stmt := &ast.RootStmt{}
+		stmt.Initialise()
 
 		p.parseVarName(stmt, opt).parseFunction(stmt).parseFilter(stmt).parseSelection(stmt)
 
@@ -379,6 +380,7 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 		// assign to CountFunc
 		a := &ast.UidPred{Parent: s}
 		a.AssignName(p.curToken.Literal, p.curToken.Loc)
+		a.Initialise()
 		cfunc.Arg = a
 		rf.Farg = cfunc
 
@@ -675,6 +677,7 @@ func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 			//
 			uidpred := &ast.UidPred{Parent: parentEdge}
 			uidpred.AssignName(p.curToken.Literal, p.curToken.Loc)
+			uidpred.Initialise()
 			e.Edge = uidpred
 			//p.parseFilter(uidpred.Filter).parseSelection(uidpred.Select) // TODO: remove comment...
 			p.nextToken() // read over uid-pred
@@ -746,6 +749,7 @@ func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 			fmt.Printf("COUNT IDENT- create uidPred: %#v\n", p.curToken)
 			pred := &ast.UidPred{Parent: parentEdge}
 			pred.AssignName(p.curToken.Literal, p.curToken.Loc)
+			pred.Initialise()
 			cf.Arg = pred
 			p.nextToken() // read over uid-pred
 			fmt.Printf("COUNT IDENT: %#v\n", p.curToken)

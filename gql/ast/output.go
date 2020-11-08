@@ -23,7 +23,10 @@ func (r *RootStmt) MarshalJSON() string {
 	}
 	sort.Sort(uids)
 
-	for _, uid := range uids {
+	if len(uids) > 0 {
+		out.WriteString(fmt.Sprintf("\n{\ndata: [\n"))
+	}
+	for i, uid := range uids {
 
 		nvc := r.nodesc[uid]
 		nvm := r.nodes[uid]
@@ -31,8 +34,7 @@ func (r *RootStmt) MarshalJSON() string {
 		stat := mon.Stat{Id: mon.TouchNode, Lvl: 0}
 		mon.StatCh <- stat
 
-		out.WriteString(fmt.Sprintf(" data: {"))
-		//	out.WriteString(fmt.Sprintf("\tuid: %q ,\n", uid)
+		out.WriteString(fmt.Sprintf("\t{\n"))
 
 		for _, s := range r.Select {
 
@@ -117,16 +119,28 @@ func (r *RootStmt) MarshalJSON() string {
 						}
 						out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 2)))
 					}
+
+					// if l < len(r.Select)-2 {
+					// 	out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
+					// 	out.WriteString(fmt.Sprintf("\t},\n"))
+					// } else {
+					// 	out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
+					// 	out.WriteString(fmt.Sprintf("\t}\n"))
+					// }
 				}
-				out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
-				out.WriteString(fmt.Sprintf(" }"))
 			}
 		}
-		out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
-		out.WriteString(fmt.Sprintf(" }"))
+		out.WriteString(fmt.Sprintf("\t]\n"))
+		if i < len(uids)-1 {
+			out.WriteString(fmt.Sprintf("\t},\n"))
+		} else {
+			out.WriteString(fmt.Sprintf("\t}\n"))
+		}
 		//		}
 	}
+	out.WriteString(fmt.Sprintf("   ]\n}"))
 	fmt.Println(out.String())
+
 	return out.String()
 }
 
@@ -217,7 +231,7 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 					}
 				}
 			}
-			out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", u.lvl)))
+			out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))
 		}
 	}
 }

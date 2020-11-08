@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DynamoGraph/gql/monitor"
 )
 
 func compare(t *testing.T, doc, expected string) int {
@@ -86,11 +88,10 @@ data: {
 	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
 
 	result := stmt.MarshalJSON()
-
+	t.Log(result)
 	if compare(t, result, expected) != 0 {
 		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
 	}
-	//t.Log(result)
 
 }
 
@@ -590,19 +591,20 @@ func TestRootFilteranyofterms1c(t *testing.T) {
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 
 }
-func TestRootFilteranyofterms1d(t *testing.T) {
 
-	input := `{
-	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(name,"Ross Payne"))) {
-	    Name
-	    }
-	  }`
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+// func TestRootFilteranyofterms1d(t *testing.T) {
 
-}
+// 	input := `{
+// 	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(name,"Ross Payne"))) {
+// 	    Name
+// 	    }
+// 	  }`
+// 	t0 := time.Now()
+// 	Execute(input)
+// 	t1 := time.Now()
+// 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+// }
 
 func TestUPredFilterterms1a(t *testing.T) {
 
@@ -730,6 +732,9 @@ func TestUPredFilterterms1b1(t *testing.T) {
 	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
 
 	result := stmt.MarshalJSON()
+
+	monitor.PrintCh <- struct{}{}
+
 	t.Log(result)
 	if compare(t, result, expected) != 0 {
 		t.Log("Error: result JSON does not match expected JSONs")
