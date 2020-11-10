@@ -31,6 +31,10 @@ const (
 	MULTIPLY = "*"
 	DIVIDE   = "/"
 
+	// Modifier
+	MODIFIER = "m"
+	FIRST    = "first"
+
 	// Boolean operators
 
 	AND = "AND"
@@ -62,27 +66,27 @@ const (
 	// predicate
 	UID = "uid"
 
-	// Functions
-	RFUNC      = "RF"
+	// Function categories
+	TWOARGFUNC    = "F2ARG"
+	SINGLEARGFUNC = "F1ARG"
+	// Two Arg Funcs
 	EQ         = "eq"
 	LE         = "le"
 	GE         = "ge"
 	LT         = "lt"
 	GT         = "gt"
-	HAS        = "has"
 	ANYOFTERMS = "anyofterms"
 	ALLOFTERMS = "allofterms"
-	// modifiers
-
+	// Single Arg Func
+	HAS   = "has"
 	VAL   = "val"
 	COUNT = "count"
 	//
 	AGFUNC = "AGGR"
-
-	AVG = "avg"
-	MIN = "min"
-	MAX = "max"
-	SUM = "sum"
+	AVG    = "avg"
+	MIN    = "min"
+	MAX    = "max"
+	SUM    = "sum"
 )
 
 type Pos struct {
@@ -106,33 +110,30 @@ var keywords = map[string]struct {
 	"not":    {NOT},
 	"filter": {FILTER},
 	"func":   {FUNC},
-	// "eq":         {EQ},
-	// "lt":         {LT},
-	// "le":         {LE},
-	// "gt":         {GT},
-	// "ge":         {GE},
-	// "allofterms": {ALLOFTERMS},
-	"true":  {BOOLEAN},
-	"false": {BOOLEAN},
-	// suppored functions
-	"eq":         {RFUNC},
-	"le":         {RFUNC},
-	"ge":         {RFUNC},
-	"lt":         {RFUNC},
-	"gt":         {RFUNC},
-	"anyofterms": {RFUNC},
-	"allofterms": {RFUNC},
-	// supported modifer funcs
-	"count": {COUNT},
-	"uid":   {UID},
-	"val":   {VAL},
-	"has":   {HAS},
-	"avg":   {AGFUNC},
-	"sum":   {AGFUNC},
-	"min":   {AGFUNC},
-	"max":   {AGFUNC},
+	"true":   {BOOLEAN},
+	"false":  {BOOLEAN},
+	// functions that accept <predicate,value>
+	"eq":         {TWOARGFUNC},
+	"le":         {TWOARGFUNC},
+	"ge":         {TWOARGFUNC},
+	"lt":         {TWOARGFUNC},
+	"gt":         {TWOARGFUNC},
+	"anyofterms": {TWOARGFUNC},
+	"allofterms": {TWOARGFUNC},
+	//functions that accept <predicate> ....
+	"count": {SINGLEARGFUNC},
+	"has":   {SINGLEARGFUNC},
+	"val":   {SINGLEARGFUNC},
 	//
-	"as": {AS},
+	"uid": {UID},
+	//
+	"avg": {AGFUNC},
+	"sum": {AGFUNC},
+	"min": {AGFUNC},
+	"max": {AGFUNC},
+	//
+	"first": {FIRST},
+	"as":    {AS},
 }
 
 func LookupIdent(ident string) TokenType {

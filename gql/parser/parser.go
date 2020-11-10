@@ -9,7 +9,7 @@ import (
 
 	expr "github.com/DynamoGraph/gql/expression"
 
-	"github.com/DynamoGraph/cache"
+	"github.com/DynamoGraph/types"
 
 	"github.com/DynamoGraph/gql/ast"
 	"github.com/DynamoGraph/gql/lexer"
@@ -42,7 +42,6 @@ var (
 
 //
 func init() {
-
 	rootFunc = make(gqlFunc)
 	// regiser Parser methods for each statement type
 	registerFn(token.EQ, ast.EQ)
@@ -50,9 +49,9 @@ func init() {
 	registerFn(token.GE, ast.GE)
 	registerFn(token.LT, ast.LT)
 	registerFn(token.LE, ast.LE)
+	registerFn(token.HAS, ast.Has)
 	registerFn(token.ALLOFTERMS, ast.AllOfTerms)
 	registerFn(token.ANYOFTERMS, ast.AnyOfTerms)
-
 	//	registerFn(token.HAS, has)
 }
 
@@ -71,7 +70,7 @@ func New(input string) *Parser {
 	p.nextToken()
 	p.nextToken()
 	//
-	// remove cacheClar before releasing..
+	// remove typesClar before releasing..
 	//
 	//ast.CacheClear()
 	return p
@@ -86,7 +85,7 @@ func New(input string) *Parser {
 // 	p.nextToken()
 // 	p.nextToken()
 // 	//
-// 	// remove cacheClar before releasing..
+// 	// remove typesClar before releasing..
 // 	//
 // 	//ast.CacheClear()
 // 	return p
@@ -109,7 +108,7 @@ func (p *Parser) printToken(s ...string) {
 }
 
 func (p *Parser) hasError() bool {
-	if len(p.perror) > 3 || p.abort {
+	if len(p.perror) > 1 || p.abort {
 		return true
 	}
 	return false
@@ -245,54 +244,142 @@ func (p *Parser) parseVarName(f ast.NameAssigner, optional ...bool) *Parser { //
 // eq(count(predicate), value)
 // eq(predicate, [val1, val2, ..., valN])
 // eq(predicate, [$var1, "value", ..., $varN])
-
-//me(func: eq(count(genre), 13)) {
+// me(func: has(director.film), first: 5) {
+// me(func: eq(count(genre), 13)) {
 //  name@en
 //  genre {
 //    name@en
 //  }
 //}
 func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
+
+	var (
+		rf *ast.GQLFunc
+	)
 	// root only ...
-	// eq(predicate, value)
-	// eq(count(predicate), value)
-	//
-	// in filter clause
-	// eq(val(varName), value)
-	// eq(predicate, val(varName))
-	// eq(predicate, [val1, val2, ..., valN])
-	// eq(predicate, [$var1, "value", ..., $varN])
-
-	// type RootStmt struct {
-	// 	Name    name_
-	// 	Var.    ast.Variable
-	// 	Lang    string
-	// 	// (func: eq(name@en, "Steven Spielberg”))
-	// 	F GQLFunc // generates []uid from GSI data io.Writer Write([]byte) (int, error)
-	// 	// @filter( has(director.film) )
-	// 	Filter *expr.Expression //
-	// 	Select SelectList
-	// 	//
-	// 	PredList []string
-	// }
-
-	// 	type GQLFunc struct {
-	// 	FName name_ // for String() purposes
-	// 	F     FuncT
-	// 	Farg  FargI // either predicate, count, var
-	// 	//	IFarg InnerArgI   // either uidPred, variable
-	// 	Value interface{} //  string,int,float,$var, List of string,int,float,$var
-	// }
-
 	if p.hasError() {
 		return p
 	}
 
-	rf := &s.RootFunc
-	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
-	//	tok = p.nextToken()
+	parseArg1 := func(f string) {
+		p.nextToken() // read over func name, eq,lt, has,...
+		if p.curToken.Type != token.LPAREN {
+			p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
+		}
+		p.nextToken() // read over (
+		switch p.curToken.Type {
 
-	// (func:
+		case token.IDENT:
+			if !types.IsScalarPred(p.curToken.Literal) {
+				if p.curToken.Literal != token.HAS {
+					p.addErr(fmt.Sprintf(`Predicate %q is not a scalar in any known type`, p.curToken.Literal))
+				}
+			}
+			s := ast.ScalarPred{}
+			s.AssignName(p.curToken.Literal, p.curToken.Loc)
+			rf.Farg = s
+
+			p.nextToken("read over identifer") // read over identier
+
+		default:
+
+			switch p.curToken.Literal {
+
+			case token.COUNT: //TODO: what other functions can be used as arguments??
+
+				cfunc := &ast.CountFunc{}
+				rf.Farg = cfunc
+
+				p.nextToken() // read over count
+				if p.curToken.Type != token.LPAREN {
+					p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
+					return
+				}
+				p.nextToken() // read over (
+				//
+				// arg to Count
+				///
+				if p.curToken.Type != token.IDENT {
+					if p.curToken.Literal == "UID" {
+						p.addErr(`UID is not appropriate for a root function. Use as predicate in selection list or in filter expressions`)
+					} else {
+						p.addErr(fmt.Sprintf(`Expected identifier got %s`, p.curToken.Literal))
+					}
+				}
+				if !types.IsUidPred(p.curToken.Literal) {
+					p.addErr(fmt.Sprintf(`%q must be a uid-predicate`, p.curToken.Literal))
+				}
+				// assign to CountFunc
+				a := &ast.UidPred{Parent: s}
+				a.AssignName(p.curToken.Literal, p.curToken.Loc)
+				cfunc.Arg = a
+
+				p.nextToken() // read over identier
+				p.nextToken() // read over )
+			}
+		}
+
+	}
+
+	parseArg2 := func(f string) {
+		fmt.Printf("3: %#v\n", p.curToken)
+		switch p.curToken.Type {
+
+		case token.STRING:
+			rf.Value = p.curToken.Literal
+
+		case token.INT:
+			i, _ := strconv.Atoi(p.curToken.Literal)
+			rf.Value = i
+
+		case token.FLOAT:
+			f, err := strconv.ParseFloat(p.curToken.Literal, 64)
+			if err != nil {
+				p.addErr(fmt.Sprintf(`Errored in converting literal, %q, to float64. %s`, p.curToken.Literal, err.Error()))
+				return
+			}
+			rf.Value = f
+
+		case token.LBRACKET:
+			var vs []interface{} // int, float, string, $var, []int,float,string,$var
+
+			for p.nextToken(); p.curToken.Type != token.RBRACKET; p.nextToken() {
+				switch p.curToken.Type {
+				case token.STRING:
+					vs = append(vs, p.curToken.Literal)
+				case token.INT:
+					v, _ := strconv.Atoi(p.curToken.Literal)
+					vs = append(vs, v)
+				case token.FLOAT:
+					v, err := strconv.ParseFloat(p.curToken.Literal, 64)
+					if err != nil {
+						p.addErr(fmt.Sprintf(`Errored in converting literal, %q, to float64. %s`, p.curToken.Literal, err.Error()))
+						return
+					}
+					vs = append(vs, v)
+				case token.DOLLAR:
+					p.nextToken() // read over $
+					if p.curToken.Type == token.IDENT {
+						v := ast.Variable{}
+						v.AssignName(p.curToken.Literal, p.curToken.Loc)
+						vs = append(vs, v)
+					} else {
+						p.addErr(fmt.Sprintf(`Expected variable name got %s`, p.curToken.Literal))
+					}
+				}
+			}
+
+			rf.Value = vs
+		}
+		p.nextToken("read over value...")
+	}
+
+	//
+	fmt.Printf("0: %#v\n", p.curToken)
+	rf = &s.RootFunc
+	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
+
+	// parse (func:
 	for _, v := range []token.TokenType{token.LPAREN, token.FUNC, token.COLON} {
 		if p.curToken.Type != v {
 			p.addErr(fmt.Sprintf(`Expected a %s got %s instead`, v, p.curToken.Literal))
@@ -302,161 +389,68 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 	}
 	//
 	fmt.Printf("1: %#v\n", p.curToken)
-	// eq, lt, gt, has, anyofterms, someofterms...
-	if p.curToken.Type != token.RFUNC {
+	//
+	// root function name = 	//	  me(func: eq(count(Siblings),2), first: 5) @filter(has(Friends)) {
+	//
+	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
+	rf.F = rootFunc[p.curToken.Literal]
+	//
+	// root func arguments
+	//
+	switch p.curToken.Type {
+
+	case token.SINGLEARGFUNC:
+
+		parseArg1(p.curToken.Literal)
+
+	case token.TWOARGFUNC:
+
+		parseArg1(p.curToken.Literal)
+		parseArg2(p.curToken.Literal)
+
+	case token.AGFUNC: // maybe these should be SINGLEARGFUNC
+
+	default:
 		p.addErr(fmt.Sprintf(`Expected a function  got %s instead`, p.curToken.Literal))
 		return p
 	}
-	//
-	// root function
-	//
-	switch p.curToken.Type {
-
-	case token.RFUNC:
-		rf.AssignName(p.curToken.Literal, p.curToken.Loc)
-		rf.F = rootFunc[p.curToken.Literal]
-
-		// case token.EQ:
-		// 	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
-		// 	rf.F = ast.EQRoot
-
-		// case token.GT:
-		// 	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
-		// 	rf.F = ast.GtRoot
-
-		// case token.LT:
-		// 	rf.AssignName(p.curToken.Literal, p.curToken.Loc)
-		//rf.F = lt
-		//
-		// ...
-		//
-	}
-	p.nextToken() // read over eq,lt...
-	// (
-	if p.curToken.Type != token.LPAREN {
-		p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
-	}
-	p.nextToken() // read over (
-	///
-	// argument to func
-	//
-	fmt.Printf("2: %#v\n", p.curToken)
-	switch p.curToken.Type {
-
-	case token.IDENT:
-		if !cache.IsScalarPred(p.curToken.Literal) {
-			p.addErr(fmt.Sprintf(`Predicate %s is not a scalar in any type`, p.curToken.Literal))
-			// return p
-		}
-		s := ast.ScalarPred{}
-		s.AssignName(p.curToken.Literal, p.curToken.Loc)
-		rf.Farg = s
-
-		p.nextToken("read over identifer") // read over identier
-
-	case token.COUNT:
-
-		cfunc := &ast.CountFunc{}
-		p.nextToken() // read over count
-
-		if p.curToken.Type != token.LPAREN {
-			p.addErr(fmt.Sprintf(`Expected (  got %s`, p.curToken.Literal))
-			return p
-		}
-		p.nextToken() // read over (
-		//
-		// arg to Count
-		///
-		if p.curToken.Type != token.IDENT {
-			if p.curToken.Literal == "UID" {
-				p.addErr(`UID is not appropriate for a root function. Use as predicate in selection list or in filter expressions`)
-			} else {
-				p.addErr(fmt.Sprintf(`Expected identifier got %s`, p.curToken.Literal))
-			}
-		}
-		if !cache.IsUidPred(p.curToken.Literal) {
-			p.addErr(fmt.Sprintf(`%q must be a UID predicate in some type`, p.curToken.Literal))
-		}
-		// assign to CountFunc
-		a := &ast.UidPred{Parent: s}
-		a.AssignName(p.curToken.Literal, p.curToken.Loc)
-		a.Initialise()
-		cfunc.Arg = a
-		rf.Farg = cfunc
-
-		p.nextToken() // read over identier
-		p.nextToken() // read over )
-
-	default:
-		p.addErr(fmt.Sprintf(`Expected an identifier or modifer function got %s`, p.curToken.Literal))
+	if p.hasError() {
 		return p
 	}
+
+	fmt.Println("before read args ", p.curToken)
+	p.nextToken("read args..read over )") // read over )
 	//
-	// parse value
+	// limit - first : 5
 	//
-	fmt.Printf("3: %#v\n", p.curToken)
-	switch p.curToken.Type {
+	fmt.Printf("Before first.. %#v\n", p.curToken)
+	if p.curToken.Type == token.FIRST {
 
-	case token.STRING:
-		rf.Value = p.curToken.Literal
-
-	case token.INT:
-		i, _ := strconv.Atoi(p.curToken.Literal)
-		rf.Value = i
-
-	case token.FLOAT:
-		f, err := strconv.ParseFloat(p.curToken.Literal, 64)
-		if err != nil {
-			p.addErr(fmt.Sprintf(`Errored in converting literal, %q, to float64. %s`, p.curToken.Literal, err.Error()))
+		p.nextToken() // read over first
+		if p.curToken.Literal != token.COLON {
+			p.addErr(fmt.Sprintf(`Expected colon got %s`, p.curToken.Literal))
 			return p
 		}
-		rf.Value = f
-
-	case token.LBRACKET:
-		var vs []interface{} // int, float, string, $var, []int,float,string,$var
-
-		for p.nextToken(); p.curToken.Type != token.RBRACKET; p.nextToken() {
-			switch p.curToken.Type {
-			case token.STRING:
-				vs = append(vs, p.curToken.Literal)
-			case token.INT:
-				v, _ := strconv.Atoi(p.curToken.Literal)
-				vs = append(vs, v)
-			case token.FLOAT:
-				v, err := strconv.ParseFloat(p.curToken.Literal, 64)
-				if err != nil {
-					p.addErr(fmt.Sprintf(`Errored in converting literal, %q, to float64. %s`, p.curToken.Literal, err.Error()))
-					return p
-				}
-				vs = append(vs, v)
-			case token.DOLLAR:
-				p.nextToken() // read over $
-				if p.curToken.Type == token.IDENT {
-					v := ast.Variable{}
-					v.AssignName(p.curToken.Literal, p.curToken.Loc)
-					vs = append(vs, v)
-				} else {
-					p.addErr(fmt.Sprintf(`Expected variable name got %s`, p.curToken.Literal))
-				}
-			}
+		p.nextToken() // read over colon
+		if p.curToken.Type != token.INT {
+			p.addErr(fmt.Sprintf(`Expected an integer got %s`, p.curToken.Literal))
 		}
-
-		rf.Value = vs
+		s.First, _ = strconv.Atoi(p.curToken.Literal)
+		fmt.Printf("First=%d\n", s.First)
+		p.nextToken() // read over int
 	}
-	p.nextToken("read over value...")
+	fmt.Println("curToken: ", p.curToken)
+	if p.curToken.Literal != token.RPAREN {
+		p.addErr(fmt.Sprintf(`Expected ) to terminate root func, got %s`, p.curToken.Literal))
+		return p
+	}
+	p.nextToken() // read over )
+	//
 	fmt.Printf("4: %#v\n", p.curToken)
-	//	  me(func: eq(count(Siblings),2) @filter(has(Friends)) ) {
-	for i := 0; i < 2; i++ {
-		if p.curToken.Type != token.RPAREN {
-			if p.curToken.Type == token.ATSIGN {
-				return p
-			}
-			p.addErr(fmt.Sprintf(`Expected ) got %s instead`, p.curToken.Literal))
-			return p
-		}
-		p.nextToken() // read over )
+	if p.curToken.Type == token.ATSIGN || p.curToken.Type == token.LBRACE {
+		return p
 	}
-	fmt.Printf("End of parseFunction..  %#v\n", rf)
+	p.addErr(fmt.Sprintf(`Expected @filter or {, got %s`, p.curToken.Literal))
 	return p
 
 }
@@ -468,22 +462,21 @@ func (p *Parser) parseFilter(r ast.FilterI) *Parser {
 	}
 
 	// @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))
-	fmt.Printf("\nin parseFilter: %#v\n", p.curToken)
 	if p.hasError() || p.curToken.Type != token.ATSIGN {
 		fmt.Printf("in parseFilter: return..\n")
 		return p
 	}
 	p.nextToken() // read over @
 	exprInput := p.l.Remaining()
+	fmt.Printf("p.l.remaining...[%s]\n", p.l.Remaining())
 	//  me(func: .......  @filter(has(Friends)) ) {
 	//                                        ^ ^ ^
 	//                    @filter(gt(Age,60)) {
 	exprInput = exprInput[:strings.IndexByte(exprInput, '{')]
 	exprInput = exprInput[:strings.LastIndexByte(exprInput, ')')]
-	exprInput = exprInput[:strings.LastIndexByte(exprInput, ')')]
-	if exprInput[len(exprInput)-1] != ')' {
-		exprInput += ")"
-	}
+	// if exprInput[len(exprInput)-1] != ')' {
+	// 	exprInput += ")"
+	// }
 
 	if p.curToken.Type != token.FILTER {
 		p.addErr(fmt.Sprintf(`Expected keyword "filter" got %s instead`, p.curToken.Literal))
@@ -497,12 +490,27 @@ func (p *Parser) parseFilter(r ast.FilterI) *Parser {
 		return p
 	}
 	//
+	// parse filter expression using a separate expression parser.
+	//
+	ex := expr.New(exprInput)
+	// assign to current parse object
 	r.AssignFilterStmt(exprInput)
-	r.AssignFilter(expr.New(exprInput)) // TODO should return new rLoc, cLoc
+	r.AssignFilter(ex)
+	//
+	// validate expression predicates exists
+	//
+	for _, xpred := range ex.GetPredicates() {
+		if !types.IsScalarPred(xpred) {
+			if !types.IsUidPred(xpred) {
+				p.addErr(fmt.Sprintf("%q is not a predicate (scalar or uid-pred) in any known type", xpred))
+			}
+		}
+	}
+	//
+	// read over expression to align current token at next LBRACE
 	//
 	for ; p.curToken.Type != token.LBRACE; p.nextToken() {
 	}
-	fmt.Printf("******************************** in parseFilter: %#v\n", p.curToken)
 	return p
 }
 
@@ -516,7 +524,14 @@ func (p *Parser) parseSelection(r ast.SelectI) *Parser {
 	if p.curToken.Type != token.LBRACE {
 		p.addErr(fmt.Sprintf(`expected a "{" got a %q`, p.curToken.Literal))
 	}
+	var i int
 	for p.nextToken(); p.curToken.Type != token.RBRACE; {
+
+		i++
+		if i > 6 {
+			p.addErr(fmt.Sprintf(`exceeded 6 loops in parseSelection %s`, p.curToken.Literal))
+			return p
+		}
 
 		e := &ast.EdgeT{}
 
@@ -572,79 +587,6 @@ func (p *Parser) parseVarAlias(e *ast.EdgeT) *Parser {
 	return p
 }
 
-// name@en
-// count(actor.film)
-// directors(func: gt(count(director.film), 5)) {
-//     totalDirectors : count(uid) //counts the number of UIDs matched in the enclosing block.
-
-// var(func: allofterms(name@en, "sin city")) {
-//     starring {
-//       actors as performance.actor {
-//         totalRoles as count(actor.film)
-//       }
-//     }
-//   }
-
-//   edmw(func: uid(actors), orderdesc: val(totalRoles)) {
-//     name@en
-//     totalRoles : val(totalRoles)
-//   }
-
-//me(func: allofterms(name@en, "Jean-Pierre Jeunet")) {
-//  name@fr
-//  director.film(orderasc: initial_release_date) {
-//    name@fr                                                // scalar pred
-//    name@en
-//    initial_release_date
-//  }
-//}
-
-// {
-//   genres as var(func: has(~genre)) {
-//     ~genre {                                             //uidpred
-//       numGenres as count(genre)
-//     }
-//   }
-
-//   genres(func: uid(genres), orderasc: name@en) {
-//     name@en
-//     ~genre (orderdesc: val(numGenres), first: 5) {
-//       name@en
-//       genres : val(numGenres)
-//     }
-//   }
-// }
-
-// {
-//   ID as var(func: allofterms(name@en, "Steven")) @filter(has(director.film)) {
-//     director.film {
-//       num_actors as count(starring)
-//     }
-//     average as avg(val(num_actors))
-//   }
-
-//   films(func: uid(ID)) {
-//     director_id : uid
-//     english_name : name@en
-//     average_actors : val(average)
-//     num_films : count(director.film)
-
-//     films : director.film {
-//       name : name@en
-//       english_name : name@en
-//       french_name : name@fr
-//     }
-//   }
-// }
-// {
-//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
-//     name@en
-//     director.film @filter(allofterms(name@en, "jones indiana"))  {
-//       name@en
-//     }
-//   }
-// }
-
 func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 	// edge can be
 	// * <scalar-predicate>
@@ -671,7 +613,7 @@ func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 		ident := p.curToken.Literal
 		if p.peekToken.Type == token.ATSIGN || p.peekToken.Type == token.LBRACE {
 			// must be a uid-pred - confirm there is a type that exists with this uid-pred
-			if !cache.IsUidPred(ident) {
+			if !types.IsUidPred(ident) {
 				p.addErr(fmt.Sprintf("%q is not a uid-predicate", ident))
 			}
 			//
@@ -684,13 +626,13 @@ func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 			if p.curToken.Type == token.ATSIGN {
 				p.parseFilter(uidpred)
 			}
-			fmt.Printf("=======**********************+++++++++++++++************. uidPred %#v\n", uidpred)
+			fmt.Printf("\n. uidPred %#v\n", uidpred)
 			p.parseSelection(uidpred)
 
 		} else {
 			// scalar type
 			fmt.Println("parseEdge: IDENT scalar-pred")
-			if !cache.IsScalarPred(ident) {
+			if !types.IsScalarPred(ident) {
 				p.addErr(fmt.Sprintf("%q is not a scalar-pred", ident))
 			}
 			//
@@ -700,92 +642,94 @@ func (p *Parser) parseEdge(e *ast.EdgeT, parentEdge ast.SelectI) *Parser {
 			p.nextToken() // read over predicate
 		}
 		fmt.Printf("XXEdge: %#v\n", e.Edge)
-	// case token.AGFUNC:  // not applicable to root func
-	// 	// * avg(val(<variable>)), sum, max, min,
-	// 	// * val(<variable>)
 
-	// 	agf := &ast.AggrFunc{}
-	// 	agf.AssignName(p.curToken.Literal, p.curToken.Loc)
-	// 	e.Edge = agf
-	// 	p.nextToken() // read over count
-	// 	if p.curToken.Type != token.LPAREN {
-	// 		p.addErr(fmt.Sprintf("Expected ( got %s", p.curToken.Literal))
-	// 	}
-	// 	p.nextToken() // read over (
-	// 	//
-	// 	if p.curToken.Type != token.VAL {
-	// 		p.addErr(fmt.Sprintf(`Expected "val" got %s`, p.curToken.Literal))
-	// 	}
-	// 	p.nextToken() // read over val
-	// 	p.nextToken() // read over (
-	// 	//
-	// 	v := ast.Variable{}
-	// 	v.AssignName(p.curToken.Literal, p.curToken.Loc)
-	// 	e.Edge.Arg = v
-	// 	//to execute variable.Count(p.nextToken.Literal)
-	// 	p.nextToken() // read over )
+	case token.SINGLEARGFUNC, token.TWOARGFUNC:
 
-	case token.COUNT:
-		// actors as performance.actor {
-		//   totalRoles as count(actor.film)
-		// }
-		// * abc as count(<uid predicate>|<UID>)
-		// totalDirectors : count(uid)
-		fmt.Println("COUNT..............")
-		cf := &ast.CountFunc{}
-		e.Edge = cf
-		p.nextToken() // read over count
-		if p.curToken.Type != token.LPAREN {
-			p.addErr(fmt.Sprintf("expected ( got %s", p.curToken.Literal))
-		}
-		p.nextToken() // read over (
-		switch p.curToken.Type {
+		switch p.curToken.Literal {
 
-		case token.IDENT:
-			if !cache.IsUidPred(p.curToken.Literal) {
-				p.addErr(fmt.Sprintf("%q is not a uid-predicate", p.curToken.Literal))
+		case token.COUNT:
+
+			cf := &ast.CountFunc{}
+			e.Edge = cf
+
+			p.nextToken() // read over count
+			if p.curToken.Type != token.LPAREN {
+				p.addErr(fmt.Sprintf("expected ( got %s", p.curToken.Literal))
 			}
-			//
-			fmt.Printf("COUNT IDENT- create uidPred: %#v\n", p.curToken)
-			pred := &ast.UidPred{Parent: parentEdge}
-			pred.AssignName(p.curToken.Literal, p.curToken.Loc)
-			pred.Initialise()
-			cf.Arg = pred
-			p.nextToken() // read over uid-pred
-			fmt.Printf("COUNT IDENT: %#v\n", p.curToken)
-			if p.curToken.Type != token.RPAREN {
-				p.addErr(fmt.Sprintf("expected ) got %s", p.curToken.Literal))
+			p.nextToken() // read over (
+			switch p.curToken.Type {
+
+			case token.IDENT:
+				if !types.IsUidPred(p.curToken.Literal) {
+					p.addErr(fmt.Sprintf("%q is not a uid-predicate", p.curToken.Literal))
+				}
+				//
+				fmt.Printf("COUNT IDENT- create uidPred: %#v\n", p.curToken)
+				pred := &ast.UidPred{Parent: parentEdge}
+				pred.AssignName(p.curToken.Literal, p.curToken.Loc)
+				pred.Initialise()
+				cf.Arg = pred
+				p.nextToken() // read over uid-pred
+				fmt.Printf("COUNT IDENT: %#v\n", p.curToken)
+				if p.curToken.Type != token.RPAREN {
+					p.addErr(fmt.Sprintf("expected ) got %s", p.curToken.Literal))
+				}
+
+			case token.UID:
+				cf.Arg = ast.UID{}
+				p.nextToken() // read over uid
+				if p.curToken.Type != token.RPAREN {
+					p.addErr(fmt.Sprintf("expected ) got %s", p.curToken.Literal))
+				}
 			}
 			p.nextToken("") // read over )
 			fmt.Printf("COUNT IDENT 3: %#v\n", p.curToken)
 
-		case token.UID:
-			cf.Arg = ast.UID{}
-			p.nextToken() // read over uid
-			if p.curToken.Type != token.RPAREN {
-				p.addErr(fmt.Sprintf("expected ) got %s", p.curToken.Literal))
+		case token.VAL:
+			fmt.Printf("\n%s\n", "pareVal() ..............")
+			p.nextToken() // read over val
+			if p.curToken.Type != token.LPAREN {
+				p.addErr(fmt.Sprintf("Expected ( got %s", p.curToken.Literal))
 			}
+			p.nextToken() // read over (
+			v := &ast.Variable{}
+			v.AssignName(p.curToken.Literal, p.curToken.Loc)
+			e.Edge = v
 			p.nextToken() // read over )
-		}
+			if p.curToken.Type != token.RPAREN {
+				p.addErr(fmt.Sprintf("expected ( got %s", p.curToken.Literal))
+			}
 
-	case token.VAL:
-		// numRoles : val(roles)
-		p.nextToken() // read over val
-		if p.curToken.Type != token.LPAREN {
-			p.addErr(fmt.Sprintf("Expected ( got %s", p.curToken.Literal))
+		case token.UID:
+			e.Edge = &ast.UID{}
+			p.nextToken() // read over uid
 		}
-		p.nextToken() // read over (
-		v := &ast.Variable{}
-		v.AssignName(p.curToken.Literal, p.curToken.Loc)
-		e.Edge = v
-		p.nextToken() // read over )
-		if p.curToken.Type != token.RPAREN {
-			p.addErr(fmt.Sprintf("expected ( got %s", p.curToken.Literal))
-		}
-	case token.UID:
-		e.Edge = &ast.UID{}
-		p.nextToken() // read over uid
 	}
 
 	return p
 }
+
+// case token.AGFUNC:  // not applicable to root func
+// 	// * avg(val(<variable>)), sum, max, min,
+// 	// * val(<variable>)
+
+// 	agf := &ast.AggrFunc{}
+// 	agf.AssignName(p.curToken.Literal, p.curToken.Loc)
+// 	e.Edge = agf
+// 	p.nextToken() // read over count
+// 	if p.curToken.Type != token.LPAREN {
+// 		p.addErr(fmt.Sprintf("Expected ( got %s", p.curToken.Literal))
+// 	}
+// 	p.nextToken() // read over (
+// 	//
+// 	if p.curToken.Type != token.VAL {
+// 		p.addErr(fmt.Sprintf(`Expected "val" got %s`, p.curToken.Literal))
+// 	}
+// 	p.nextToken() // read over val
+// 	p.nextToken() // read over (
+// 	//
+// 	v := ast.Variable{}
+// 	v.AssignName(p.curToken.Literal, p.curToken.Loc)
+// 	e.Edge.Arg = v
+// 	//to execute variable.Count(p.nextToken.Literal)
+// 	p.nextToken() // read over )

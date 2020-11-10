@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	param "github.com/DynamoGraph/dygparam"
 	"github.com/DynamoGraph/gql/internal/db"
 	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/util"
@@ -43,6 +44,10 @@ var (
 
 func init() {
 
+	if !param.ElasticSearchOn {
+		syslog("ElasticSearch Disabled....")
+		return
+	}
 	cfg = esv7.Config{
 		Addresses: []string{
 			"http://ip-172-31-18-75.ec2.internal:9200",

@@ -288,11 +288,12 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	// accumulate predicate (spo) n.Object values in the following map
 	type mergedRDF struct {
 		value interface{}
-		name  string
+		name  string // not populated below. TODO: why use it then.??
 		dt    string
 		sortk string
 		c     string // type attribute short name
-		ix    string // index type
+		ix    string // index type + support Has()
+		null  bool   // true: nullable
 	}
 	var attr map[string]*mergedRDF
 	attr = make(map[string]*mergedRDF)
@@ -326,7 +327,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 					node.Err = append(node.Err, err)
 					continue
 				}
-				attr[v.Name] = &mergedRDF{value: i, dt: v.DT, ix: v.Ix}
+				attr[v.Name] = &mergedRDF{value: i, dt: v.DT, ix: v.Ix, null: v.N, c: v.C}
 
 			case F:
 				// check n.Object can be converted to float
@@ -337,14 +338,14 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 				// check n.Object can be converted to float
 
 				//attr[v.Name] = n.Obj
-				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT, ix: v.Ix}
+				attr[v.Name] = &mergedRDF{value: n.Obj, dt: v.DT, ix: v.Ix, null: v.N, c: v.C}
 
 			case SS:
 
 				if a, ok := attr[v.Name]; !ok {
 					ss := make([]string, 1)
 					ss[0] = n.Obj
-					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT, c: v.C}
+					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT, c: v.C, null: v.N}
 				} else {
 					if ss, ok := a.value.([]string); !ok {
 						err := fmt.Errorf("Conflict with SS type at line %d", n.N)
@@ -370,7 +371,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 					}
 					si[0] = i
 					syslog(fmt.Sprintf("Add to SI . [%d]", i))
-					attr[v.Name] = &mergedRDF{value: si, dt: v.DT, c: v.C}
+					attr[v.Name] = &mergedRDF{value: si, dt: v.DT, c: v.C, null: v.N}
 
 				} else {
 
@@ -400,7 +401,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 				if a, ok := attr[v.Name]; !ok {
 					ls := make([]string, 1)
 					ls[0] = n.Obj
-					attr[v.Name] = &mergedRDF{value: ls, dt: v.DT, c: v.C}
+					attr[v.Name] = &mergedRDF{value: ls, dt: v.DT, c: v.C, null: v.N}
 					//	attr[v.Name] = ls
 				} else {
 					if ls, ok := a.value.([]string); !ok {
@@ -423,7 +424,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 					}
 					li[0] = i // n.Obj  int
 					//attr[v.Name] = li
-					attr[v.Name] = &mergedRDF{value: li, dt: v.DT}
+					attr[v.Name] = &mergedRDF{value: li, dt: v.DT, null: v.N, c: v.C}
 				} else {
 					if li, ok := a.value.([]int); !ok {
 						err := fmt.Errorf("Conflict with LI type at line %d", n.N)
@@ -449,7 +450,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 					ss := make([]string, 1)
 					ss[0] = n.Obj
 					//attr[v.Name] = ss
-					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT}
+					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT, c: v.C}
 					//addEdgesCh<-
 				} else {
 					if nd, ok := a.value.([]string); !ok {
@@ -503,6 +504,9 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 			nv = append(nv, e)
 			addTy = false
 		}
+		//
+		// for nullable attributes only, populate Ty (which should be anyway) plus Ix (with "x") so a GSI entry is created in Ty_Ix to support Has(<predicate>) func.
+		//
 		e := ds.NV{Sortk: v.sortk, Name: k, SName: node.ID, Value: v.value, DT: v.dt, C: v.c, Ty: node.TyName, Ix: v.ix}
 		nv = append(nv, e)
 	}

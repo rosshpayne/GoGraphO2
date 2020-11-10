@@ -332,8 +332,8 @@ type TyItem struct {
 	N    bool     // NULLABLE. False : not null (attribute will always exist ie. be populated), True: nullable (attribute may not exist)
 	Cd   int      // cardinality - NOT USED
 	Sz   int      // average size of attribute data - NOT USED
-	Ix   string   // supported indexes: FT=Full Text (S type only)
-	IncP []string
+	Ix   string   // supported indexes: FT=Full Text (S type only), "x" combined with Ty will index in GSI Ty_Ix
+	IncP []string // (optional). List of attributes to be propagated. If empty all scalars will be propagated.
 }
 
 type TyIBlock []TyItem

@@ -185,7 +185,6 @@ func (l *Lexer) peekRune() rune {
 }
 
 func (l *Lexer) readIdentifier() *token.Token {
-	fmt.Println("readIdentifier...")
 	start := token.Pos{l.Line, l.Col}
 	Loc := l.cLoc
 	for unicode.IsLetter(l.ch) || l.ch == '.' || l.ch == '_' || unicode.IsDigit(l.ch) {

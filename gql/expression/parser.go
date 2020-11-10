@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DynamoGraph/cache"
 	"github.com/DynamoGraph/gql/expression/ast"
 	"github.com/DynamoGraph/gql/expression/lexer"
 	"github.com/DynamoGraph/gql/expression/token"
+	"github.com/DynamoGraph/types"
 )
 
 type (
@@ -126,7 +126,7 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 		switch token.TokenType(tc.Literal) {
 		case token.IDENT:
 
-			if !cache.IsScalarPred(p.curToken.Literal) {
+			if !types.IsScalarPred(p.curToken.Literal) {
 				p.addErr(fmt.Sprintf("%s is not a scalar predicate", p.curToken.Literal))
 			}
 			pred := ast.ScalarPred{}
@@ -146,7 +146,7 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 		case token.COUNT:
 			// count(<uid-pred>) // TODO: is that all for count
 			p.nextToken() // read over count
-			if !cache.IsUidPred(p.curToken.Literal) {
+			if !types.IsUidPred(p.curToken.Literal) {
 				p.addErr(fmt.Sprintf("%s must be a uid predicate to appear in count function", p.curToken.Literal))
 			}
 			p.nextToken() // read over (
@@ -232,7 +232,7 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 	case token.UID_IN:
 		// uid_in(<uid-pred>),
 		p.nextToken() // read over uid_in
-		if !cache.IsUidPred(p.curToken.Literal) {
+		if !types.IsUidPred(p.curToken.Literal) {
 			p.addErr(fmt.Sprintf("predicate, %q must be a uid predicate when used in the uid_in function"))
 		}
 		uin := ast.Uid_IN{}

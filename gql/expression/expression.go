@@ -55,6 +55,10 @@ func walk(e operand, nv ds.NVmap, v node) {
 
 	if e, ok := e.(*Expression); ok {
 
+		if e.left == nil {
+			return
+		}
+
 		walk(e.left, nv, v)
 		walk(e.right, nv, v)
 
@@ -91,6 +95,10 @@ func walkPreds(e operand, pred []string) []string {
 
 	if e, ok := e.(*Expression); ok {
 
+		if e.left == nil {
+			return pred
+		}
+
 		walkPreds(e.left, pred)
 		walkPreds(e.right, pred)
 
@@ -105,7 +113,6 @@ func walkPreds(e operand, pred []string) []string {
 		// 	pred = append(pred, p...)
 		// }
 
-		fmt.Println("walkPreds: ", pred)
 		return pred
 
 	}

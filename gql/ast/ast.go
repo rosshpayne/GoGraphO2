@@ -554,20 +554,18 @@ func (f *GQLFunc) String() string {
 // type NdIdx map[util.UIDb64s]index
 
 type RootStmt struct {
-	Name name_
-	Var  *Variable
-	Lang string
-	// (func: eq(name@en, "Steven Spielberg”))
-	RootFunc GQLFunc // generates []uid from GSI data io.Writer Write([]byte) (int, error)
-	// @filter( has(director.film) )
+	Name       name_
+	Var        *Variable
+	Lang       string
+	RootFunc   GQLFunc          // generates []uid from GSI data io.Writer Write([]byte) (int, error)
+	First      int              // , first : 3
 	filterStmt string           // for printing filter expression
 	Filter     *expr.Expression //
 	Select     SelectList
 	//
 	//  Node data associated with stmt. Data stored as map with UUID as key and ds.NV containing attribute data.
 	//
-	nodes NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
-	//	sync.Mutex
+	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
 	nodesc NdNv
 	nodesi NdIdx
 	sync.Mutex
@@ -706,12 +704,16 @@ func (r *RootStmt) String() string {
 	s.WriteString(r.Name.String())
 	s.WriteString("(func: ")
 	s.WriteString(r.RootFunc.String())
+	if r.First > 0 {
+		s.WriteString(",first : ")
+		s.WriteString(strconv.Itoa(r.First))
+	}
+	s.WriteByte(')')
 	if r.Filter != nil {
 		s.WriteString("@filter( ")
 		s.WriteString(r.filterStmt)
 		s.WriteByte(')')
 	}
-	s.WriteByte(')')
 	s.WriteString("{\n")
 	s.WriteString(r.Select.String())
 	s.WriteByte('}')
@@ -834,19 +836,3 @@ func (n name_) Exists() bool {
 	}
 	return false
 }
-
-// // =========== Loc_ =============================
-
-// type Loc struct {
-// 	Line   int
-// 	Column int
-// }
-
-// func (l Loc) String() string {
-// 	return "at line: " + strconv.Itoa(l.Line) + " " + "column: " + strconv.Itoa(l.Column)
-// 	//return "" + strconv.Itoa(l.Line) + " " + strconv.Itoa(l.Column) + "] "
-// }
-
-// type HasName interface {
-// 	AssignName(string, Loc_,)
-// }

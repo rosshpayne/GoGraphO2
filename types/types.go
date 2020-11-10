@@ -15,6 +15,7 @@ const (
 
 type Ty = string     // type
 type TyAttr = string // type:attr
+type AttrTy = string
 
 //type FacetIdent string // type:attr:facet
 //
@@ -27,6 +28,10 @@ type TyCache map[Ty]blk.TyAttrBlock
 //
 type TyAttrCache map[TyAttr]blk.TyAttrD // map[TyAttr]blk.TyItem
 
+//TODO: create a cache for lookup via attribute long name to get type, type-short-name, attribute-short-name. This map will be used to support the Has function.
+
+type AttrTyCache map[AttrTy]string
+
 //var TyAttrC TyAttrCache
 
 //
@@ -34,6 +39,7 @@ type TypeCache struct {
 	//sync.RWMutex // as all types are loaded at startup - no concurrency control required
 	TyAttrC TyAttrCache
 	TyC     TyCache
+	AttrTy  AttrTyCache
 }
 
 var (
@@ -80,6 +86,7 @@ func init() {
 	//
 	TypeC.TyAttrC = make(TyAttrCache)
 	//
+	TypeC.AttrTy = make(AttrTyCache)
 	//
 	tynames, err := db.GetTypeShortNames()
 	if err != nil {
@@ -102,6 +109,7 @@ func init() {
 		}
 		populateTyCaches(dd)
 	}
+	fmt.Println("End types init()")
 }
 
 func populateTyCaches(allTypes blk.TyIBlock) {
@@ -130,12 +138,14 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 	for ty, _ := range tyMap {
 
 		fmt.Println("load type data for ", ty)
-		for _, v := range allTypes { // database item
+		for _, v := range allTypes {
 			// if not current ty then
 			if v.Nm != ty {
 				continue
 			}
-
+			//
+			TypeC.AttrTy[v.Atr+"#"+v.Nm] = v.C // support attribute lookup for Has(<attribute>) function
+			//
 			// checl of DT is a UID attribute and gets its base type
 			//	fmt.Printf("DT:%#v \n", v)
 			if len(v.Ty) == 0 {
@@ -174,6 +184,10 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 		TypeC.TyC[ty] = tc
 		tc = nil
 	}
+	for k, v := range TypeC.AttrTy {
+		fmt.Println(k, v)
+	}
+	fmt.Println("End populateTyCaches...")
 }
 
 func FetchType(ty Ty) (blk.TyAttrBlock, error) {
@@ -192,4 +206,29 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 	}
 	return nil, fmt.Errorf("No type %q found", ty)
 
+}
+
+func IsScalarPred(pred string) bool {
+	for _, v := range TypeC.TyC {
+		for _, vv := range v {
+			if vv.Name == pred && len(vv.Ty) == 0 {
+				// is a scalar in one type so presume its ok
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func IsUidPred(pred string) bool {
+
+	for _, v := range TypeC.TyC {
+		for _, vv := range v {
+			if vv.Name == pred && len(vv.Ty) > 0 {
+				// is a uid-pred in one type so presume its ok
+				return true
+			}
+		}
+	}
+	return false
 }

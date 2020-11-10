@@ -32,4 +32,5 @@ const (
 	// The limit is checked using the dynamodb SIZE function during insert of the child item into the overflow item.
 	OvfwItemLimit = 250 // Prod 100 to 500.
 
+	ElasticSearchOn = false
 )

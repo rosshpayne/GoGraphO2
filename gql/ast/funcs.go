@@ -91,6 +91,11 @@ func ieq(opr db.Equality, a FargI, value interface{}) db.QResult {
 	return result
 }
 
+//func Has(a FargI, value interface{}) db.QResult {)
+
+//
+// these funcs are used in filter condition only. At the root search ElasticSearch is used to retrieve relevant UIDs.
+//
 func AllOfTerms(a FargI, value interface{}) db.QResult {
 	return terms(allofterms, a, value)
 }
@@ -125,4 +130,13 @@ func terms(termOpr string, a FargI, value interface{}) db.QResult {
 		panic(fmt.Errorf("Error in all|any ofterms func: expected a scalar predicate"))
 	}
 	return es.Query(t.Name(), qs.String())
+}
+
+func Has(a FargI, value interface{}) db.QResult {
+
+	if value != nil {
+		panic(fmt.Errorf("Expected nil value. Second argument to has() should be empty"))
+	}
+
+	return db.QResult{}
 }

@@ -84,37 +84,10 @@ func GetCache() *GraphCache {
 // ====================================== init =====================================================
 
 func init() {
+	// cache of nodes
 	GraphC = GraphCache{cache: make(map[util.UIDb64s]*entry)}
 	//
 	//FacetC = make(map[types.TyAttr][]FacetTy)
-}
-
-func IsUidPred(pred string) bool {
-
-	for _, v := range types.TypeC.TyC {
-		for _, vv := range v {
-			if vv.Name == pred && len(vv.Ty) > 0 {
-				// is a uid-pred in one type so presume its ok
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func IsScalarPred(pred string) bool {
-	fmt.Println("IsScalarPred for ", pred)
-	for _, v := range types.TypeC.TyC {
-		for _, vv := range v {
-			if vv.Name == pred && len(vv.Ty) == 0 {
-				// is a scalar in one type so presume its ok
-				fmt.Println("TRUE")
-				return true
-			}
-		}
-	}
-	fmt.Println("FALSE")
-	return false
 }
 
 func (g *GraphCache) IsCached(uid util.UID) (ok bool) {
