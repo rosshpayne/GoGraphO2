@@ -5,11 +5,10 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/DynamoGraph/gql/monitor"
+	//	"github.com/DynamoGraph/gql/monitor"
 )
 
-func compare(t *testing.T, doc, expected string) int {
+func compare(doc, expected string) int {
 
 	return strings.Compare(trimWS(doc), trimWS(expected))
 
@@ -61,19 +60,22 @@ func checkErrors(errs []error, expectedErr []string, t *testing.T) {
 func TestSimpleRootQuery1a(t *testing.T) {
 
 	expected := ` 
-data: {       
-	    Age : 67,
-        Name : "Ian Payne",
+        {
+        data: [
+                {
+                Age : 62,
+                Name : "Ross Payne",
+                }, 
+                {
+                Age : 67,
+                Name : "Ian Payne",
+                }, 
+                {
+                Age : 58,
+                Name : "Paul Payne",
+                } 
         ]
- } data: {      
-        Age : 58,
-        Name : "Paul Payne",
-        ]
- } data: {      
-        Age : 62,
-        Name : "Ross Payne",
-        ]
- }`
+        }`
 
 	input := `{
   directors(func: eq(count(Siblings), 2)) {
@@ -88,8 +90,8 @@ data: {
 	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
 
 	result := stmt.MarshalJSON()
-	t.Log(result)
-	if compare(t, result, expected) != 0 {
+
+	if compare(result, expected) != 0 {
 		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
 	}
 
@@ -196,7 +198,7 @@ func TestRootQuery1e2(t *testing.T) {
 	// 	Age
 	// }
 	input := `{
-  directors(func: anyofterms(Comment,"sodium Germany Chris")  @filter(gt(Age,60))) {
+  directors(func: anyofterms(Comment,"sodium Germany Chris"))  @filter(gt(Age,60)) {
     Age
     Name
     Comment
@@ -278,7 +280,7 @@ func TestRootQuery1g(t *testing.T) {
 func TestRootFilter1(t *testing.T) {
 
 	input := `{
-  directors(func: eq(count(Siblings), 2) @filter(gt(Age,60))) {
+  directors(func: eq(count(Siblings), 2)) @filter(gt(Age,60)) {
     Age
     Name
     Friends {
@@ -439,7 +441,7 @@ func TestUPredFilter4a(t *testing.T) {
   directors(func: eq(count(Siblings), 2) ) {
     Age
     Name
-    Friends @filter(gt(Age,62) or le(Age,40) or eq(Name,"Ross Payne"))) {
+    Friends @filter(gt(Age,62) or le(Age,40) or eq(Name,"Ross Payne")) {
       Age
     	Name
     	Comment
@@ -535,25 +537,47 @@ func TestRootFilter2(t *testing.T) {
 
 }
 
-func TestRootFilteranyofterms1(t *testing.T) {
+func TestRootFilteranyofterms1_(t *testing.T) {
 
 	input := `{
-	  me(func: eq(count(Siblings),2) @filter( anyofterms(Comment,"sodium Germany Chris"))) {
+	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris")) {
 	    Name
-			Comment
+		Comment
 	    }
 	  }`
+
+	expected := `{
+data: [
+        {
+        Name : "Ross Payne",
+        Comment : "Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.",
+        },
+        {
+        Name : "Paul Payne",
+        Comment : "A foggy snowy morning lit with Smith sodium lamps is an absolute dream",
+        }
+   ]
+}`
+
 	t0 := time.Now()
-	Execute(input)
+	stmt := Execute_(input)
 	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	if compare(result, expected) != 0 {
+		t.Log("Error: result JSON does not match expected JSONs")
+		t.Fail()
+	}
+	t.Log(result)
 
 }
 
 func TestRootFilteranyofterms1a(t *testing.T) {
 
 	input := `{
-	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris"))) {
+	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris")) {
 	    Name
 	    }
 	  }`
@@ -567,7 +591,7 @@ func TestRootFilteranyofterms1a(t *testing.T) {
 func TestRootFilteranyofterms1b(t *testing.T) {
 
 	input := `{
-	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(Name,"Ross Payne"))) {
+	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(Name,"Ian Payne")) {
 	    Name
 	    }
 	  }`
@@ -581,7 +605,7 @@ func TestRootFilteranyofterms1b(t *testing.T) {
 func TestRootFilteranyofterms1c(t *testing.T) {
 
 	input := `{
-	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") or eq(Name,"Ross Payne"))) {
+	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris") or eq(Name,"Ross Payne")) {
 	    Name
 	    }
 	  }`
@@ -592,19 +616,19 @@ func TestRootFilteranyofterms1c(t *testing.T) {
 
 }
 
-// func TestRootFilteranyofterms1d(t *testing.T) {
+func TestRootFilteranyofterms1d(t *testing.T) {
 
-// 	input := `{
-// 	  me(func: eq(count(Siblings),2) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(name,"Ross Payne"))) {
-// 	    Name
-// 	    }
-// 	  }`
-// 	t0 := time.Now()
-// 	Execute(input)
-// 	t1 := time.Now()
-// 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	input := `{
+	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(Name,"Ross Payne")) {
+	    Name
+	    }
+	  }`
+	t0 := time.Now()
+	Execute(input)
+	t1 := time.Now()
+	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 
-// }
+}
 
 func TestUPredFilterterms1a(t *testing.T) {
 
@@ -634,14 +658,17 @@ func TestUPredFilterterms1a(t *testing.T) {
 
 func TestUPredFilterterms1b1(t *testing.T) {
 
-	expected := ` data: {   
-				Age : 62,
+	expected := `        
+	{
+        data: [
+                {
+                Age : 62,
                 Name : "Ross Payne",
                 Friends : [ 
                 ]
-         }      ]
-         } data: {      
-        		Age : 67,
+                },
+                {
+                Age : 67,
                 Name : "Ian Payne",
                 Friends : [ 
                         { 
@@ -652,38 +679,20 @@ func TestUPredFilterterms1b1(t *testing.T) {
                                 Age: 67,
                                 Name: Ian Payne,
                                 }, 
-                        ]
+                        ],
                         Siblings : [ 
-                                { 
-                                Name: Ian Payne,
-                                }, 
-                                { 
-                                Name: Paul Payne,
-                                }, 
-                        ]
-                        }, 
-                        { 
-                        Age: 58,
-                        Name: Paul Payne,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ]
-                        Siblings : [ 
-                                { 
-                                Name: Ian Payne,
-                                }, 
                                 { 
                                 Name: Ross Payne,
                                 }, 
-                        ]
+                                { 
+                                Name: Ian Payne,
+                                }, 
+                        ],
                         }, 
                 ]
-         }      ]
-         } data: {      
-        		Age : 58,
+                },
+                {
+                Age : 58,
                 Name : "Paul Payne",
                 Friends : [ 
                         { 
@@ -694,19 +703,20 @@ func TestUPredFilterterms1b1(t *testing.T) {
                                 Age: 67,
                                 Name: Ian Payne,
                                 }, 
-                        ]
+                        ],
                         Siblings : [ 
-                                { 
-                                Name: Ian Payne,
-                                }, 
                                 { 
                                 Name: Paul Payne,
                                 }, 
-                        ]
+                                { 
+                                Name: Ian Payne,
+                                }, 
+                        ],
                         }, 
                 ]
-         }      ]
-         }`
+                }
+           ]
+        }`
 
 	input := `{
   directors(func: eq(count(Siblings), 2) ) {
@@ -733,10 +743,8 @@ func TestUPredFilterterms1b1(t *testing.T) {
 
 	result := stmt.MarshalJSON()
 
-	monitor.PrintCh <- struct{}{}
-
 	t.Log(result)
-	if compare(t, result, expected) != 0 {
+	if compare(result, expected) != 0 {
 		t.Log("Error: result JSON does not match expected JSONs")
 		t.Fail()
 	}

@@ -955,10 +955,10 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 	//
 	// shadow XBl null identiier
 	//
-	null := make([]bool, 1, 1)
-	if value == nil {
-		null[0] = true
-	}
+	// null := make([]bool, 1, 1)
+	// if value == nil {
+	// 	null[0] = true
+	// }
 	var pkey_ []byte
 	if bytes.Equal(pUID, tUID) {
 		//		pUIDb64 := pUID.Encodeb64() used when loading data via API
@@ -967,9 +967,9 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 	} else {
 		pkey_ = tUID
 	}
-	// NULL value representation using false = not null, and true =  value is null
+	// NULL value representation using false = not null, and true = <value is null>
 	b := make([]bool, 1, 1)
-	b[0] = false
+	b[0] = true
 	// append child attr value to parent uid-pred list
 	switch lty {
 
@@ -1189,6 +1189,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 	case "LI", "LF":
 		// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 		if value == nil {
+			null[0] = true
 			switch ty.DT {
 			case "I":
 				value = int64(0)

@@ -203,56 +203,90 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		// here S is simply the abreviation for the Ty field which defines the child type  e.g 	"Person"
 		//
 		s := strings.Split(sortK, "#")
-
 		attachPoint := s[len(s)-1][1:]
-		fmt.Printf("\nggf attachTy: %s %s\n", s[len(s)-1], attachPoint)
-		//
-		// find attachment point in parent type based on sortk input
-		//
+		fmt.Println("Compare attach types:1 & attachPoint ", cTyName, attachPoint)
+		var found bool
 		for _, v := range pty {
-
+			fmt.Println("Compare attach types:2 ", v.Ty, cTyName)
 			if v.C == attachPoint {
+				found = true
 				//
-				// parent attachment point attribute found
+				//  attachment point attribute (parent) found. the attribute's type must match the child node type. // TODO: implement check
 				//
-				// is a IncP defined in the type definition. This will define the child attributes to propagate (short names used)
+				// is a IncP defined in the type definition. This will define the child attributes to propagate (short names used).
+				// Note: to support has() all nullable (type attribute N = true) must be propagated
 				//
-				if len(v.IncP) > 0 {
+				fmt.Println("Compare attach types:3 ", v.Ty, cTyName)
+				if v.Ty != cTyName {
+					panic(fmt.Errorf("Parent node attachpoint does not match child type")) //TODO: replace panic with error message
+				}
 
-					for _, ps := range v.IncP {
-						var found bool
-						for _, cs := range cty {
-							if cs.C == ps {
-								switch cs.DT {
-								case "I", "F", "Bl", "S", "DT":
-								}
-								// found assoicated child scalar attribute
-								found = true
-								cnv = append(cnv, &ds.NV{Name: cs.Name})
-							}
-						}
-						if !found {
-							errch <- fmt.Errorf(fmt.Sprintf("AttachNode: Child scalar attribute not found based on parent IncP value, %q", ps))
-							return
-						}
-					}
+				//if len(v.IncP) > 0 {
 
-				} else {
+				// 	for _, ps := range v.IncP {
+				// 		var found bool
+				// 		for _, cs := range cty {
+				// 			if cs.C == ps {
+				// 				switch cs.DT {
+				// 				case "I", "F", "Bl", "S", "DT":
+				// 				}
+				// 				// found assoicated child scalar attribute
+				// 				found = true
+				// 				cnv = append(cnv, &ds.NV{Name: cs.Name})
+				// 			}
+				// 		}
+				// 		if !found {
+				// 			errch <- fmt.Errorf(fmt.Sprintf("AttachNode: Child scalar attribute not found based on parent IncP value, %q", ps))
+				// 			return
+				// 		}
+				// 	}
+				// 	//
+				// 	// propagate all nullable attributes if not already included in IncP specification. Will use XBl data to determine if attribute exists in child node for has().
+				// 	//
+				// 	included := func(name string) bool {
+				// 		for _, v := range cnv {
+				// 			if v.Name == name {
+				// 				return true
+				// 			}
+				// 		}
+				// 		return false
+				// 	}
+				// 	//
+				// 	for _, cs := range cty {
+				// 		fmt.Println("XXXXX1: include this nullable attribute: ", cs.Name, cs.N)
+				// 		if cs.N {
+				// 			// include in cnv if not already present
+				// 			if !included(cs.Name) {
+				// 				switch v.DT {
+				// 				// scalar types to be propagated
+				// 				case "I", "F", "Bl", "S", "DT": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
+				// 					fmt.Println("XXXXX2: include this nullable attribute: ", cs.Name)
+				// 					cnv = append(cnv, &ds.NV{Name: cs.Name})
+				// 				}
 
-					// grab all scalars from child type
-					for _, v := range cty {
-						switch v.DT {
-						// scalar types to be propagated
-						case "I", "F", "Bl", "S", "DT": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
-							if v.Pg {
-								// scalar type has propagation enabled
-								nv := &ds.NV{Name: v.Name}
-								cnv = append(cnv, nv)
-							}
+				// 			}
+				// 		}
+				// 	}
+
+				// } else {
+
+				// grab all scalars from child type
+				for _, v := range cty {
+					switch v.DT {
+					// scalar types to be propagated
+					case "I", "F", "Bl", "S", "DT": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
+						if v.Pg || v.N {
+							// scalar type has propagation enabled
+							nv := &ds.NV{Name: v.Name}
+							cnv = append(cnv, nv)
 						}
 					}
 				}
+				//	}
 			}
+		}
+		if !found {
+			panic(fmt.Errorf("Attachmment predicate %q not round in parent", attachPoint)) //TODO - handle as error
 		}
 		fmt.Printf("\nfff  nv : %#v\n", cnv)
 		//
@@ -523,7 +557,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 			return
 		}
 		//
-		// get type details from type table for child node
+		// get type details from type table for child node. Note: child type must match parent's attachment attribute type. /TODO : implement this check
 		//
 		var cty blk.TyAttrBlock // note: this will load cache.TyAttrC -> map[Ty_Attr]blk.TyAttrD
 		if cty, err = types.FetchType(cTyName); err != nil {
@@ -544,7 +578,7 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		tUID := payload.tUID
 		id := payload.itemId
 		pnd = payload.nd
-		pty := payload.pTy // parent type
+		pty := payload.pTy // attachment uid-pred type eg Person
 		defer pnd.Unlock()
 
 		if tUID == nil {
@@ -557,39 +591,63 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 		var cnv ds.ClientNV
 		//
 		// find attachment data type from sortK eg. A#G#:S
-		// here S is simply the abreviation for the Ty field which defines the child type  e.g 	"Person"
+		// here S is the short name (aka: compressed name, C attribute in type) for the uid-pred type which must match the child node type  e.g "Person"
 		//
 		//
 		// find attachment point in parent type based on sortk input
 		//
 		s := strings.Split(sortK, "#")
 		attachPoint := s[len(s)-1][1:]
-
+		fmt.Println("Compare attach types:1 & attachPoint ", cTyName, attachPoint)
 		for _, v := range pty {
-
+			fmt.Println("Compare attach types:2 ", v.Ty, cTyName)
 			if v.C == attachPoint {
 				//
-				// parent attachment point attribute found
+				//  attachment point attribute (parent) found. the attribute's type must match the child node type. // TODO: implement check
 				//
-				// is a IncP defined in the type definition. This will define the child attributes to propagate (short names used)
+				// is a IncP defined in the type definition. This will define the child attributes to propagate (short names used).
+				// Note: to support has() all nullable (type attribute N = true) must be propagated
 				//
+				fmt.Println("Compare attach types:3 ", v.Ty, cTyName)
+				if v.Ty == cTyName {
+					panic(fmt.Errorf("Parent node attachpoint does not match child type")) //TODO: this check may not be necessary. Review process of generating attachNode calls.
+				}
 				if len(v.IncP) > 0 {
 
 					for _, ps := range v.IncP {
 						var found bool
 						for _, cs := range cty {
 							if cs.C == ps {
-								switch cs.DT {
-								case "I", "F", "Bl", "S", "DT":
-								}
 								// found assoicated child scalar attribute
 								found = true
 								cnv = append(cnv, &ds.NV{Name: cs.Name})
+								break
 							}
 						}
 						if !found {
 							errch <- fmt.Errorf(fmt.Sprintf("AttachNode: Child scalar attribute not found based on parent IncP value, %q", ps))
 							return
+						}
+					}
+					//
+					// propagate all nullable data. Will use XBl data to determine if attribute exists in child node for has().
+					//
+					included := func(name string) bool {
+						for _, v := range cnv {
+							if v.Name == name {
+								return true
+							}
+						}
+						return false
+					}
+					//
+					for _, cs := range cty {
+						fmt.Println("XXXXX: attribute: ", cs.Name)
+						if cs.N {
+							// include in cnv if not already present
+							if !included(cs.Name) {
+								cnv = append(cnv, &ds.NV{Name: cs.Name})
+							}
 						}
 					}
 

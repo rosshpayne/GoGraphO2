@@ -75,7 +75,7 @@ func syslog(s string, panic_ ...bool) {
 // predfunc can be either the expression predicate or a modifying function (val, count)
 // value is the predicate value as appears in the expression e.g. eq(<pred>, 5) where 5 is the value.
 // nv is the contents of the cache (predicate,value) for the UID returned from the root func
-// ty is the type of the cache entry
+// ty is the type of the cache entry which is the same as the root item type.
 // i,k index into slice ([][]) of edge interface values (overflow representation of edge values)
 // bool dictates whether QResult element (represented by nv argument) will be ignored or displayeda
 func EQ(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
@@ -365,7 +365,10 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 // 	}
 // }
 
-func HAS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool    { return false }
+func HAS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
+	return false
+}
+
 func UID(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool    { return false }
 func UID_IN(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool { return false }
 func VAL(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool    { return false }

@@ -7,10 +7,11 @@ import (
 	"github.com/DynamoGraph/gql/internal/db"
 	"github.com/DynamoGraph/gql/internal/es"
 	slog "github.com/DynamoGraph/syslog"
+	"github.com/DynamoGraph/types"
 )
 
 const (
-	logid = "gqlAstFunc: "
+	logid = "gqlFunc: "
 )
 const (
 	allofterms = " AND "
@@ -134,9 +135,46 @@ func terms(termOpr string, a FargI, value interface{}) db.QResult {
 
 func Has(a FargI, value interface{}) db.QResult {
 
+	var (
+		result, resultN, resultS db.QResult
+		err                      error
+	)
 	if value != nil {
 		panic(fmt.Errorf("Expected nil value. Second argument to has() should be empty"))
 	}
+	//
+	// has(uid-prec) - all uid-preds/edges have a P_N entry (count of edges eminating from uid-predicate). If no edge exist then no entry. So GSI will list only nodes that have the uid-pred
+	// has(Actor.film) - nullable uid-pred (not all Person Type are actors)
+	// has(Director.film) - nullable uid-pred (because not all Person type are directors) - search for
+	//
+	// has(<scalar-pred>) - all scalars are indexed in P_N or P_S. If not present (null) in item then there is no index entry. So GSI will list only nodes that have the scalar defined.
+	// has(Address) - not-null scalar (everyone must have an address) - search on GSI (P_S) where P="Address" will find all candidates
+	// has(Age) - nullable scalar (not everyone gives their age) - search on GSI (P_S) where P="Age" will find all candidates
+	//
+	switch x := a.(type) {
 
-	return db.QResult{}
+	case ScalarPred:
+
+		// find datatype of scalar
+		switch {
+		case types.IsScalarPred(x.Name()):
+			// check P_S, P_N
+			resultN, err = db.GSIhasN(x.Name())
+			if err != nil {
+				panic(err)
+			}
+			resultS, err = db.GSIhasS(x.Name())
+			if err != nil {
+				panic(err)
+			}
+			result = resultN
+			result = append(result, resultS...)
+
+		case types.IsUidPred(x.Name()):
+			// check P_N
+			result, err = db.GSIhasN(x.Name())
+		}
+	}
+
+	return result
 }

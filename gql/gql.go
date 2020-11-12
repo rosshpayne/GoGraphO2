@@ -91,7 +91,6 @@ func Execute_(query string) *ast.RootStmt {
 	if len(errs) > 0 {
 		panic(errs[0])
 	}
-	fmt.Printf("doc: %s\n", stmt.String())
 	//
 	t1 := time.Now()
 	stmt.Execute(golimiter)
@@ -99,7 +98,9 @@ func Execute_(query string) *ast.RootStmt {
 
 	fmt.Printf("Duration:  Parse  %s  Execute: %s    \n", t1.Sub(t0), t2.Sub(t1))
 	syslog(fmt.Sprintf("Duration: Parse  %s  Execute: %s ", t1.Sub(t0), t2.Sub(t1)))
-	//	time.Sleep(2 * time.Second) // give time for monitor to empty its channel queues
+	time.Sleep(2 * time.Second) // give time for monitor to empty its channel queues
+
+	//Shutdown()
 
 	return stmt
 

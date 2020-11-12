@@ -81,7 +81,7 @@ type DataItem struct {
 	// base64.StdEncoding.Decode requires []byte argument hence XB [][]byte (len 1) rather thab []byte
 	// also Dynamo ListAppend only works with slices so []byte to [][]byte
 	// note: I use XB rather than X as X causes a Unmarshalling error. See description of field in doco.
-	XBl []bool // used in propagated child scalars (length number of children). True stipulates associated child value is NULL (ie. is not defined)
+	XBl []bool // used in propagated child scalars (length number of children). True means associated child value is NULL (ie. is not defined)
 	XF  []int  // used in uid-predicate 1 : c-UID, 2 : c-UID is soft deleted, 3 : ovefflow UID, 4 : overflow block full
 	Id  []int  // overflow item number in Overflow block e.g. A#G:S#:A#3 where Id is 3 meaning its the third item in the overflow block. Each item containing 500 or more UIDs in Lists.
 }

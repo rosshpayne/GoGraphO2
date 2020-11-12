@@ -7,6 +7,7 @@ import (
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/ds"
+	"github.com/DynamoGraph/gql/monitor"
 	mon "github.com/DynamoGraph/gql/monitor"
 	"github.com/DynamoGraph/util"
 )
@@ -36,7 +37,7 @@ func (r *RootStmt) MarshalJSON() string {
 
 		out.WriteString(fmt.Sprintf("\t{\n"))
 
-		for _, s := range r.Select {
+		for k, s := range r.Select {
 
 			switch x := s.Edge.(type) { // AAA
 
@@ -119,27 +120,25 @@ func (r *RootStmt) MarshalJSON() string {
 						}
 						out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 2)))
 					}
-
-					// if l < len(r.Select)-2 {
-					// 	out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
-					// 	out.WriteString(fmt.Sprintf("\t},\n"))
-					// } else {
-					// 	out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
-					// 	out.WriteString(fmt.Sprintf("\t}\n"))
-					// }
+					if i >= len(uids)-1 {
+						out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
+					}
+				}
+				if k >= len(uids)-1 {
+					out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
 				}
 			}
 		}
-		out.WriteString(fmt.Sprintf("\t]\n"))
 		if i < len(uids)-1 {
-			out.WriteString(fmt.Sprintf("\t},\n"))
+			out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 1)))
 		} else {
-			out.WriteString(fmt.Sprintf("\t}\n"))
+			out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 1)))
 		}
-		//		}
 	}
-	out.WriteString(fmt.Sprintf("   ]\n}"))
-	fmt.Println(out.String())
+	out.WriteString(fmt.Sprintf("]\n"))
+	out.WriteString(fmt.Sprintf("}\n"))
+	//	fmt.Println(out.String())
+	monitor.PrintCh <- struct{}{}
 
 	return out.String()
 }
@@ -229,6 +228,9 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 							break
 						}
 					}
+				}
+				if i >= len(uids)-1 {
+					out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))
 				}
 			}
 			out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))

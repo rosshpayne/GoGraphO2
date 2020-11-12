@@ -37,7 +37,7 @@ type node struct {
 	j, k int
 }
 
-func (e *Expression) rootExecute(nv ds.NVmap, ty string) bool {
+func (e *Expression) rootFilterExecute(nv ds.NVmap, ty string) bool {
 
 	v := node{ty: ty, j: -1, k: -1}
 	walk(e, nv, v)
@@ -195,7 +195,7 @@ func (e *Expression) RootApply(nv ds.ClientNV, ty string) bool {
 	for _, v := range nv {
 		nvm[v.Name] = v
 	}
-	return e.rootExecute(nvm, ty)
+	return e.rootFilterExecute(nvm, ty)
 }
 
 // Apply will run the filter function over all edges of the particular uid-pred

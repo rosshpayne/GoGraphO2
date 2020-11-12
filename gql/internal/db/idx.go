@@ -103,13 +103,13 @@ func GSIQueryN(attr AttrName, lv float64, op Equality) (QResult, error) {
 		return nil, newDBNoItemFound("GSIS", attr, "", "Query") //TODO add lv
 	}
 	//
-	ptR := make(QResult, len(result.Items))
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &ptR)
+	qresult := make(QResult, len(result.Items))
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &qresult)
 	if err != nil {
 		return nil, newDBUnmarshalErr("GSIS", attr, "", "UnmarshalListOfMaps", err)
 	}
 	//
-	return ptR, nil
+	return qresult, nil
 }
 
 func GSIQueryS(attr AttrName, lv string, op Equality) (QResult, error) {
@@ -153,11 +153,91 @@ func GSIQueryS(attr AttrName, lv string, op Equality) (QResult, error) {
 		return nil, newDBNoItemFound("GSIS", attr, lv, "Query")
 	}
 	//
-	ptR := make(QResult, len(result.Items))
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &ptR)
+	qresult := make(QResult, len(result.Items))
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &qresult)
 	if err != nil {
 		return nil, newDBUnmarshalErr("GSIS", attr, lv, "UnmarshalListOfMaps", err)
 	}
 	//
-	return ptR, nil
+	return qresult, nil
+}
+
+func GSIhasS(attr AttrName) (QResult, error) {
+
+	var keyC expression.KeyConditionBuilder
+	//
+	// DD determines what index to search based on Key value. Here Key is Name and DD knows its a string hence index P_S
+	//
+	keyC = expression.Key("P").Equal(expression.Value(attr))
+
+	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
+	if err != nil {
+		return nil, newDBExprErr("GSIS", attr, "", err)
+	}
+	//
+	input := &dynamodb.QueryInput{
+		KeyConditionExpression:    expr.KeyCondition(),
+		FilterExpression:          expr.Filter(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	}
+	input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+	//
+	result, err := dynSrv.Query(input)
+	if err != nil {
+		return nil, newDBSysErr("GSIS", "Query", err)
+	}
+	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
+	//
+	if int(*result.Count) == 0 {
+		return nil, newDBNoItemFound("GSIS", attr, "", "Query")
+	}
+	//
+	qresult := make(QResult, len(result.Items))
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &qresult)
+	if err != nil {
+		return nil, newDBUnmarshalErr("GSIS", attr, "", "UnmarshalListOfMaps", err)
+	}
+	//
+	return qresult, nil
+}
+
+func GSIhasN(attr AttrName) (QResult, error) {
+
+	var keyC expression.KeyConditionBuilder
+	//
+	// DD determines what index to search based on Key value. Here Key is Name and DD knows its a string hence index P_S
+	//
+	keyC = expression.Key("P").Equal(expression.Value(attr))
+
+	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
+	if err != nil {
+		return nil, newDBExprErr("GSIS", attr, "", err)
+	}
+	//
+	input := &dynamodb.QueryInput{
+		KeyConditionExpression:    expr.KeyCondition(),
+		FilterExpression:          expr.Filter(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	}
+	input = input.SetTableName("DyGraph").SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
+	//
+	result, err := dynSrv.Query(input)
+	if err != nil {
+		return nil, newDBSysErr("GSIS", "Query", err)
+	}
+	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
+	//
+	if int(*result.Count) == 0 {
+		return nil, newDBNoItemFound("GSIS", attr, "", "Query")
+	}
+	//
+	qresult := make(QResult, len(result.Items))
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &qresult)
+	if err != nil {
+		return nil, newDBUnmarshalErr("GSIS", attr, "", "UnmarshalListOfMaps", err)
+	}
+	//
+	return qresult, nil
 }

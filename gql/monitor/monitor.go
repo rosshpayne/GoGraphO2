@@ -117,15 +117,12 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 		case <-PrintCh:
 
-			slog.Log("monitor: ", "Powering down...")
 			fmt.Printf("monitor: %#v\n", stats)
 			slog.Log("monitor: ", fmt.Sprintf("monitor: %#v\n", stats))
 
 		case <-ctx.Done():
 
 			slog.Log("monitor: ", "Powering down...")
-			fmt.Printf("monitor: %#v\n", stats)
-			slog.Log("monitor: ", fmt.Sprintf("monitor: %#v\n", stats))
 			return
 
 		}
