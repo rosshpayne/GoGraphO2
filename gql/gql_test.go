@@ -59,6 +59,13 @@ func checkErrors(errs []error, expectedErr []string, t *testing.T) {
 
 func TestSimpleRootQuery1a(t *testing.T) {
 
+	input := `{
+  directors(func: eq(count(Siblings), 2)) {
+    Age
+    Name
+  }
+ }`
+
 	expected := ` 
         {
         data: [
@@ -77,13 +84,6 @@ func TestSimpleRootQuery1a(t *testing.T) {
         ]
         }`
 
-	input := `{
-  directors(func: eq(count(Siblings), 2)) {
-    Age
-    Name
-  }
-}`
-
 	t0 := time.Now()
 	stmt := Execute_(input)
 	t1 := time.Now()
@@ -94,7 +94,7 @@ func TestSimpleRootQuery1a(t *testing.T) {
 	if compare(result, expected) != 0 {
 		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
 	}
-
+	t.Log(result)
 }
 
 func TestSimpleRootQuery1b(t *testing.T) {
@@ -109,7 +109,34 @@ func TestSimpleRootQuery1b(t *testing.T) {
   }
 }`
 
-	Execute(input)
+	expected := `      {
+        data: [
+                {
+                Age : 36,
+                ],
+                Name : "Phil Smith",
+                ],
+                Siblings : [ 
+                        { 
+                        Name: Jenny Jones,
+                        }, 
+                ],
+                } 
+                ],
+                } 
+        }`
+
+	t0 := time.Now()
+	stmt := Execute_(input)
+	t1 := time.Now()
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	if compare(result, expected) != 0 {
+		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
+	}
+	t.Log(result)
 
 }
 

@@ -135,9 +135,50 @@ func (r *RootStmt) MarshalJSON() string {
 			out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 1)))
 		}
 	}
-	out.WriteString(fmt.Sprintf("]\n"))
+	if len(uids) >= 1 {
+		out.WriteString(fmt.Sprintf("]\n"))
+	}
 	out.WriteString(fmt.Sprintf("}\n"))
 	//	fmt.Println(out.String())
+
+	// 					if i >= len(uids)-1 {
+	// 						out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 2)))
+	// 					}
+	// 				}
+	// 				if i >= len(uids)-1 {
+	// 					out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
+	// 				}
+	// 				// else {
+	// 				// 	out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
+	// 				// }
+	// 			}
+	// 			if i >= len(uids)-1 {
+	// 				out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 1)))
+	// 			}
+	// 			// else {
+	// 			// 	out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 1)))
+	// 			// }
+	// 		}
+	// 		if k >= len(uids)-1 {
+	// 			out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
+	// 		}
+	// 		// else {
+	// 		// 	out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
+	// 		// }
+	// 	}
+	// 	if i < len(uids)-1 {
+	// 		out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 1)))
+	// 	} else {
+	// 		out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 1)))
+	// 	}
+
+	// }
+	// if len(uids) >= 1 {
+	// 	out.WriteString(fmt.Sprintf("]\n"))
+	// }
+	// out.WriteString(fmt.Sprintf("}\n"))
+	// //	fmt.Println(out.String())
+
 	monitor.PrintCh <- struct{}{}
 
 	return out.String()

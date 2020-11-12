@@ -289,33 +289,56 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 			panic(fmt.Errorf("Attachmment predicate %q not round in parent", attachPoint)) //TODO - handle as error
 		}
 		fmt.Printf("\nfff  nv : %#v\n", cnv)
-		//
-		// copy cache data into cnv and unlock child node.
-		//
-		err = cnd.UnmarshalCache(cnv)
-		if err != nil {
-			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: Unmarshall errored... %s", err.Error()))
-			errch <- fmt.Errorf("AttachNode: Unmarshal error : %s", err)
-			return
-		}
 
-		//
-		// ConfigureUpred() has primed the target propagation block with cUID and XF Inuse flag. Ready for propagation of Scalar data.
-		// lock pUID if it is the target of the data propagation.
-		// for overflow blocks the entry in the Nd of the uid-pred is set to InUse which syncs access.
+		if len(cnv) > 0 {
+			//
+			// copy cache data into cnv and unlock child node.
+			//
+			err = cnd.UnmarshalCache(cnv)
+			if err != nil {
+				syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: Unmarshall errored... %s", err.Error()))
+				errch <- fmt.Errorf("AttachNode: Unmarshal error : %s", err)
+				return
+			}
 
-		for _, t := range cty {
-			for _, v := range cnv {
+			//
+			// ConfigureUpred() has primed the target propagation block with cUID and XF Inuse flag. Ready for propagation of Scalar data.
+			// lock pUID if it is the target of the data propagation.
+			// for overflow blocks the entry in the Nd of the uid-pred is set to InUse which syncs access.
 
-				if t.Name == v.Name { //&& v.Value != nil {
+			for _, t := range cty {
 
-					id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
-					if err != nil {
-						errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err) //TODO: understand goroutine errch <- ??
+				for _, v := range cnv {
+
+					if t.Name == v.Name { //&& v.Value != nil {
+
+						id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
+
+						if err != nil {
+
+							if errors.Is(err, db.ErrAttributeDoesNotExist) {
+
+								id, err = db.InitialisePropagationItem(t, pUID, sortK, tUID, id)
+
+								if err != nil {
+									errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err)
+									return // triggers wg.Done()
+								}
+
+								id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
+
+								if err != nil {
+									errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err)
+									return // triggers wg.Done()
+								}
+							} else {
+								errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err)
+								return // triggers wg.Done()
+							}
+						}
 						//gc.UnlockNode(tUID)
-						return // triggers wg.Done()
+						break
 					}
-					break
 				}
 			}
 		}
@@ -694,12 +717,30 @@ func AttachNode2(cUID, pUID util.UID, sortK string) []error { // pTy string) err
 					if t.Name == v.Name { //&& v.Value != nil {
 
 						id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
+
 						if err != nil {
-							// TODO: rollback propagation data.
-							errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err) //TODO: understand goroutine errch <- ??
-							//gc.UnlockNode(tUID)
-							return // triggers wg.Done()
+
+							if errors.Is(err, db.ErrAttributeDoesNotExist) {
+
+								id, err = db.InitialisePropagationItem(t, pUID, sortK, tUID, id)
+
+								if err != nil {
+									errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err)
+									return // triggers wg.Done()
+								}
+
+								id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
+
+								if err != nil {
+									errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err)
+									return // triggers wg.Done()
+								}
+							} else {
+								errch <- fmt.Errorf("AttachNode: error in PropagateChildData %w", err)
+								return // triggers wg.Done()
+							}
 						}
+						//gc.UnlockNode(tUID)
 						break
 					}
 				}

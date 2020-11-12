@@ -16,7 +16,7 @@ import (
 	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/util"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
+	//"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -887,7 +887,8 @@ func MakeOvflBlocks(di *blk.DataItem, ofblk []util.UID, id int) error {
 // puid - parent node uid
 // sortK - uidpred of parent to append value G#:S (sibling) or G#:F (friend)
 // value - child value
-func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK string, tUID util.UID, id int, value interface{}) (int, error) { //, wg ...*sync.WaitGroup) error {
+//func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK string, tUID util.UID, id int, value interface{}) (int, error) { //, wg ...*sync.WaitGroup) error {
+func InitialisePropagationItem(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.UID, id int) (int, error) {
 	// **** where does Nd, XF get updated when in Overflow mode.????
 
 	// defer func() {
@@ -897,9 +898,10 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 	// }()
 
 	var (
-		lty string
-		err error
-		av  map[string]*dynamodb.AttributeValue
+		sortk string
+		lty   string
+		err   error
+		av    map[string]*dynamodb.AttributeValue
 	)
 	fmt.Println("+++++++++++++++++ PropagateChildData: sortk , ty", sortK, ty.Name)
 	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
@@ -952,13 +954,7 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 		}
 	}
 	fmt.Println("PropagateChildData: sortk , ty", sortk, ty.Name)
-	//
-	// shadow XBl null identiier
-	//
-	// null := make([]bool, 1, 1)
-	// if value == nil {
-	// 	null[0] = true
-	// }
+
 	var pkey_ []byte
 	if bytes.Equal(pUID, tUID) {
 		//		pUIDb64 := pUID.Encodeb64() used when loading data via API
@@ -1101,7 +1097,8 @@ func firstPropagationScalarItem(ty blk.TyAttrD, pUID util.UID, sortk, sortK stri
 	// 	}
 	// }
 
-	return PropagateChildData(ty, pUID, sortK, tUID, id, value)
+	//return PropagateChildData(ty, pUID, sortK, tUID, id, value)
+	return id, err
 
 }
 
@@ -1253,7 +1250,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 
 	case "LS":
 		if value == nil {
-			value = "__NULL__"
+			value = "__NULLm__"
 		}
 		if x, ok := value.(string); !ok {
 			logerr(fmt.Errorf("data type must be a string"), true)
@@ -1369,19 +1366,8 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 		t1 := time.Now()
 		syslog(fmt.Sprintf("PropagateChildData:consumed capacity for UpdateItem  %s.  Duration: %s", uio.ConsumedCapacity, t1.Sub(t0)))
 		if err != nil {
-			var aerr awserr.Error
+			return id, newDBSysErr("PropagateChildData", "createPropagationScalarItem", err)
 
-			if errors.As(err, &aerr) {
-				if aerr.Message() == "The provided expression refers to an attribute that does not exist in the item" {
-					// first time any child data has bee added to the parent. No <sortK> item entry currently exists. Let's add one and redo the propagation.
-					id, err := firstPropagationScalarItem(ty, pUID, sortk, sortK, tUID, id, value)
-					if err != nil {
-						return id, err
-					}
-				}
-			} else {
-				return id, newDBSysErr("PropagateChildData", "createPropagationScalarItem", err)
-			}
 		}
 		// if seq == 1 {
 		// 	return ErrItemSizeExceeded
