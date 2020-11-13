@@ -164,6 +164,8 @@ func GSIQueryS(attr AttrName, lv string, op Equality) (QResult, error) {
 
 func GSIhasS(attr AttrName) (QResult, error) {
 
+	syslog("GSIhasS: consumed capacity for Query ")
+
 	var keyC expression.KeyConditionBuilder
 	//
 	// DD determines what index to search based on Key value. Here Key is Name and DD knows its a string hence index P_S
@@ -185,24 +187,24 @@ func GSIhasS(attr AttrName) (QResult, error) {
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {
-		return nil, newDBSysErr("GSIS", "Query", err)
+		return nil, newDBSysErr("GSIhasS", "Query", err)
 	}
-	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
-	//
+	syslog(fmt.Sprintf("GSIhasS: consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
 	if int(*result.Count) == 0 {
-		return nil, newDBNoItemFound("GSIS", attr, "", "Query")
+		return nil, nil
 	}
-	//
 	qresult := make(QResult, len(result.Items))
 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &qresult)
 	if err != nil {
-		return nil, newDBUnmarshalErr("GSIS", attr, "", "UnmarshalListOfMaps", err)
+		return nil, newDBUnmarshalErr("GSIhasS", attr, "", "UnmarshalListOfMaps", err)
 	}
 	//
 	return qresult, nil
 }
 
 func GSIhasN(attr AttrName) (QResult, error) {
+
+	syslog("GSIhasN: consumed capacity for Query ")
 
 	var keyC expression.KeyConditionBuilder
 	//
@@ -212,7 +214,7 @@ func GSIhasN(attr AttrName) (QResult, error) {
 
 	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
 	if err != nil {
-		return nil, newDBExprErr("GSIS", attr, "", err)
+		return nil, newDBExprErr("GSIhasN", attr, "", err)
 	}
 	//
 	input := &dynamodb.QueryInput{
@@ -225,18 +227,18 @@ func GSIhasN(attr AttrName) (QResult, error) {
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {
-		return nil, newDBSysErr("GSIS", "Query", err)
+		return nil, newDBSysErr("GSIhasN", "Query", err)
 	}
 	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
 	//
 	if int(*result.Count) == 0 {
-		return nil, newDBNoItemFound("GSIS", attr, "", "Query")
+		return nil, nil
 	}
 	//
 	qresult := make(QResult, len(result.Items))
 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &qresult)
 	if err != nil {
-		return nil, newDBUnmarshalErr("GSIS", attr, "", "UnmarshalListOfMaps", err)
+		return nil, newDBUnmarshalErr("GSIhasN", attr, "", "UnmarshalListOfMaps", err)
 	}
 	//
 	return qresult, nil

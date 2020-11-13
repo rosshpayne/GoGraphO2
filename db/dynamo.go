@@ -1250,7 +1250,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 
 	case "LS":
 		if value == nil {
-			value = "__NULLm__"
+			value = "__NULL__"
 		}
 		if x, ok := value.(string); !ok {
 			logerr(fmt.Errorf("data type must be a string"), true)

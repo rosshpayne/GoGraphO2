@@ -118,7 +118,11 @@ func (r *RootStmt) MarshalJSON() string {
 								break
 							}
 						}
-						out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 2)))
+						if j == len(uids)-1 {
+							out.WriteString(fmt.Sprintf("%s}\n", strings.Repeat("\t", 2)))
+						} else {
+							out.WriteString(fmt.Sprintf("%s},\n", strings.Repeat("\t", 2)))
+						}
 					}
 					if i >= len(uids)-1 {
 						out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
@@ -132,52 +136,13 @@ func (r *RootStmt) MarshalJSON() string {
 		if i < len(uids)-1 {
 			out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 1)))
 		} else {
-			out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 1)))
+			out.WriteString(fmt.Sprintf("%s}\n", strings.Repeat("\t", 1)))
 		}
 	}
 	if len(uids) >= 1 {
 		out.WriteString(fmt.Sprintf("]\n"))
 	}
 	out.WriteString(fmt.Sprintf("}\n"))
-	//	fmt.Println(out.String())
-
-	// 					if i >= len(uids)-1 {
-	// 						out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 2)))
-	// 					}
-	// 				}
-	// 				if i >= len(uids)-1 {
-	// 					out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
-	// 				}
-	// 				// else {
-	// 				// 	out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
-	// 				// }
-	// 			}
-	// 			if i >= len(uids)-1 {
-	// 				out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 1)))
-	// 			}
-	// 			// else {
-	// 			// 	out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 1)))
-	// 			// }
-	// 		}
-	// 		if k >= len(uids)-1 {
-	// 			out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
-	// 		}
-	// 		// else {
-	// 		// 	out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
-	// 		// }
-	// 	}
-	// 	if i < len(uids)-1 {
-	// 		out.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", 1)))
-	// 	} else {
-	// 		out.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", 1)))
-	// 	}
-
-	// }
-	// if len(uids) >= 1 {
-	// 	out.WriteString(fmt.Sprintf("]\n"))
-	// }
-	// out.WriteString(fmt.Sprintf("}\n"))
-	// //	fmt.Println(out.String())
 
 	monitor.PrintCh <- struct{}{}
 
@@ -203,7 +168,7 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 
 	upred := u.Parent.(*UidPred)
 
-	for _, s := range upred.Select {
+	for k, s := range upred.Select {
 
 		switch x := s.Edge.(type) {
 
@@ -225,11 +190,11 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 			var s strings.Builder
 			out.WriteString(fmt.Sprintf("%s%s : [ \n", strings.Repeat("\t", u.lvl), x.Name()))
 
-			upred := nvm[x.Name()+":"]
-			for i, uids := range upred.Value.([][][]byte) {
+			upred_ := nvm[x.Name()+":"]
+			for i, uids := range upred_.Value.([][][]byte) {
 				for j, v := range uids {
 					//fmt.Printf("i, j, UID: %d %d, %s", i, j, util.UID(v).String())
-					if upred.State[i][j] == blk.UIDdetached || upred.State[i][j] == blk.EdgeFiltered {
+					if upred_.State[i][j] == blk.UIDdetached || upred_.State[i][j] == blk.EdgeFiltered {
 						continue // soft delete set or failed filter condition
 					}
 					s.Reset()
@@ -255,7 +220,11 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 							// TODO: what about other data types, sets in particular SS,SN..
 						}
 					}
-					s.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", u.lvl+1)))
+					if j == len(uids)-1 {
+						s.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", u.lvl+1)))
+					} else {
+						s.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", u.lvl+1)))
+					}
 					out.WriteString(s.String())
 					//
 					// walk the graph using uid-pred attributes belonging to edge x.
@@ -270,11 +239,20 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 						}
 					}
 				}
-				if i >= len(uids)-1 {
-					out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))
-				}
+				// if i >= len(uids)-1 {
+				// 	if k >= len(upred.Select) {
+				// 		out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))
+				// 	} else {
+				// 		out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", u.lvl)))
+				// 	}
+				// }
 			}
-			out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))
+			if k == len(upred.Select)-1 {
+				out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", u.lvl)))
+			} else {
+				out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))
+			}
+
 		}
 	}
 }

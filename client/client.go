@@ -325,6 +325,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 									return // triggers wg.Done()
 								}
 
+								// retry failed PropagateChildData
 								id, err = db.PropagateChildData(t, pUID, sortK, tUID, id, v.Value)
 
 								if err != nil {

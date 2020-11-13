@@ -7,7 +7,6 @@ import (
 	"github.com/DynamoGraph/gql/internal/db"
 	"github.com/DynamoGraph/gql/internal/es"
 	slog "github.com/DynamoGraph/syslog"
-	"github.com/DynamoGraph/types"
 )
 
 const (
@@ -139,6 +138,8 @@ func Has(a FargI, value interface{}) db.QResult {
 		result, resultN, resultS db.QResult
 		err                      error
 	)
+	syslog("Has: in... ")
+
 	if value != nil {
 		panic(fmt.Errorf("Expected nil value. Second argument to has() should be empty"))
 	}
@@ -155,25 +156,23 @@ func Has(a FargI, value interface{}) db.QResult {
 
 	case ScalarPred:
 
-		// find datatype of scalar
-		switch {
-		case types.IsScalarPred(x.Name()):
-			// check P_S, P_N
-			resultN, err = db.GSIhasN(x.Name())
-			if err != nil {
-				panic(err)
-			}
-			resultS, err = db.GSIhasS(x.Name())
-			if err != nil {
-				panic(err)
-			}
-			result = resultN
-			result = append(result, resultS...)
-
-		case types.IsUidPred(x.Name()):
-			// check P_N
-			result, err = db.GSIhasN(x.Name())
+		syslog("Has: in... 3333")
+		// check P_S, P_N
+		resultN, err = db.GSIhasN(x.Name())
+		if err != nil {
+			panic(err)
 		}
+		resultS, err = db.GSIhasS(x.Name())
+		if err != nil {
+			panic(err)
+		}
+		result = resultN
+		result = append(result, resultS...)
+
+	case *UidPred:
+		// P_N has count of edges for uidPred. Use it to find all associated nodes.
+
+		result, err = db.GSIhasN(x.Name())
 	}
 
 	return result

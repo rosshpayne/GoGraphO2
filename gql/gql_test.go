@@ -276,6 +276,268 @@ func TestRootQuery1f(t *testing.T) {
 }
 func TestRootQuery1g(t *testing.T) {
 
+	expected := `{
+data: [
+        {
+        Age : 62,
+        Name : "Ross Payne",
+        Friends : [ 
+                { 
+                Name: Phil Smith,
+                Age: 36,
+                Siblings : [ 
+                        { 
+                        Name: Jenny Jones,
+                        } 
+                        Friends : [ 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Paul Payne,
+                                Age: 58,
+                                } 
+                        ]
+                ]
+                },
+                { 
+                Name: Ian Payne,
+                Age: 67,
+                Siblings : [ 
+                        { 
+                        Name: Ross Payne,
+                        }, 
+                        Friends : [ 
+                                { 
+                                Name: Phil Smith,
+                                Age: 36,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                } 
+                        ]
+                        { 
+                        Name: Paul Payne,
+                        } 
+                        Friends : [ 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                } 
+                        ]
+                ]
+                }
+        ],
+        Siblings : [ 
+                { 
+                Name: Paul Payne,
+                Age: 58,
+                },
+                { 
+                Name: Ian Payne,
+                Age: 67,
+                }
+        ],
+        }, 
+        {
+        Age : 67,
+        Name : "Ian Payne",
+        Friends : [ 
+                { 
+                Name: Phil Smith,
+                Age: 36,
+                Siblings : [ 
+                        { 
+                        Name: Jenny Jones,
+                        } 
+                        Friends : [ 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Paul Payne,
+                                Age: 58,
+                                } 
+                        ]
+                ]
+                },
+                { 
+                Name: Ross Payne,
+                Age: 62,
+                Siblings : [ 
+                        { 
+                        Name: Paul Payne,
+                        }, 
+                        Friends : [ 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                } 
+                        ]
+                        { 
+                        Name: Ian Payne,
+                        } 
+                        Friends : [ 
+                                { 
+                                Name: Phil Smith,
+                                Age: 36,
+                                }, 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Paul Payne,
+                                Age: 58,
+                                } 
+                        ]
+                ]
+                },
+                { 
+                Name: Paul Payne,
+                Age: 58,
+                Siblings : [ 
+                        { 
+                        Name: Ian Payne,
+                        }, 
+                        Friends : [ 
+                                { 
+                                Name: Phil Smith,
+                                Age: 36,
+                                }, 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Paul Payne,
+                                Age: 58,
+                                } 
+                        ]
+                        { 
+                        Name: Ross Payne,
+                        } 
+                        Friends : [ 
+                                { 
+                                Name: Phil Smith,
+                                Age: 36,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                } 
+                        ]
+                ]
+                }
+        ],
+        Siblings : [ 
+                { 
+                Name: Ross Payne,
+                Age: 62,
+                },
+                { 
+                Name: Paul Payne,
+                Age: 58,
+                }
+        ],
+        }, 
+        {
+        Age : 58,
+        Name : "Paul Payne",
+        Friends : [ 
+                { 
+                Name: Ross Payne,
+                Age: 62,
+                Siblings : [ 
+                        { 
+                        Name: Paul Payne,
+                        }, 
+                        Friends : [ 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                } 
+                        ]
+                        { 
+                        Name: Ian Payne,
+                        } 
+                        Friends : [ 
+                                { 
+                                Name: Phil Smith,
+                                Age: 36,
+                                }, 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Paul Payne,
+                                Age: 58,
+                                } 
+                        ]
+                ]
+                },
+                { 
+                Name: Ian Payne,
+                Age: 67,
+                Siblings : [ 
+                        { 
+                        Name: Ross Payne,
+                        }, 
+                        Friends : [ 
+                                { 
+                                Name: Phil Smith,
+                                Age: 36,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                } 
+                        ]
+                        { 
+                        Name: Paul Payne,
+                        } 
+                        Friends : [ 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                } 
+                        ]
+                ]
+                }
+        ],
+        Siblings : [ 
+                { 
+                Name: Ian Payne,
+                Age: 67,
+                },
+                { 
+                Name: Ross Payne,
+                Age: 62,
+                }
+        ],
+        }
+]
+}`
 	input := `{
   directors(func: eq(count(Siblings), 2)) {
     Age
@@ -299,9 +561,18 @@ func TestRootQuery1g(t *testing.T) {
 }`
 
 	t0 := time.Now()
-	Execute(input)
+	stmt := Execute_(input)
 	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	t.Log(result)
+	if compare(result, expected) != 0 {
+		t.Log("Error: result JSON does not match expected JSONs")
+		t.Fail()
+	}
+
 }
 
 func TestRootFilter1(t *testing.T) {
@@ -542,25 +813,233 @@ func TestUPredFilter5(t *testing.T) {
 	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
 }
 
-func TestRootFilter2(t *testing.T) {
+func TestRootHas1(t *testing.T) {
 
-	// 	input := `{
-	//   me(func: eq(name@en, "Steven Spielberg")) @filter(has(director.film)) {
-	//     name@en
-	//     director.film @filter(allofterms(name@en, "jones indiana") OR allofterms(name@en, "jurassic park"))  {
-	//       uid
-	//       name@en
-	//     }
-	//   }
-	// }`
+	expected := `{
+        data: [
+                {
+                Name : "Ross Payne",
+                Address : "67/55 Burkitt St Page, ACT, Australia",
+                Siblings : [ 
+                        { 
+                        Name: Ian Payne,
+                        Age: 67,
+                        },
+                        { 
+                        Name: Paul Payne,
+                        Age: 58,
+                        }
+                ],
+                }
+        ]
+        }`
 
 	input := `{
-  me(func:eq(count(Siblings),2) @filter(has(Friends)) ) {
-	Name
-}}`
+	  me(func: has(Address)) {
+	    Name
+		Address
+		Age
+		Siblings {
+			Name
+			Age
+		}
+	    }
+	}`
 
-	Execute(input)
-	//
+	t0 := time.Now()
+	stmt := Execute_(input)
+	t1 := time.Now()
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	t.Log(result)
+	if compare(result, expected) != 0 {
+		t.Log("Error: result JSON does not match expected JSONs")
+		t.Fail()
+	}
+
+}
+
+func TestRootHas2(t *testing.T) {
+
+	expected := `        {
+        data: [
+                {
+                Name : "Ross Payne",
+                Address : "67/55 Burkitt St Page, ACT, Australia",
+                Age : 62,
+                Siblings : [ 
+                        { 
+                        Name: Ian Payne,
+                        Age: 67,
+                        },
+                        { 
+                        Name: Paul Payne,
+                        Age: 58,
+                        }
+                ],
+                }, 
+                {
+                Name : "Ian Payne",
+                 Address : <nil>,
+                Age : 67,
+                Siblings : [ 
+                        { 
+                        Name: Ross Payne,
+                        Age: 62,
+                        },
+                        { 
+                        Name: Paul Payne,
+                        Age: 58,
+                        }
+                ],
+                }, 
+                {
+                Name : "Phil Smith",
+                 Address : <nil>,
+                Age : 36,
+                Siblings : [ 
+                        { 
+                        Name: Jenny Jones,
+                        Age: 59,
+                        }
+                ],
+                ],
+                }, 
+                {
+                Name : "Paul Payne",
+                 Address : <nil>,
+                Age : 58,
+                Siblings : [ 
+                        { 
+                        Name: Ian Payne,
+                        Age: 67,
+                        },
+                        { 
+                        Name: Ross Payne,
+                        Age: 62,
+                        }
+                ],
+                }
+        ]
+        }`
+
+	input := `{
+	  me(func: has(Siblings)) {
+	    Name
+		Address
+		Age
+		Siblings {
+			Name
+			Age
+		}
+	    }
+	}`
+
+	t0 := time.Now()
+	stmt := Execute_(input)
+	t1 := time.Now()
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	t.Log(result)
+	if compare(result, expected) != 0 {
+		t.Log("Error: result JSON does not match expected JSONs")
+		t.Fail()
+	}
+
+}
+
+func TestRootHasWithFilter(t *testing.T) {
+
+	expected := `        {
+        data: [
+                {
+                Name : "Ross Payne",
+                Address : "67/55 Burkitt St Page, ACT, Australia",
+                Age : 62,
+                Siblings : [ 
+                        { 
+                        Name: Ian Payne,
+                        Age: 67,
+                        },
+                        { 
+                        Name: Paul Payne,
+                        Age: 58,
+                        }
+                ],
+                }, 
+                {
+                Name : "Ian Payne",
+                 Address : <nil>,
+                Age : 67,
+                Siblings : [ 
+                        { 
+                        Name: Ross Payne,
+                        Age: 62,
+                        },
+                        { 
+                        Name: Paul Payne,
+                        Age: 58,
+                        }
+                ],
+                }, 
+                {
+                Name : "Phil Smith",
+                 Address : <nil>,
+                Age : 36,
+                Siblings : [ 
+                        { 
+                        Name: Jenny Jones,
+                        Age: 59,
+                        }
+                ],
+                ],
+                }, 
+                {
+                Name : "Paul Payne",
+                 Address : <nil>,
+                Age : 58,
+                Siblings : [ 
+                        { 
+                        Name: Ian Payne,
+                        Age: 67,
+                        },
+                        { 
+                        Name: Ross Payne,
+                        Age: 62,
+                        }
+                ],
+                }
+        ]
+        }`
+
+	input := `{
+	  me(func: has(Siblings)) @filter(has(Address))) {
+	    Name
+		Address
+		Age
+		Siblings {
+			Name
+			Age
+		}
+	    }
+	}`
+
+	t0 := time.Now()
+	stmt := Execute_(input)
+	t1 := time.Now()
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	t.Log(result)
+	if compare(result, expected) != 0 {
+		t.Log("Error: result JSON does not match expected JSONs")
+		t.Fail()
+	}
 
 }
 
@@ -686,14 +1165,14 @@ func TestUPredFilterterms1a(t *testing.T) {
 func TestUPredFilterterms1b1(t *testing.T) {
 
 	expected := `        
-	{
+        {
         data: [
                 {
                 Age : 62,
                 Name : "Ross Payne",
                 Friends : [ 
-                ]
-                },
+                ],
+                }, 
                 {
                 Age : 67,
                 Name : "Ian Payne",
@@ -701,30 +1180,7 @@ func TestUPredFilterterms1b1(t *testing.T) {
                         { 
                         Age: 62,
                         Name: Ross Payne,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        Siblings : [ 
-                                { 
-                                Name: Ross Payne,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        }, 
-                ]
-                },
-                {
-                Age : 58,
-                Name : "Paul Payne",
-                Friends : [ 
-                        { 
-                        Age: 62,
-                        Name: Ross Payne,
+                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
                         Friends : [ 
                                 { 
                                 Age: 67,
@@ -740,9 +1196,53 @@ func TestUPredFilterterms1b1(t *testing.T) {
                                 }, 
                         ],
                         }, 
-                ]
-                }
-           ]
+                        { 
+                        Age: 58,
+                        Name: Paul Payne,
+                        Comment: A foggy snowy morning lit with Smith sodium lamps is an absolute dream,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ],
+                        Siblings : [ 
+                                { 
+                                Name: Ian Payne,
+                                }, 
+                                { 
+                                Name: Ross Payne,
+                                }, 
+                        ],
+                        }, 
+                ],
+                }, 
+                {
+                Age : 58,
+                Name : "Paul Payne",
+                Friends : [ 
+                        { 
+                        Age: 62,
+                        Name: Ross Payne,
+                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ],
+                        Siblings : [ 
+                                { 
+                                Name: Paul Payne,
+                                }, 
+                                { 
+                                Name: Ian Payne,
+                                }, 
+                        ],
+                        }, 
+                ],
+                } 
+        ]
         }`
 
 	input := `{
@@ -752,6 +1252,7 @@ func TestUPredFilterterms1b1(t *testing.T) {
     Friends @filter(anyofterms(Comment,"sodium Germany Chris")) {
         Age
     	Name
+    	Comment
     	Friends @filter(gt(Age,62)) {
     	  Age
     	  Name
@@ -780,6 +1281,82 @@ func TestUPredFilterterms1b1(t *testing.T) {
 
 func TestUPredFilterterms1b2(t *testing.T) {
 
+	expected := `
+        {
+        data: [
+                {
+                Age : 62,
+                Name : "Ross Payne",
+                Friends : [ 
+                ],
+                }, 
+                {
+                Age : 67,
+                Name : "Ian Payne",
+                Friends : [ 
+                        { 
+                        Age: 62,
+                        Name: Ross Payne,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ],
+                        Siblings : [ 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                }, 
+                        ],
+                        }, 
+                        { 
+                        Age: 58,
+                        Name: Paul Payne,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ],
+                        Siblings : [ 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                }, 
+                                { 
+                                Name: Ross Payne,
+                                Age: 62,
+                                }, 
+                        ],
+                        }, 
+                ],
+                }, 
+                {
+                Age : 58,
+                Name : "Paul Payne",
+                Friends : [ 
+                        { 
+                        Age: 62,
+                        Name: Ross Payne,
+                        Friends : [ 
+                                { 
+                                Age: 67,
+                                Name: Ian Payne,
+                                }, 
+                        ],
+                        Siblings : [ 
+                                { 
+                                Name: Ian Payne,
+                                Age: 67,
+                                }, 
+                        ],
+                        }, 
+                ],
+                } 
+        ]
+        }`
+
 	input := `{
   directors(func: eq(count(Siblings), 2) ) {
     Age
@@ -791,16 +1368,26 @@ func TestUPredFilterterms1b2(t *testing.T) {
     	  Age
     	  Name
 	    }
-	    Siblings @filter(gt(Age,55)) {
+	    Siblings @filter(gt(Age,58)) {
     		Name
+    		Age
 	   	}
     }
   }
 }`
 
 	t0 := time.Now()
-	Execute(input)
+	stmt := Execute_(input)
 	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
+
+	result := stmt.MarshalJSON()
+
+	t.Log(result)
+	if compare(result, expected) != 0 {
+		t.Log("Error: result JSON does not match expected JSONs")
+		t.Fail()
+	}
+	t.Log(result)
 
 }

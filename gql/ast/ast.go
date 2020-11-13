@@ -316,6 +316,7 @@ func (u *UidPred) genNV() ds.ClientNV {
 //func (p *UIDPred) innerArg() {}
 func (p *UidPred) aggrArg() {}
 func (p *UidPred) cntArg()  {}
+func (p *UidPred) farg()    {} // in has() only
 func (p UidPred) String() string {
 	var s strings.Builder
 	s.WriteString(p.Name_.Name)

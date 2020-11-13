@@ -270,14 +270,25 @@ func (p *Parser) parseFunction(s *ast.RootStmt) *Parser {
 		switch p.curToken.Type {
 
 		case token.IDENT:
-			if !types.IsScalarPred(p.curToken.Literal) {
-				if p.curToken.Literal != token.HAS {
-					p.addErr(fmt.Sprintf(`Predicate %q is not a scalar in any known type`, p.curToken.Literal))
+			switch {
+			case types.IsScalarPred(p.curToken.Literal):
+
+				s := ast.ScalarPred{}
+				s.AssignName(p.curToken.Literal, p.curToken.Loc)
+				rf.Farg = s
+
+			case types.IsUidPred(p.curToken.Literal):
+
+				if rf.Name() != token.HAS {
+					p.addErr(fmt.Sprintf(`UID Predicates only allowed as argument to Has()`))
+					return
 				}
+
+				s := &ast.UidPred{}
+				s.AssignName(p.curToken.Literal, p.curToken.Loc)
+				rf.Farg = s
+
 			}
-			s := ast.ScalarPred{}
-			s.AssignName(p.curToken.Literal, p.curToken.Loc)
-			rf.Farg = s
 
 			p.nextToken("read over identifer") // read over identier
 

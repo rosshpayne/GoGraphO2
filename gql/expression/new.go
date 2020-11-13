@@ -66,6 +66,10 @@ func New(input string) *Expression {
 
 	popState := func() {
 		var s state
+		if len(lp) == 0 {
+			//TODO - handle errors more gracefully
+			panic(fmt.Errorf("redundant ) at end of expression"))
+		}
 		s, lp = lp[len(lp)-1], lp[:len(lp)-1]
 		opr_ = s.opr
 	}
