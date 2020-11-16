@@ -96,7 +96,7 @@ func (r *RootStmt) MarshalJSON() string {
 
 							switch z := scalar.Value.(type) {
 							case [][]string:
-								s.WriteString(fmt.Sprintf("%s%s: %s,\n", strings.Repeat("\t", 2), pred, z[i][j]))
+								s.WriteString(fmt.Sprintf("%s%s: %q,\n", strings.Repeat("\t", 2), pred, z[i][j]))
 							case [][]int64:
 								s.WriteString(fmt.Sprintf("%s%s: %d,\n", strings.Repeat("\t", 2), pred, z[i][j]))
 							case [][]float64:
@@ -124,12 +124,9 @@ func (r *RootStmt) MarshalJSON() string {
 							out.WriteString(fmt.Sprintf("%s},\n", strings.Repeat("\t", 2)))
 						}
 					}
-					if i >= len(uids)-1 {
-						out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
-					}
 				}
-				if k >= len(uids)-1 {
-					out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", 1)))
+				if k == len(r.Select)-1 {
+					out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", 1)))
 				}
 			}
 		}
@@ -189,7 +186,6 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 			//
 			var s strings.Builder
 			out.WriteString(fmt.Sprintf("%s%s : [ \n", strings.Repeat("\t", u.lvl), x.Name()))
-
 			upred_ := nvm[x.Name()+":"]
 			for i, uids := range upred_.Value.([][][]byte) {
 				for j, v := range uids {
@@ -210,7 +206,7 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 						pred := scalar.Name[strings.Index(scalar.Name, ":")+1:]
 						switch z := scalar.Value.(type) {
 						case [][]string:
-							s.WriteString(fmt.Sprintf("%s%s: %s,\n", strings.Repeat("\t", u.lvl+1), pred, z[i][j]))
+							s.WriteString(fmt.Sprintf("%s%s: %q,\n", strings.Repeat("\t", u.lvl+1), pred, z[i][j]))
 						case [][]int64:
 							s.WriteString(fmt.Sprintf("%s%s: %d,\n", strings.Repeat("\t", u.lvl+1), pred, z[i][j]))
 						case [][]float64:
@@ -219,11 +215,6 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 							s.WriteString(fmt.Sprintf("%s%s: %v,\n", strings.Repeat("\t", u.lvl+1), pred, z[i][j]))
 							// TODO: what about other data types, sets in particular SS,SN..
 						}
-					}
-					if j == len(uids)-1 {
-						s.WriteString(fmt.Sprintf("%s} \n", strings.Repeat("\t", u.lvl+1)))
-					} else {
-						s.WriteString(fmt.Sprintf("%s}, \n", strings.Repeat("\t", u.lvl+1)))
 					}
 					out.WriteString(s.String())
 					//
@@ -238,14 +229,8 @@ func (u *UidPred) marshalJSON(uid_ []uint8, out *strings.Builder) {
 							break
 						}
 					}
+					out.WriteString(fmt.Sprintf("%s},\n", strings.Repeat("\t", u.lvl+1)))
 				}
-				// if i >= len(uids)-1 {
-				// 	if k >= len(upred.Select) {
-				// 		out.WriteString(fmt.Sprintf("%s],\n", strings.Repeat("\t", u.lvl)))
-				// 	} else {
-				// 		out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", u.lvl)))
-				// 	}
-				// }
 			}
 			if k == len(upred.Select)-1 {
 				out.WriteString(fmt.Sprintf("%s]\n", strings.Repeat("\t", u.lvl)))

@@ -4,26 +4,108 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"testing"
 	"time"
 
+	"github.com/DynamoGraph/db"
 	"github.com/DynamoGraph/gql/ast"
-	"github.com/DynamoGraph/gql/monitor"
+	stat "github.com/DynamoGraph/gql/monitor"
 	"github.com/DynamoGraph/gql/parser"
 	"github.com/DynamoGraph/rdf/grmgr"
 	slog "github.com/DynamoGraph/syslog"
 )
 
-var ctx context.Context
-var cancel context.CancelFunc
-var ctxEnd sync.WaitGroup
+var (
+	ctx    context.Context
+	cancel context.CancelFunc
+	ctxEnd sync.WaitGroup
+	//
+	replyCh        chan interface{}
+	statTouchNodes stat.Request
+	statTouchLvl   stat.Request
+	statDbFetches  stat.Request
+	//
+	expectedJSON       string
+	expectedTouchLvl   []int
+	expectedTouchNodes int
+	//
+	t0, t1, t2 time.Time
+)
 
 func syslog(s string) {
 	slog.Log("gql: ", s)
 }
 
 func init() {
+
+	replyCh = make(chan interface{})
+	statTouchNodes = stat.Request{Id: stat.TouchNode, ReplyCh: replyCh}
+	statTouchLvl = stat.Request{Id: stat.TouchLvl, ReplyCh: replyCh}
+	statDbFetches = stat.Request{Id: stat.NodeFetch, ReplyCh: replyCh}
+
 	fmt.Println("====================== STARTUP =====================")
 	Startup()
+}
+
+func validate(t *testing.T, result string, abort ...bool) {
+
+	var msg string
+
+	t.Log(result)
+
+	stat.GetCh <- statTouchNodes
+	nodes := <-replyCh
+
+	stat.GetCh <- statTouchLvl
+	levels := <-replyCh
+
+	stat.GetCh <- statDbFetches
+	fetches := <-replyCh
+
+	status := "P" // Passed
+	if compareStat(nodes, expectedTouchNodes) {
+		status = "F" // Failed
+		msg = fmt.Sprintf("Error: in nodes touched. Expected %d got %d", expectedTouchNodes, nodes)
+		t.Error(msg)
+	}
+	if compareStat(levels, expectedTouchLvl) {
+		status = "F" // Failed
+		msg += fmt.Sprintf(" | Error: in nodes touched at levels. Expected %v got %v", expectedTouchLvl, levels)
+		t.Error(msg)
+	}
+
+	if len(expectedJSON) > 0 && compareJSON(result, expectedJSON) {
+		t.Error("JSON is not as expected: ")
+	}
+	//
+	// must check if stats have been populated which will not be the case when all nodes have failed to pass the filter.
+	// note: this code presumes expected variables always have values even when nothing is expected (in which case they will be populated with zero values)
+	var (
+		fetches_, nodes_ int
+		levels_          []int
+		abort_           bool
+	)
+	if len(abort) > 0 {
+		abort_ = abort[0]
+	} else {
+		abort_ = false
+	}
+	if levels != nil {
+		levels_ = levels.([]int)
+	}
+	if fetches != nil {
+		fetches_ = fetches.(int)
+	}
+	if nodes != nil {
+		nodes_ = nodes.(int)
+	}
+	db.SaveTestResult(t.Name(), status, nodes_, levels_, t1.Sub(t0).String(), t2.Sub(t1).String(), msg, result, fetches_, abort_)
+	//
+	// clear
+	//
+	expectedJSON = ``
+	expectedTouchNodes = -1
+	expectedTouchLvl = []int{}
 }
 
 func Execute(query string) {
@@ -44,7 +126,7 @@ func Execute(query string) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go grmgr.PowerOn(ctx, &wpStart, &ctxEnd)
-	go monitor.PowerOn(ctx, &wpStart, &ctxEnd)
+	go stat.PowerOn(ctx, &wpStart, &ctxEnd)
 
 	wpStart.Wait()
 	syslog(fmt.Sprintf(" services started "))
@@ -71,7 +153,7 @@ func Execute(query string) {
 	t3 := time.Now()
 	fmt.Printf("Duration: Setup  %s  Parse  %s  Execute: %s      Output: %s\n", t0.Sub(tstart), t1.Sub(t0), t2.Sub(t1), t3.Sub(t2))
 	syslog(fmt.Sprintf("Duration: Parse  %s  Execute: %s      Output: %s", t1.Sub(t0), t2.Sub(t1), t3.Sub(t2)))
-	time.Sleep(2 * time.Second) // give time for monitor to empty its channel queues
+	time.Sleep(2 * time.Second) // give time for stat to empty its channel queues
 	cancel()
 
 	ctxEnd.Wait()
@@ -81,24 +163,25 @@ func Execute(query string) {
 
 func Execute_(query string) *ast.RootStmt {
 
-	//defer Shutdown()
+	//clear monitor stats
+	stat.ClearCh <- struct{}{}
 
 	golimiter := grmgr.New("execute", 66)
 
-	t0 := time.Now()
+	t0 = time.Now()
 	p := parser.New(query)
 	stmt, errs := p.ParseInput()
 	if len(errs) > 0 {
 		panic(errs[0])
 	}
 	//
-	t1 := time.Now()
+	t1 = time.Now()
 	stmt.Execute(golimiter)
-	t2 := time.Now()
+	t2 = time.Now()
 
 	fmt.Printf("Duration:  Parse  %s  Execute: %s    \n", t1.Sub(t0), t2.Sub(t1))
 	syslog(fmt.Sprintf("Duration: Parse  %s  Execute: %s ", t1.Sub(t0), t2.Sub(t1)))
-	time.Sleep(2 * time.Second) // give time for monitor to empty its channel queues
+	time.Sleep(2 * time.Second) // give time for stat to empty its channel queues
 
 	//Shutdown()
 
@@ -123,7 +206,7 @@ func Startup() {
 	ctx, cancel = context.WithCancel(context.Background())
 
 	go grmgr.PowerOn(ctx, &wpStart, &ctxEnd)
-	go monitor.PowerOn(ctx, &wpStart, &ctxEnd)
+	go stat.PowerOn(ctx, &wpStart, &ctxEnd)
 
 	wpStart.Wait()
 	syslog(fmt.Sprintf("services started "))

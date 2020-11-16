@@ -9,12 +9,14 @@ import (
 	expr "github.com/DynamoGraph/gql/expression"
 	"github.com/DynamoGraph/gql/internal/db"
 	"github.com/DynamoGraph/gql/token"
+	"github.com/DynamoGraph/types"
 	"github.com/DynamoGraph/util"
 	//"github.com/DynamoGraph/rdf/grmgr"
 )
 
 type FargI interface {
 	String() string
+	Name() string
 	farg()
 }
 
@@ -37,7 +39,7 @@ type SelectI interface {
 	assignData(string, ds.ClientNV, index) ds.NVmap
 	getData(string) (ds.NVmap, ds.ClientNV, bool)
 	getIdx(string) (index, bool)
-	genNV() ds.ClientNV
+	genNV(ty string) ds.ClientNV
 	getnodes(string) (ds.NVmap, bool)
 	getnodesc(string) (ds.ClientNV, bool)
 }
@@ -247,15 +249,8 @@ func (u *UidPred) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
 	return nvm, nvc, ok
 }
 
-// genNV produces a list of predicate names from the select list of the uid-pred
-// which is inturn sourced from the GQL stmt. The order is important as it determines the
-// order of the output and as its based on the GQL stmt what is specified in the stmt is output.
-// The output of genNV is used to generate the sortk list which ultimately determines
-// what is loaded into the cache from Dynamodb. The only complication is to handle predicates
-// in the filter expressions (if present), as we don't want to upset the order of the final
-// list of predicates. This is where the "ignore" attribute of the NV struct enables a predicate
-// to appear in the list but not impact the output.
-func (u *UidPred) genNV() ds.ClientNV {
+
+func (u *UidPred) genNV(ty string) ds.ClientNV { 
 	var nvc ds.ClientNV
 
 	for _, v := range u.Select {
@@ -641,17 +636,26 @@ func (r *RootStmt) getIdx(key string) (index, bool) {
 }
 
 // genNV generates NV nodes based on type (parameter ty) passed in
-func (r *RootStmt) genNV() ds.ClientNV {
+func (r *RootStmt) genNV(ty string) ds.ClientNV {
 	var nvc ds.ClientNV
-
+	//
+	// source: root filter expression
+	//
 	if r.Filter != nil {
-		s := r.Filter.GetPredicates()
-		for _, x := range s {
-			nv := &ds.NV{Name: x}
-			nvc = append(nvc, nv)
+		for _, x := range r.Filter.GetPredicates() {
+			switch {
+			case types.IsUidPredInTy(ty, x):
+				nv := &ds.NV{Name: x + ":"}
+				nvc = append(nvc, nv)
+			case types.IsScalarInTy(ty, x):
+				nv := &ds.NV{Name: x}
+				nvc = append(nvc, nv)
+			}
 		}
 	}
-
+	//
+	// source: select list
+	//
 	for _, v := range r.Select {
 
 		switch x := v.Edge.(type) {

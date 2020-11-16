@@ -70,10 +70,10 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	// generate NV from GQL stmt - will also hold data from query response once UmarshalNodeCache is run.
 	// query->cache->unmarshal(nv)
 	//
-	nvc := r.genNV()
-	// for _, n := range nvc {
-	// 	fmt.Println("genNV__: ", n.Name, n.Ignore)
-	// }
+	nvc := r.genNV(result.tyS) //TODO: pass in result.tyS to enable validation of GQL stmt predicates against result type
+	for _, n := range nvc {
+		fmt.Println("Root genNV__: ", n.Name, n.Ignore)
+	}
 	//
 	// generate sortk - determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible.
 	//
@@ -99,8 +99,11 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 	//
 	// root filter
 	//
+	// for _, v := range nvc {
+	// 	fmt.Printf("nvc: %#v\n", v)
+	// }
 	if r.Filter != nil && !r.Filter.RootApply(nvc, result.tyS) {
-		// nc.ClearCache() // TODO: implement
+		// nc.ClearCache() to free memory // TODO: implement
 		return
 	}
 	//
@@ -232,10 +235,10 @@ func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID,
 		//
 		// as the data is sourced from u-parent so must the NV listing. Only interested in the uid-preds and its scalar types, as this includes the data for u (and its uid-pred siblings)
 		//
-		nvc = u.Parent.genNV()
-		// for _, n := range nvc {
-		// 	fmt.Println("XgenNV: ", n.Name)
-		// }
+		nvc = u.Parent.genNV(ty)
+		for _, n := range nvc {
+			fmt.Println("XgenNV: ", n.Name)
+		}
 		//
 		// generate sortk - source from node type and NV - merge of two.
 		//                  determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible to minimise RCUs.

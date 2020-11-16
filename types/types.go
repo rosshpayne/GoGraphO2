@@ -155,7 +155,7 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 			// scalar type or abstract type e.g [person]
 			//
 			if v.Ty[0] == '[' {
-				a = blk.TyAttrD{Name: v.Atr, DT: "Nd", C: v.C, Ty: v.Ty[1 : len(v.Ty)-1], P: v.P, Pg: v.Pg, IncP: v.IncP, Ix: v.Ix}
+				a = blk.TyAttrD{Name: v.Atr, DT: "Nd", C: v.C, Ty: v.Ty[1 : len(v.Ty)-1], P: v.P, Pg: v.Pg, N: v.N, IncP: v.IncP, Ix: v.Ix}
 			} else {
 				a = blk.TyAttrD{Name: v.Atr, DT: v.Ty, C: v.C, P: v.P, N: v.N, Pg: v.Pg, IncP: v.IncP, Ix: v.Ix}
 			}
@@ -208,7 +208,7 @@ func FetchType(ty Ty) (blk.TyAttrBlock, error) {
 
 }
 
-func IsScalarPred(pred string) bool {
+func IsScalarPred(pred string) bool { //TODO: pass in Type so uid-pred is checked against type not whole data dictionary
 	for _, v := range TypeC.TyC {
 		for _, vv := range v {
 			if vv.Name == pred && len(vv.Ty) == 0 {
@@ -220,7 +220,7 @@ func IsScalarPred(pred string) bool {
 	return false
 }
 
-func IsUidPred(pred string) bool {
+func IsUidPred(pred string) bool { //TODO: pass in Type so uid-pred is checked against type not whole data dictionary
 
 	for _, v := range TypeC.TyC {
 		for _, vv := range v {
@@ -231,4 +231,23 @@ func IsUidPred(pred string) bool {
 		}
 	}
 	return false
+}
+
+func IsScalarInTy(ty string, pred string) bool { //TODO: pass in Type so uid-pred is checked against type not whole data dictionary
+	if t, ok := TypeC.TyAttrC[ty+":"+pred]; !ok {
+		return false
+	} else if len(t.Ty) != 0 {
+		return false
+	}
+	return true
+}
+
+func IsUidPredInTy(ty string, pred string) bool { //TODO: pass in Type so uid-pred is checked against type not whole data dictionary
+
+	if t, ok := TypeC.TyAttrC[ty+":"+pred]; !ok {
+		return false
+	} else if len(t.Ty) == 0 {
+		return false
+	}
+	return true
 }

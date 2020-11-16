@@ -4,13 +4,64 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
-	//	"github.com/DynamoGraph/gql/monitor"
 )
 
-func compare(doc, expected string) int {
+func compareStat(result interface{}, expected interface{}) bool {
+	//
+	// return true when args are different
+	//
+	if result == nil && expected != nil {
+		switch x := expected.(type) {
+		case int:
+			if x != 0 {
+				return true
+			}
+		case []int:
+			if x[0] != 0 {
+				return true
+			}
+		}
+		return false
+	}
 
-	return strings.Compare(trimWS(doc), trimWS(expected))
+	switch x := result.(type) {
+
+	case int:
+		return expected.(int) != x
+
+	case []int:
+		if result == nil && len(x) == 1 && x[0] == 0 {
+			return false
+		}
+		fmt.Println("in comparStat ", x)
+		if exp, ok := expected.([]int); !ok {
+			panic(fmt.Errorf("Expected should be []int"))
+		} else {
+
+			for i, v := range x {
+				if i == len(exp) {
+					return false
+				}
+				if v != exp[i] {
+					return true
+				}
+			}
+			// 			if len(x) > len(exp) {
+			// 				for i := len(exp); i < len(x); i++ {
+			// 					if x[i] != 0 {
+			// 						return true
+			// 					}
+			// 				}
+			// 			}
+			return false
+		}
+	}
+	return true
+}
+
+func compareJSON(doc, expected string) bool {
+
+	return trimWS(doc) != trimWS(expected)
 
 }
 
@@ -66,35 +117,14 @@ func TestSimpleRootQuery1a(t *testing.T) {
   }
  }`
 
-	expected := ` 
-        {
-        data: [
-                {
-                Age : 62,
-                Name : "Ross Payne",
-                }, 
-                {
-                Age : 67,
-                Name : "Ian Payne",
-                }, 
-                {
-                Age : 58,
-                Name : "Paul Payne",
-                } 
-        ]
-        }`
+	expectedTouchLvl = []int{3}
+	expectedTouchNodes = 3
 
-	t0 := time.Now()
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	if compare(result, expected) != 0 {
-		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
-	}
-	t.Log(result)
+	validate(t, result)
 }
 
 func TestSimpleRootQuery1b(t *testing.T) {
@@ -109,35 +139,14 @@ func TestSimpleRootQuery1b(t *testing.T) {
   }
 }`
 
-	expected := `      {
-        data: [
-                {
-                Age : 36,
-                ],
-                Name : "Phil Smith",
-                ],
-                Siblings : [ 
-                        { 
-                        Name: Jenny Jones,
-                        }, 
-                ],
-                } 
-                ],
-                } 
-        }`
+	expectedTouchLvl = []int{1, 1}
+	expectedTouchNodes = 2
 
-	t0 := time.Now()
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	if compare(result, expected) != 0 {
-		t.Fatal(fmt.Sprintf("result not equal to expected: result = %s", result))
-	}
-	t.Log(result)
-
+	validate(t, result)
 }
 
 func TestSimpleRootQuery1c(t *testing.T) {
@@ -156,7 +165,14 @@ func TestSimpleRootQuery1c(t *testing.T) {
   }
 }`
 
-	Execute(input)
+	expectedTouchLvl = []int{1, 3, 6}
+	expectedTouchNodes = 10
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 
 }
 
@@ -183,10 +199,15 @@ func TestSimpleRootQuery1d(t *testing.T) {
   }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{1, 3, 6, 14}
+	expectedTouchNodes = 24
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
 }
 
 func TestRootQuery1e1(t *testing.T) {
@@ -212,14 +233,17 @@ func TestRootQuery1e1(t *testing.T) {
     }
   }
 }`
+	expectedTouchLvl = []int{2, 4, 7, 15}
+	expectedTouchNodes = 28
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 
-func TestRootQuery1e2(t *testing.T) {
+func TestRootQueryAnyPlusFilter2(t *testing.T) {
 
 	// Friends {
 	// 	Age
@@ -243,11 +267,14 @@ func TestRootQuery1e2(t *testing.T) {
     }
   }
 }`
+	expectedTouchLvl = []int{1, 2, 3, 6}
+	expectedTouchNodes = 12
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 func TestRootQuery1f(t *testing.T) {
 
@@ -260,7 +287,16 @@ func TestRootQuery1f(t *testing.T) {
     	Name
     	Friends {
     	  Name
-		    Age
+		  Age
+		  Siblings {
+		      Name
+		      Age
+		      Friends {
+		          Name
+		          Age
+		          DOB
+		      }
+		  }
 	    }
 	    Siblings {
     		Name
@@ -268,310 +304,14 @@ func TestRootQuery1f(t *testing.T) {
     }
   }
 }`
+	expectedTouchLvl = []int{3, 7, 30, 32, 73}
+	expectedTouchNodes = 145
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
-}
-func TestRootQuery1g(t *testing.T) {
-
-	expected := `{
-data: [
-        {
-        Age : 62,
-        Name : "Ross Payne",
-        Friends : [ 
-                { 
-                Name: Phil Smith,
-                Age: 36,
-                Siblings : [ 
-                        { 
-                        Name: Jenny Jones,
-                        } 
-                        Friends : [ 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Paul Payne,
-                                Age: 58,
-                                } 
-                        ]
-                ]
-                },
-                { 
-                Name: Ian Payne,
-                Age: 67,
-                Siblings : [ 
-                        { 
-                        Name: Ross Payne,
-                        }, 
-                        Friends : [ 
-                                { 
-                                Name: Phil Smith,
-                                Age: 36,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                } 
-                        ]
-                        { 
-                        Name: Paul Payne,
-                        } 
-                        Friends : [ 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                } 
-                        ]
-                ]
-                }
-        ],
-        Siblings : [ 
-                { 
-                Name: Paul Payne,
-                Age: 58,
-                },
-                { 
-                Name: Ian Payne,
-                Age: 67,
-                }
-        ],
-        }, 
-        {
-        Age : 67,
-        Name : "Ian Payne",
-        Friends : [ 
-                { 
-                Name: Phil Smith,
-                Age: 36,
-                Siblings : [ 
-                        { 
-                        Name: Jenny Jones,
-                        } 
-                        Friends : [ 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Paul Payne,
-                                Age: 58,
-                                } 
-                        ]
-                ]
-                },
-                { 
-                Name: Ross Payne,
-                Age: 62,
-                Siblings : [ 
-                        { 
-                        Name: Paul Payne,
-                        }, 
-                        Friends : [ 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                } 
-                        ]
-                        { 
-                        Name: Ian Payne,
-                        } 
-                        Friends : [ 
-                                { 
-                                Name: Phil Smith,
-                                Age: 36,
-                                }, 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Paul Payne,
-                                Age: 58,
-                                } 
-                        ]
-                ]
-                },
-                { 
-                Name: Paul Payne,
-                Age: 58,
-                Siblings : [ 
-                        { 
-                        Name: Ian Payne,
-                        }, 
-                        Friends : [ 
-                                { 
-                                Name: Phil Smith,
-                                Age: 36,
-                                }, 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Paul Payne,
-                                Age: 58,
-                                } 
-                        ]
-                        { 
-                        Name: Ross Payne,
-                        } 
-                        Friends : [ 
-                                { 
-                                Name: Phil Smith,
-                                Age: 36,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                } 
-                        ]
-                ]
-                }
-        ],
-        Siblings : [ 
-                { 
-                Name: Ross Payne,
-                Age: 62,
-                },
-                { 
-                Name: Paul Payne,
-                Age: 58,
-                }
-        ],
-        }, 
-        {
-        Age : 58,
-        Name : "Paul Payne",
-        Friends : [ 
-                { 
-                Name: Ross Payne,
-                Age: 62,
-                Siblings : [ 
-                        { 
-                        Name: Paul Payne,
-                        }, 
-                        Friends : [ 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                } 
-                        ]
-                        { 
-                        Name: Ian Payne,
-                        } 
-                        Friends : [ 
-                                { 
-                                Name: Phil Smith,
-                                Age: 36,
-                                }, 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Paul Payne,
-                                Age: 58,
-                                } 
-                        ]
-                ]
-                },
-                { 
-                Name: Ian Payne,
-                Age: 67,
-                Siblings : [ 
-                        { 
-                        Name: Ross Payne,
-                        }, 
-                        Friends : [ 
-                                { 
-                                Name: Phil Smith,
-                                Age: 36,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                } 
-                        ]
-                        { 
-                        Name: Paul Payne,
-                        } 
-                        Friends : [ 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                } 
-                        ]
-                ]
-                }
-        ],
-        Siblings : [ 
-                { 
-                Name: Ian Payne,
-                Age: 67,
-                },
-                { 
-                Name: Ross Payne,
-                Age: 62,
-                }
-        ],
-        }
-]
-}`
-	input := `{
-  directors(func: eq(count(Siblings), 2)) {
-    Age
-    Name
-    Friends {
-    	Name
-    	Age
-    	Siblings {
-    		Name
-    		Friends {
-    			Name
-    			Age
-    		}
-    	}
-    }
-    Siblings {
-    		Name
-    		Age
-	  }
-  }
-}`
-
-	t0 := time.Now()
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	t.Log(result)
-	if compare(result, expected) != 0 {
-		t.Log("Error: result JSON does not match expected JSONs")
-		t.Fail()
-	}
+	validate(t, result)
 
 }
 
@@ -595,10 +335,14 @@ func TestRootFilter1(t *testing.T) {
   }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{2, 5, 21}
+	expectedTouchNodes = 28
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 
 func TestUPredFilter1(t *testing.T) {
@@ -620,11 +364,14 @@ func TestUPredFilter1(t *testing.T) {
     }
   }
 }`
+	expectedTouchLvl = []int{3, 4, 18}
+	expectedTouchNodes = 25
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 
 func TestUPredFilter2(t *testing.T) {
@@ -647,10 +394,15 @@ func TestUPredFilter2(t *testing.T) {
   }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{3, 4, 12}
+	expectedTouchNodes = 19
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
 }
 
 func TestUPredFilter3a(t *testing.T) {
@@ -673,10 +425,14 @@ func TestUPredFilter3a(t *testing.T) {
 }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{3, 7, 30}
+	expectedTouchNodes = 40
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 
 func TestUPredFilter3b(t *testing.T) {
@@ -699,11 +455,14 @@ func TestUPredFilter3b(t *testing.T) {
   }
 }
 }`
+	expectedTouchLvl = []int{3, 5, 18}
+	expectedTouchNodes = 26
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 
 func TestUPredFilter3c(t *testing.T) {
@@ -727,10 +486,14 @@ func TestUPredFilter3c(t *testing.T) {
 }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{3, 4, 10}
+	expectedTouchNodes = 17
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 
 func TestUPredFilter4a(t *testing.T) {
@@ -756,10 +519,15 @@ func TestUPredFilter4a(t *testing.T) {
 }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{3, 6, 26}
+	expectedTouchNodes = 35
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
 }
 
 func TestUPredFilter4b(t *testing.T) {
@@ -782,10 +550,15 @@ func TestUPredFilter4b(t *testing.T) {
   }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{3, 4, 8}
+	expectedTouchNodes = 15
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
 }
 
 func TestUPredFilter5(t *testing.T) {
@@ -799,40 +572,28 @@ func TestUPredFilter5(t *testing.T) {
     	Name
     	Friends @filter(gt(Age,62)) {
     	  Name
+    	  Comment
 	    }
 	    Siblings @filter(gt(Age,60)) {
     		Name
+    		DOB
 	   	}
     }
   }
 }`
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	expectedTouchLvl = []int{3, 4, 6}
+	expectedTouchNodes = 13
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
 }
 
 func TestRootHas1(t *testing.T) {
-
-	expected := `{
-        data: [
-                {
-                Name : "Ross Payne",
-                Address : "67/55 Burkitt St Page, ACT, Australia",
-                Siblings : [ 
-                        { 
-                        Name: Ian Payne,
-                        Age: 67,
-                        },
-                        { 
-                        Name: Paul Payne,
-                        Age: 58,
-                        }
-                ],
-                }
-        ]
-        }`
 
 	input := `{
 	  me(func: has(Address)) {
@@ -845,85 +606,17 @@ func TestRootHas1(t *testing.T) {
 		}
 	    }
 	}`
+	expectedTouchLvl = []int{1, 2}
+	expectedTouchNodes = 3
 
-	t0 := time.Now()
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	t.Log(result)
-	if compare(result, expected) != 0 {
-		t.Log("Error: result JSON does not match expected JSONs")
-		t.Fail()
-	}
-
+	validate(t, result)
 }
 
 func TestRootHas2(t *testing.T) {
-
-	expected := `        {
-        data: [
-                {
-                Name : "Ross Payne",
-                Address : "67/55 Burkitt St Page, ACT, Australia",
-                Age : 62,
-                Siblings : [ 
-                        { 
-                        Name: Ian Payne,
-                        Age: 67,
-                        },
-                        { 
-                        Name: Paul Payne,
-                        Age: 58,
-                        }
-                ],
-                }, 
-                {
-                Name : "Ian Payne",
-                 Address : <nil>,
-                Age : 67,
-                Siblings : [ 
-                        { 
-                        Name: Ross Payne,
-                        Age: 62,
-                        },
-                        { 
-                        Name: Paul Payne,
-                        Age: 58,
-                        }
-                ],
-                }, 
-                {
-                Name : "Phil Smith",
-                 Address : <nil>,
-                Age : 36,
-                Siblings : [ 
-                        { 
-                        Name: Jenny Jones,
-                        Age: 59,
-                        }
-                ],
-                ],
-                }, 
-                {
-                Name : "Paul Payne",
-                 Address : <nil>,
-                Age : 58,
-                Siblings : [ 
-                        { 
-                        Name: Ian Payne,
-                        Age: 67,
-                        },
-                        { 
-                        Name: Ross Payne,
-                        Age: 62,
-                        }
-                ],
-                }
-        ]
-        }`
 
 	input := `{
 	  me(func: has(Siblings)) {
@@ -937,87 +630,21 @@ func TestRootHas2(t *testing.T) {
 	    }
 	}`
 
-	t0 := time.Now()
+	expectedTouchLvl = []int{4, 7}
+	expectedTouchNodes = 11
+
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	t.Log(result)
-	if compare(result, expected) != 0 {
-		t.Log("Error: result JSON does not match expected JSONs")
-		t.Fail()
-	}
+	validate(t, result)
 
 }
 
 func TestRootHasWithFilter(t *testing.T) {
 
-	expected := `        {
-        data: [
-                {
-                Name : "Ross Payne",
-                Address : "67/55 Burkitt St Page, ACT, Australia",
-                Age : 62,
-                Siblings : [ 
-                        { 
-                        Name: Ian Payne,
-                        Age: 67,
-                        },
-                        { 
-                        Name: Paul Payne,
-                        Age: 58,
-                        }
-                ],
-                }, 
-                {
-                Name : "Ian Payne",
-                 Address : <nil>,
-                Age : 67,
-                Siblings : [ 
-                        { 
-                        Name: Ross Payne,
-                        Age: 62,
-                        },
-                        { 
-                        Name: Paul Payne,
-                        Age: 58,
-                        }
-                ],
-                }, 
-                {
-                Name : "Phil Smith",
-                 Address : <nil>,
-                Age : 36,
-                Siblings : [ 
-                        { 
-                        Name: Jenny Jones,
-                        Age: 59,
-                        }
-                ],
-                ],
-                }, 
-                {
-                Name : "Paul Payne",
-                 Address : <nil>,
-                Age : 58,
-                Siblings : [ 
-                        { 
-                        Name: Ian Payne,
-                        Age: 67,
-                        },
-                        { 
-                        Name: Ross Payne,
-                        Age: 62,
-                        }
-                ],
-                }
-        ]
-        }`
-
 	input := `{
-	  me(func: has(Siblings)) @filter(has(Address))) {
+	  me(func: has(Siblings)) @filter(has(Address)) {
 	    Name
 		Address
 		Age
@@ -1028,22 +655,183 @@ func TestRootHasWithFilter(t *testing.T) {
 	    }
 	}`
 
-	t0 := time.Now()
+	expectedTouchLvl = []int{1, 2}
+	expectedTouchNodes = 3
+
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	t.Log(result)
-	if compare(result, expected) != 0 {
-		t.Log("Error: result JSON does not match expected JSONs")
-		t.Fail()
-	}
+	validate(t, result)
 
 }
 
-func TestRootFilteranyofterms1_(t *testing.T) {
+func TestRootFilterHas1(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2)) @filter(has(Address)) {
+	    Name
+		Address
+		Age
+		Siblings {
+			Name
+			Age
+		}
+	    }
+	}`
+
+	expectedTouchLvl = []int{1, 2}
+	expectedTouchNodes = 3
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
+}
+
+func TestRootFilterHas2(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2)) @filter(has(Friends)) {
+	    Name
+		Address
+		Age
+		Siblings {
+			Name
+			Age
+		}
+	    }
+	}`
+
+	expectedTouchLvl = []int{3, 6}
+	expectedTouchNodes = 9
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+}
+
+func TestUidPredFilterHasScalar(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2)) @filter(has(Friends)) {
+	    Name
+		Address
+		Age
+		Siblings @filter(has(Address)) {
+			Name
+			Age
+		}
+	    }
+	}`
+
+	expectedJSON = `{
+        data: [
+                {
+                Name : "Ross Payne",
+                Address : "67/55 Burkitt St Page, ACT, Australia",
+                Age : 62,
+                Siblings : [ 
+                ]
+                }, 
+                {
+                Name : "Ian Payne",
+                 Address : <nil>,
+                Age : 67,
+                Siblings : [ 
+                        { 
+                        Name: "Ross Payne",
+                        Age: 62,
+                        },
+                ]
+                }, 
+                {
+                Name : "Paul Payne",
+                 Address : <nil>,
+                Age : 58,
+                Siblings : [ 
+                        { 
+                        Name: "Ross Payne",
+                        Age: 62,
+                        },
+                ]
+                }
+        ]
+        }`
+
+	expectedTouchLvl = []int{3, 2}
+	expectedTouchNodes = 5
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+}
+
+func TestUidPredFilterHasUidPred(t *testing.T) {
+
+	input := `{
+	  me(func: eq(count(Siblings),2)) @filter(has(Friends)) {
+	    Name
+		Address
+		Age
+		Siblings @filter(has(Friends)) {
+			Name
+			Age
+		}
+	    }
+	}`
+
+	expectedJSON = `{
+        data: [
+                {
+                Name : "Ross Payne",
+                Address : "67/55 Burkitt St Page, ACT, Australia",
+                Age : 62,
+                Siblings : [ 
+                ]
+                }, 
+                {
+                Name : "Ian Payne",
+                 Address : <nil>,
+                Age : 67,
+                Siblings : [ 
+                        { 
+                        Name: "Ross Payne",
+                        Age: 62,
+                        },
+                ]
+                }, 
+                {
+                Name : "Paul Payne",
+                 Address : <nil>,
+                Age : 58,
+                Siblings : [ 
+                        { 
+                        Name: "Ross Payne",
+                        Age: 62,
+                        },
+                ]
+                }
+        ]
+        }`
+
+	expectedTouchLvl = []int{3, 2}
+	expectedTouchNodes = 5
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+}
+
+func TestRootFilteranyofterms1(t *testing.T) {
 
 	input := `{
 	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris")) {
@@ -1052,45 +840,47 @@ func TestRootFilteranyofterms1_(t *testing.T) {
 	    }
 	  }`
 
-	expected := `{
-data: [
-        {
-        Name : "Ross Payne",
-        Comment : "Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.",
-        },
-        {
-        Name : "Paul Payne",
-        Comment : "A foggy snowy morning lit with Smith sodium lamps is an absolute dream",
-        }
-   ]
-}`
+	expectedJSON = `{
+        data: [
+                {
+                Name : "Ross Payne",
+                Comment : "Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.",
+                }, 
+                {
+                Name : "Paul Payne",
+                Comment : "A foggy snowy morning lit with Smith sodium lamps is an absolute dream",
+                }
+        ]
+        }`
 
-	t0 := time.Now()
+	expectedTouchLvl = []int{2}
+	expectedTouchNodes = 2
+
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	if compare(result, expected) != 0 {
-		t.Log("Error: result JSON does not match expected JSONs")
-		t.Fail()
-	}
-	t.Log(result)
+	validate(t, result)
 
 }
 
-func TestRootFilteranyofterms1a(t *testing.T) {
+func TestRootFilterallofterms1a(t *testing.T) {
 
 	input := `{
-	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris")) {
+	  me(func: eq(count(Siblings),2)) @filter(allofterms(Comment,"sodium Germany Chris")) {
 	    Name
 	    }
 	  }`
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+	// Expected values should be populated even when no result is expected - mostly for documentation purposes
+	expectedTouchLvl = []int{0}
+	expectedTouchNodes = 0
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 
 }
 
@@ -1101,38 +891,87 @@ func TestRootFilteranyofterms1b(t *testing.T) {
 	    Name
 	    }
 	  }`
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+	expectedTouchLvl = []int{0}
+	expectedTouchNodes = 0
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 
 }
 
-func TestRootFilteranyofterms1c(t *testing.T) {
+func TestRootFilterallofterms1c(t *testing.T) {
 
 	input := `{
-	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris") or eq(Name,"Ross Payne")) {
+	  me(func: eq(count(Siblings),2)) @filter(allofterms(Comment,"sodium Germany Chris") or eq(Name,"Ian Payne")) {
 	    Name
 	    }
 	  }`
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+	expectedJSON = `{
+        data: [
+                {
+                Name : "Ian Payne",
+                }
+        ]
+        }`
+
+	expectedTouchLvl = []int{1}
+	expectedTouchNodes = 1
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 
 }
 
 func TestRootFilteranyofterms1d(t *testing.T) {
 
 	input := `{
+	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris") or eq(Name,"Ian Payne")) {
+	    Name
+	    }
+	  }`
+
+	expectedTouchLvl = []int{3}
+	expectedTouchNodes = 3
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+}
+
+func TestRootFilteranyofterms1e(t *testing.T) {
+
+	input := `{
 	  me(func: eq(count(Siblings),2)) @filter(anyofterms(Comment,"sodium Germany Chris") and eq(Name,"Ross Payne")) {
 	    Name
 	    }
 	  }`
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+
+	expectedJSON = `       {
+        data: [
+                {
+                Name : "Ross Payne",
+                }
+        ]
+        }`
+
+	expectedTouchLvl = []int{1}
+	expectedTouchNodes = 1
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 
 }
 
@@ -1155,95 +994,17 @@ func TestUPredFilterterms1a(t *testing.T) {
     }
   }
 }`
+	expectedTouchLvl = []int{3, 7, 30}
+	expectedTouchNodes = 40
 
-	t0 := time.Now()
-	Execute(input)
-	t1 := time.Now()
-	fmt.Printf("TExecute duration: %s \n", t1.Sub(t0))
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 }
 
 func TestUPredFilterterms1b1(t *testing.T) {
-
-	expected := `        
-        {
-        data: [
-                {
-                Age : 62,
-                Name : "Ross Payne",
-                Friends : [ 
-                ],
-                }, 
-                {
-                Age : 67,
-                Name : "Ian Payne",
-                Friends : [ 
-                        { 
-                        Age: 62,
-                        Name: Ross Payne,
-                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        Siblings : [ 
-                                { 
-                                Name: Paul Payne,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        }, 
-                        { 
-                        Age: 58,
-                        Name: Paul Payne,
-                        Comment: A foggy snowy morning lit with Smith sodium lamps is an absolute dream,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        Siblings : [ 
-                                { 
-                                Name: Ian Payne,
-                                }, 
-                                { 
-                                Name: Ross Payne,
-                                }, 
-                        ],
-                        }, 
-                ],
-                }, 
-                {
-                Age : 58,
-                Name : "Paul Payne",
-                Friends : [ 
-                        { 
-                        Age: 62,
-                        Name: Ross Payne,
-                        Comment: Another fun  video. Loved it my Payne Grandmother was from Passau. Dad was over in Germany but there was something going on over there at the time we won't discuss right now. Thanks for posting it. Have a great weekend everyone.,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        Siblings : [ 
-                                { 
-                                Name: Paul Payne,
-                                }, 
-                                { 
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        }, 
-                ],
-                } 
-        ]
-        }`
 
 	input := `{
   directors(func: eq(count(Siblings), 2) ) {
@@ -1264,98 +1025,17 @@ func TestUPredFilterterms1b1(t *testing.T) {
   }
 }`
 
-	t0 := time.Now()
+	expectedTouchLvl = []int{3, 3, 9}
+	expectedTouchNodes = 15
+
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	t.Log(result)
-	if compare(result, expected) != 0 {
-		t.Log("Error: result JSON does not match expected JSONs")
-		t.Fail()
-	}
-
+	validate(t, result)
 }
 
 func TestUPredFilterterms1b2(t *testing.T) {
-
-	expected := `
-        {
-        data: [
-                {
-                Age : 62,
-                Name : "Ross Payne",
-                Friends : [ 
-                ],
-                }, 
-                {
-                Age : 67,
-                Name : "Ian Payne",
-                Friends : [ 
-                        { 
-                        Age: 62,
-                        Name: Ross Payne,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        Siblings : [ 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                }, 
-                        ],
-                        }, 
-                        { 
-                        Age: 58,
-                        Name: Paul Payne,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        Siblings : [ 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                }, 
-                                { 
-                                Name: Ross Payne,
-                                Age: 62,
-                                }, 
-                        ],
-                        }, 
-                ],
-                }, 
-                {
-                Age : 58,
-                Name : "Paul Payne",
-                Friends : [ 
-                        { 
-                        Age: 62,
-                        Name: Ross Payne,
-                        Friends : [ 
-                                { 
-                                Age: 67,
-                                Name: Ian Payne,
-                                }, 
-                        ],
-                        Siblings : [ 
-                                { 
-                                Name: Ian Payne,
-                                Age: 67,
-                                }, 
-                        ],
-                        }, 
-                ],
-                } 
-        ]
-        }`
 
 	input := `{
   directors(func: eq(count(Siblings), 2) ) {
@@ -1376,18 +1056,45 @@ func TestUPredFilterterms1b2(t *testing.T) {
   }
 }`
 
-	t0 := time.Now()
+	expectedTouchLvl = []int{3, 3, 7}
+	expectedTouchNodes = 13
+
 	stmt := Execute_(input)
-	t1 := time.Now()
-	t.Log(fmt.Sprintf("TExecute duration: %s \n", t1.Sub(t0)))
-
 	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
 
-	t.Log(result)
-	if compare(result, expected) != 0 {
-		t.Log("Error: result JSON does not match expected JSONs")
-		t.Fail()
-	}
-	t.Log(result)
+	validate(t, result)
+
+}
+
+func TestUPredFiltertermsStat(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(anyofterms(Comment,"sodium Germany Chris")) {
+        Age
+    	Name
+    	Comment
+    	Friends @filter(gt(Age,62)) {
+    	  Age
+    	  Name
+	    }
+	    Siblings @filter(gt(Age,55)) {
+    	  Name
+	   	}
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{3, 3, 9}
+	expectedTouchNodes = 15
+
+	stmt := Execute_(input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
 
 }

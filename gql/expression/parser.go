@@ -205,13 +205,32 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 
 		p.nextToken() // read over (
 
-		h := ast.HasFunc{}
-		h.AssignName(p.curToken.Literal, p.curToken.Loc)
-
 		gqlf.F = ast.HAS
-		gqlf.Farg = h
 
-		p.nextToken() // read over has
+		switch p.curToken.Type {
+
+		case token.IDENT:
+			switch {
+			case types.IsScalarPred(p.curToken.Literal):
+
+				s := ast.ScalarPred{}
+				s.AssignName(p.curToken.Literal, p.curToken.Loc)
+				gqlf.Farg = s
+
+			case types.IsUidPred(p.curToken.Literal):
+
+				// if gqlf.Name() != token.HAS {
+				// 	p.addErr(fmt.Sprintf(`UID Predicates only allowed as argument to Has()`))
+				// 	return p
+				// }
+				s := &ast.UidPred{}
+				s.AssignName(p.curToken.Literal, p.curToken.Loc)
+				gqlf.Farg = s
+
+			}
+		}
+
+		p.nextToken() // read over ident
 		p.nextToken() // read over has )
 		fmt.Printf("HAS..................... %#v  %#v \n", gqlf, p.curToken)
 		return p

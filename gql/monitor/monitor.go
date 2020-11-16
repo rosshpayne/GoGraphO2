@@ -26,8 +26,14 @@ type Stat struct {
 	Value interface{}
 }
 
+type Request struct {
+	Id      int
+	ReplyCh chan<- interface{}
+}
+
 var (
 	StatCh  chan Stat
+	GetCh   chan Request
 	ClearCh chan struct{}
 	PrintCh chan struct{}
 	stats   []interface{}
@@ -44,11 +50,10 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 	// initialisation
 	//
 	stats := make([]interface{}, LIMIT, LIMIT)
-	a := make([]int, 1, 1)
-	stats[TouchLvl] = a
 
 	StatCh = make(chan Stat)
 	ClearCh = make(chan struct{})
+	GetCh = make(chan Request)
 	PrintCh = make(chan struct{})
 
 	var (
@@ -74,10 +79,14 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			switch x := s.Id; x {
 
 			case TouchNode:
+				// increment total counter and Level counter
+
 				if stats[x] == nil {
 					stats[x] = 1
-					a := stats[TouchLvl].([]int)
-					if len(a) <= s.Lvl+1 {
+					a := make([]int, 1, 1)
+					stats[TouchLvl] = a
+					// build slice to hold level counters
+					for len(a) < s.Lvl {
 						a = append(a, 0)
 						stats[TouchLvl] = a
 					}
@@ -86,7 +95,8 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 					n, _ = stats[x].(int)
 					stats[x] = n + 1
 					a := stats[TouchLvl].([]int)
-					if len(a) <= s.Lvl+1 {
+					// extend slice to hold level counters (if necessary)
+					for len(a)-1 < s.Lvl {
 						a = append(a, 0)
 						stats[TouchLvl] = a
 					}
@@ -114,6 +124,23 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			}
 
 		case <-ClearCh:
+
+			for i, v := range stats {
+				switch v.(type) {
+				case int:
+					stats[i] = 0
+				case float64:
+					stats[i] = 0.0
+				case []int:
+					stats[i] = []int{}
+				case []float64:
+					stats[i] = []float64{}
+				}
+			}
+
+		case x := <-GetCh:
+
+			x.ReplyCh <- stats[x.Id]
 
 		case <-PrintCh:
 

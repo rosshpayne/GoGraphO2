@@ -124,20 +124,20 @@ func (e *AggrFunc) edge() {}
 
 //func (e *AggrFunc) innerFunc() {}
 
-type HasFunc struct {
-	name name_
-}
+// type HasFunc struct {
+// 	name name_
+// }
 
-func (s HasFunc) edge() {}
-func (s HasFunc) Name() string {
-	return s.name.Name
-}
-func (s HasFunc) farg() {}
+// func (s HasFunc) edge() {}
+// func (s HasFunc) Name() string {
+// 	return s.name.Name
+// }
+// func (s HasFunc) farg() {}
 
-func (s *HasFunc) AssignName(input string, loc token.Pos) {
-	//ValidateName(input, err, Loc)
-	s.name = name_{Name: input, Loc: loc}
-}
+// func (s *HasFunc) AssignName(input string, loc token.Pos) {
+// 	//ValidateName(input, err, Loc)
+// 	s.name = name_{Name: input, Loc: loc}
+// }
 
 type CounterI interface {
 	count_()

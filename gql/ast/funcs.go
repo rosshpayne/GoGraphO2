@@ -50,7 +50,7 @@ func ieq(opr db.Equality, a FargI, value interface{}) db.QResult {
 	switch x := a.(type) {
 
 	case *CountFunc:
-		fmt.Println("in CountFuncQ...............................")
+
 		// for root stmt only this signature is valid: Count(<uid-pred>)
 
 		if y, ok := x.Arg.(*UidPred); ok {
@@ -58,7 +58,7 @@ func ieq(opr db.Equality, a FargI, value interface{}) db.QResult {
 			fmt.Printf("in Arg......%T\n", y)
 			switch v := value.(type) {
 			case int:
-				fmt.Printf("in int......%v/n", v)
+				fmt.Printf("in int......%v\n", v)
 				result, err = db.GSIQueryN(y.Name(), float64(v), opr)
 			case float64:
 				result, err = db.GSIQueryN(y.Name(), v, opr)
@@ -138,13 +138,12 @@ func Has(a FargI, value interface{}) db.QResult {
 		result, resultN, resultS db.QResult
 		err                      error
 	)
-	syslog("Has: in... ")
 
 	if value != nil {
 		panic(fmt.Errorf("Expected nil value. Second argument to has() should be empty"))
 	}
 	//
-	// has(uid-prec) - all uid-preds/edges have a P_N entry (count of edges eminating from uid-predicate). If no edge exist then no entry. So GSI will list only nodes that have the uid-pred
+	// has(uid-pred) - all uid-preds/edges have a P_N entry (count of edges eminating from uid-predicate). If no edge exist then no entry. So GSI will list only nodes that have the uid-pred
 	// has(Actor.film) - nullable uid-pred (not all Person Type are actors)
 	// has(Director.film) - nullable uid-pred (because not all Person type are directors) - search for
 	//
@@ -156,7 +155,6 @@ func Has(a FargI, value interface{}) db.QResult {
 
 	case ScalarPred:
 
-		syslog("Has: in... 3333")
 		// check P_S, P_N
 		resultN, err = db.GSIhasN(x.Name())
 		if err != nil {

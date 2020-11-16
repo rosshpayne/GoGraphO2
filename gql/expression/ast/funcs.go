@@ -112,9 +112,6 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 		panic("Error in Func: expected a type, got nil")
 	}
 
-	fmt.Println("In ieq: for - ", ie, ty, j, k)
-	fmt.Println(strings.Repeat("-", 80))
-
 	switch x := predfunc.(type) {
 
 	case CountFunc:
@@ -151,7 +148,6 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 
 		case -1: // root filter
 			nm = x.Name()
-			fmt.Printf("in ScalarPred with %q   ty: %s\n", nm, ty)
 			data, ok = nv[nm]
 			if !ok {
 				panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
@@ -170,7 +166,6 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 			ty = fd[0]
 			predicate := fd[1]
 			//
-			fmt.Printf("XX in ScalarPred with ty: %s predicate: %s\n", ty, predicate)
 			nm = predicate + ":" + x.Name()
 			data, ok = nv[nm]
 			if !ok {
@@ -366,6 +361,88 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 // }
 
 func HAS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bool {
+	var (
+		nm   string
+		data *ds.NV
+		//		aTy  blk.TyAttrD
+		ok bool
+		//
+		predicate string
+	)
+
+	if value != nil {
+		syslog("Error in Has(). value argument should be nil", fatal)
+	}
+	switch x := predfunc.(type) {
+	case ScalarPred, *UidPred:
+	default:
+		syslog(fmt.Sprintf("Error in Has(). expected a scalar or uid-predicate as argument instead got %q", x.Name(), fatal))
+	}
+
+	switch j {
+
+	case -1: // root filter
+
+		predicate = predfunc.Name()
+		//  Check ty exists
+		if _, err := types.FetchType(ty); err != nil {
+			syslog(fmt.Sprintf("Error in Has(). Type %q not found", ty), fatal)
+		} else {
+			if x, ok := types.TypeC.TyAttrC[ty+":"+predicate]; !ok {
+				syslog(fmt.Sprintf("Error in Has(). Attribute %q not found in type %q", predfunc.Name(), ty), fatal)
+			} else if !x.N {
+				return true // attribute is not nullable  - so must be defined.
+			}
+		}
+
+		switch predfunc.(type) {
+		case ScalarPred:
+			if x, ok := nv[predicate]; !ok {
+				return false
+			} else if x.Value == nil {
+				return false
+			}
+
+		case *UidPred:
+			if x, ok := nv[predicate+":"]; !ok {
+				return false
+			} else if x.Value == nil {
+				return false
+			}
+		}
+		return true
+
+	default: // uid-pred filter
+
+		fmt.Println("uid-pred filter ty: ", ty)
+		// ....uid-pred @filter(<uid-pred-predicate>,<list-of-terms>)  - ty is uid-pred type "Person"
+
+		// retrieve uid-pred name (Sibling, Friend) from ty argument.
+		// This is a work around as I forgot to add this data in the original list of arguments.
+		fd := strings.Split(ty, "|")
+		ty = fd[0]
+		predicate := fd[1]
+		// retrieve uid-pred data from NV
+		switch predfunc.(type) {
+		case ScalarPred:
+
+			nm = predicate + ":" + predfunc.Name()
+			data, ok = nv[nm]
+			if !ok {
+				panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+			}
+			// uid-pred filter expression - multiple child scalar data (propagated data format)
+			// check if null flag set in data
+			if data.Null[j][k] {
+				return false
+			}
+			return true
+
+		case *UidPred:
+			fmt.Printf("Herere...adf................")
+
+		}
+	}
 	return false
 }
 
@@ -388,7 +465,7 @@ func AnyOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k 
 	)
 
 	if pred, ok = predfunc.(ScalarPred); !ok {
-		syslog("Expected Scalar Predicate in AnyOfTerms", fatal)
+		syslog("Expected scalar predicate in AnyOfTerms", fatal)
 	}
 	switch j {
 
@@ -485,11 +562,10 @@ func AllOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k 
 		//		aTy  blk.TyAttrD
 		pred ScalarPred
 		ok   bool
+		//
+		dataVal string
+		exprVal string
 	)
-	fmt.Println("In AnyOfTerms....")
-	fmt.Printf("predfunc: %T\n", predfunc)
-	fmt.Printf("nv: %#v\n", nv)
-	fmt.Printf("ty: %s %d %d\n", ty, j, k)
 
 	if pred, ok = predfunc.(ScalarPred); !ok {
 		syslog("Expected Scalar Predicate in AnyOfTerms", fatal)
@@ -504,6 +580,16 @@ func AllOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k 
 		data, ok = nv[pred.Name()]
 		if !ok {
 			panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
+		}
+
+		// root query filter expression - node scalar data
+		// check data value (from NV) type matches type of scalarPred from GQL query
+		if dataVal, ok = data.Value.(string); !ok {
+			syslog(fmt.Sprintf("predicate %q value type %q does not match type for predicate in type %q", nm, dataVal, ty), fatal)
+		}
+		// expression value
+		if exprVal, ok = value.(string); !ok {
+			syslog(fmt.Sprintf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty), fatal)
 		}
 
 	default: // uid-pred filter
@@ -521,26 +607,6 @@ func AllOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k 
 		if !ok {
 			panic(fmt.Errorf("Error in inequality func: predicate %q not found in ds.NV", nm))
 		}
-	}
-	var (
-		dataVal string
-		exprVal string
-	)
-	switch {
-	case j == -1: // root filter
-
-		// root query filter expression - node scalar data
-		// check data value (from NV) type matches type of scalarPred from GQL query
-		if dataVal, ok = data.Value.(string); !ok {
-			syslog(fmt.Sprintf("predicate %q value type %q does not match type for predicate in type %q", nm, dataVal, ty), fatal)
-		}
-		// expression value
-		if exprVal, ok = value.(string); !ok {
-			syslog(fmt.Sprintf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty), fatal)
-		}
-
-	default: // uid-pred filter, args ty, i,j populated have non-zero values
-
 		// uid-pred filter expression - multiple child scalar data (propagated data format)
 		// check if null flag set in data
 		if data.Null[j][k] {
@@ -557,16 +623,19 @@ func AllOfTerms(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k 
 			panic(fmt.Errorf("value %q for predicate %q is not the correct type for type %q", exprVal, nm, ty))
 		}
 	}
+
 	fmt.Printf("exprVal, dataVal: %s [%s]\n ", exprVal, dataVal)
 	// check if any term in exprVal exists in dataVal
 	bsExpr := bufio.NewScanner(strings.NewReader(exprVal))
 	bsExpr.Split(bufio.ScanWords)
+	fmt.Println("in allofterms: ", exprVal, dataVal)
 
 	bsData := bufio.NewScanner(strings.NewReader(dataVal))
 	bsData.Split(bufio.ScanWords)
 
 	var found bool
 	for bsExpr.Scan() {
+		found = false
 		for bsData.Scan() {
 			if bsExpr.Text() == bsData.Text() {
 				found = true
