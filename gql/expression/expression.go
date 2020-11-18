@@ -103,20 +103,12 @@ func walkPreds(e operand, pred []string) []string {
 		walkPreds(e.right, pred)
 
 		pred := e.left.getPredicates(pred)
-		fmt.Println("in walkPreds. left...pred = ", pred)
-		// if len(p) > 0 {
-		// 	pred = append(pred, p...)
-		// }
 		pred = e.right.getPredicates(pred)
-		fmt.Println("in walkPreds. right...pred = ", pred)
-		// if len(p) > 0 {
-		// 	pred = append(pred, p...)
-		// }
 
 		return pred
 
 	}
-	fmt.Println("walkPreds: ", pred)
+
 	return pred
 }
 

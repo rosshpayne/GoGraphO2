@@ -21,7 +21,8 @@ type (
 	gqlFunc map[string]ast.FuncT
 
 	Parser struct {
-		l *lexer.Lexer
+		l     *lexer.Lexer
+		graph string
 
 		extend bool
 
@@ -59,13 +60,18 @@ func registerFn(t string, f ast.FuncT) {
 	rootFunc[t] = f
 }
 
-func New(input string) *Parser {
+func New(graph string, input string) *Parser {
 
 	l := lexer.New(input)
 	p := &Parser{
-		l: l,
+		l:     l,
+		graph: graph,
 	}
-
+	//
+	// set type graph
+	//
+	types.SetGraph(graph)
+	//
 	// Read two tokens, to initialise curToken and peekToken
 	p.nextToken()
 	p.nextToken()

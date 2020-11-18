@@ -439,7 +439,8 @@ func HAS(predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, k int) bo
 			return true
 
 		case *UidPred:
-			fmt.Printf("Herere...adf................")
+			//TODO: implement
+			panic(fmt.Errorf(`has(<uid-predicate>) as filter not supported outside of root query`))
 
 		}
 	}

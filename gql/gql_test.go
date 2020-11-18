@@ -120,7 +120,7 @@ func TestSimpleRootQuery1a(t *testing.T) {
 	expectedTouchLvl = []int{3}
 	expectedTouchNodes = 3
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -142,7 +142,7 @@ func TestSimpleRootQuery1b(t *testing.T) {
 	expectedTouchLvl = []int{1, 1}
 	expectedTouchNodes = 2
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -168,7 +168,7 @@ func TestSimpleRootQuery1c(t *testing.T) {
 	expectedTouchLvl = []int{1, 3, 6}
 	expectedTouchNodes = 10
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -202,7 +202,7 @@ func TestSimpleRootQuery1d(t *testing.T) {
 	expectedTouchLvl = []int{1, 3, 6, 14}
 	expectedTouchNodes = 24
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -236,7 +236,7 @@ func TestRootQuery1e1(t *testing.T) {
 	expectedTouchLvl = []int{2, 4, 7, 15}
 	expectedTouchNodes = 28
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -270,7 +270,7 @@ func TestRootQueryAnyPlusFilter2(t *testing.T) {
 	expectedTouchLvl = []int{1, 2, 3, 6}
 	expectedTouchNodes = 12
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -307,7 +307,7 @@ func TestRootQuery1f(t *testing.T) {
 	expectedTouchLvl = []int{3, 7, 30, 32, 73}
 	expectedTouchNodes = 145
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -338,7 +338,7 @@ func TestRootFilter1(t *testing.T) {
 	expectedTouchLvl = []int{2, 5, 21}
 	expectedTouchNodes = 28
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -367,7 +367,7 @@ func TestUPredFilter1(t *testing.T) {
 	expectedTouchLvl = []int{3, 4, 18}
 	expectedTouchNodes = 25
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -397,7 +397,7 @@ func TestUPredFilter2(t *testing.T) {
 	expectedTouchLvl = []int{3, 4, 12}
 	expectedTouchNodes = 19
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -428,7 +428,7 @@ func TestUPredFilter3a(t *testing.T) {
 	expectedTouchLvl = []int{3, 7, 30}
 	expectedTouchNodes = 40
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -458,7 +458,7 @@ func TestUPredFilter3b(t *testing.T) {
 	expectedTouchLvl = []int{3, 5, 18}
 	expectedTouchNodes = 26
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -489,7 +489,7 @@ func TestUPredFilter3c(t *testing.T) {
 	expectedTouchLvl = []int{3, 4, 10}
 	expectedTouchNodes = 17
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -522,7 +522,7 @@ func TestUPredFilter4a(t *testing.T) {
 	expectedTouchLvl = []int{3, 6, 26}
 	expectedTouchNodes = 35
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -553,7 +553,7 @@ func TestUPredFilter4b(t *testing.T) {
 	expectedTouchLvl = []int{3, 4, 8}
 	expectedTouchNodes = 15
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -585,7 +585,7 @@ func TestUPredFilter5(t *testing.T) {
 	expectedTouchLvl = []int{3, 4, 6}
 	expectedTouchNodes = 13
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -609,7 +609,7 @@ func TestRootHas1(t *testing.T) {
 	expectedTouchLvl = []int{1, 2}
 	expectedTouchNodes = 3
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -633,7 +633,7 @@ func TestRootHas2(t *testing.T) {
 	expectedTouchLvl = []int{4, 7}
 	expectedTouchNodes = 11
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -658,7 +658,7 @@ func TestRootHasWithFilter(t *testing.T) {
 	expectedTouchLvl = []int{1, 2}
 	expectedTouchNodes = 3
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -683,7 +683,7 @@ func TestRootFilterHas1(t *testing.T) {
 	expectedTouchLvl = []int{1, 2}
 	expectedTouchNodes = 3
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -708,7 +708,7 @@ func TestRootFilterHas2(t *testing.T) {
 	expectedTouchLvl = []int{3, 6}
 	expectedTouchNodes = 9
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -766,7 +766,7 @@ func TestUidPredFilterHasScalar(t *testing.T) {
 	expectedTouchLvl = []int{3, 2}
 	expectedTouchNodes = 5
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -824,7 +824,7 @@ func TestUidPredFilterHasUidPred(t *testing.T) {
 	expectedTouchLvl = []int{3, 2}
 	expectedTouchNodes = 5
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -856,7 +856,7 @@ func TestRootFilteranyofterms1(t *testing.T) {
 	expectedTouchLvl = []int{2}
 	expectedTouchNodes = 2
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -876,7 +876,7 @@ func TestRootFilterallofterms1a(t *testing.T) {
 	expectedTouchLvl = []int{0}
 	expectedTouchNodes = 0
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -895,7 +895,7 @@ func TestRootFilteranyofterms1b(t *testing.T) {
 	expectedTouchLvl = []int{0}
 	expectedTouchNodes = 0
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -922,7 +922,7 @@ func TestRootFilterallofterms1c(t *testing.T) {
 	expectedTouchLvl = []int{1}
 	expectedTouchNodes = 1
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -941,7 +941,7 @@ func TestRootFilteranyofterms1d(t *testing.T) {
 	expectedTouchLvl = []int{3}
 	expectedTouchNodes = 3
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -967,7 +967,7 @@ func TestRootFilteranyofterms1e(t *testing.T) {
 	expectedTouchLvl = []int{1}
 	expectedTouchNodes = 1
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -997,7 +997,7 @@ func TestUPredFilterterms1a(t *testing.T) {
 	expectedTouchLvl = []int{3, 7, 30}
 	expectedTouchNodes = 40
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -1028,7 +1028,7 @@ func TestUPredFilterterms1b1(t *testing.T) {
 	expectedTouchLvl = []int{3, 3, 9}
 	expectedTouchNodes = 15
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -1059,7 +1059,7 @@ func TestUPredFilterterms1b2(t *testing.T) {
 	expectedTouchLvl = []int{3, 3, 7}
 	expectedTouchNodes = 13
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 
@@ -1091,7 +1091,7 @@ func TestUPredFiltertermsStat(t *testing.T) {
 	expectedTouchLvl = []int{3, 3, 9}
 	expectedTouchNodes = 15
 
-	stmt := Execute_(input)
+	stmt := Execute("Relationship", input)
 	result := stmt.MarshalJSON()
 	t.Log(stmt.String())
 

@@ -23,6 +23,8 @@ type tyNames struct {
 }
 
 var (
+	graph     string
+	gId       string // graph Identifier (graph short name). Each Type name is prepended with the graph id. It is stripped off when type data is loaded into caches.
 	dynSrv    *dynamodb.DynamoDB
 	err       error
 	tynames   []tyNames
@@ -46,6 +48,17 @@ func init() {
 
 	dynSrv = dbConn.New()
 
+}
+
+func SetGraph(graph_ string) {
+	fmt.Println("In db SetGraph.....", graph_)
+	graph = graph_
+	gId, err = getGraphId(graph_)
+	if err != nil {
+		panic(fmt.Errorf("Error in getGraphId: %s", err))
+	}
+	fmt.Println("graph id: ", gId)
+
 	tynames, err = loadTypeShortNames()
 	if err != nil {
 		panic(err)
@@ -57,6 +70,9 @@ func init() {
 	for _, v := range tynames {
 		tyShortNm[v.LongNm] = v.ShortNm
 	}
+	for k, v := range tyShortNm {
+		fmt.Println("ShortNames: ", k, v)
+	}
 
 }
 
@@ -66,7 +82,8 @@ func GetTypeShortNames() ([]tyNames, error) {
 
 func LoadDataDictionary() (blk.TyIBlock, error) {
 
-	filt := expression.BeginsWith(expression.Name("Nm"), "#").Not()
+	//filt := expression.BeginsWith(expression.Name("Nm"), "#").Not()
+	filt := expression.BeginsWith(expression.Name("Nm"), gId)
 	expr, err := expression.NewBuilder().WithFilter(filt).Build()
 	if err != nil {
 		return nil, newDBExprErr("LoadDataDictionary", "", "", err)
@@ -77,7 +94,7 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName("DyGTypes2").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	t0 := time.Now()
 	result, err := dynSrv.Scan(input)
@@ -106,7 +123,7 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 func loadTypeShortNames() ([]tyNames, error) {
 
 	syslog("db.loadTypeShortNames ")
-	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#T"))
+	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#"+gId+"T"))
 	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
 	if err != nil {
 		return nil, newDBExprErr("loadTypeShortNames", "", "", err)
@@ -118,7 +135,7 @@ func loadTypeShortNames() ([]tyNames, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGTypes").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName("DyGTypes2").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	t0 := time.Now()
 	result, err := dynSrv.Query(input)
@@ -139,4 +156,55 @@ func loadTypeShortNames() ([]tyNames, error) {
 		return nil, newDBUnmarshalErr("loadTypeShortNames", "", "", "UnmarshalListOfMaps", err)
 	}
 	return items, nil
+}
+
+func getGraphId(graphNm string) (string, error) {
+
+	type graphMeta struct {
+		Id string `json:"Atr"`
+	}
+
+	syslog("db.getGraphId ")
+	keyC := expression.KeyEqual(expression.Key("Nm"), expression.Value("#Graph"))
+	filt := expression.BeginsWith(expression.Name("Lnm"), graphNm)
+	proj := expression.NamesList(expression.Name("Atr"))
+	expr, err := expression.NewBuilder().WithFilter(filt).WithProjection(proj).WithKeyCondition(keyC).Build()
+	if err != nil {
+		return "", newDBExprErr("getGraphId", "", "", err)
+	}
+	//
+	input := &dynamodb.QueryInput{
+		KeyConditionExpression:    expr.KeyCondition(),
+		ProjectionExpression:      expr.Projection(),
+		FilterExpression:          expr.Filter(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	}
+	input = input.SetTableName("DyGTypes2").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	//
+	t0 := time.Now()
+	result, err := dynSrv.Query(input)
+	t1 := time.Now()
+	if err != nil {
+		return "", newDBSysErr("getGraphId", "Query", err)
+	}
+	syslog(fmt.Sprintf("getGraphId: consumed capacity for Query: %s,  Item Count: %d Duration: %s", result.ConsumedCapacity, int(*result.Count), t1.Sub(t0)))
+	if int(*result.Count) == 0 {
+		return "", newDBNoItemFound("getGraphId", "", "", "Query")
+	}
+	//
+	// Unmarshal result into
+	//
+	items := make([]graphMeta, *result.Count, *result.Count)
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &items)
+	if err != nil {
+		return "", newDBUnmarshalErr("getGraphId", "", "", "UnmarshalListOfMaps", err)
+	}
+	if len(items) == 0 {
+		return "", newDBUnmarshalErr("getGraphId", "", "", "No data returned in getGraphId", err)
+	}
+	if len(items) > 1 {
+		return "", newDBUnmarshalErr("getGraphId", "", "", "More than one item found in database", err)
+	}
+	return items[0].Id + ".", nil
 }

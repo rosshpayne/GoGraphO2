@@ -336,7 +336,7 @@ type TyItem struct {
 	IncP []string // (optional). List of attributes to be propagated. If empty all scalars will be propagated.
 }
 
-type TyIBlock []TyItem
+type TyIBlock []*TyItem
 
 // type attribute block, derived from TyItem
 type TyAttrD struct {

@@ -45,13 +45,10 @@ type TypeCache struct {
 var (
 	err error
 	//
+	graph     string
 	TypeC     TypeCache
 	tyShortNm map[string]string
 )
-
-func syslog(s string) {
-	slog.Log(logid, s)
-}
 
 func logerr(e error, panic_ ...bool) {
 
@@ -76,7 +73,13 @@ func GetTyLongNm(tyNm string) (string, bool) {
 	return "", false
 }
 
-func init() {
+func syslog(s string) {
+	slog.Log(logid, s)
+}
+
+func SetGraph(graph_ string) {
+	graph = graph_
+	db.SetGraph(graph)
 	//
 	// cache holding the attributes belonging to a type
 	///
@@ -91,6 +94,9 @@ func init() {
 	tynames, err := db.GetTypeShortNames()
 	if err != nil {
 		panic(err)
+	}
+	if len(tynames) == 0 {
+		panic(fmt.Errorf("No short name type data loaded"))
 	}
 	//
 	// populate type short name cache. This cache is conccurent safe as it is readonly from now on.
@@ -114,6 +120,7 @@ func init() {
 
 func populateTyCaches(allTypes blk.TyIBlock) {
 	var (
+		tyNm  string
 		a     blk.TyAttrD
 		tc    blk.TyAttrBlock
 		tyMap map[string]bool
@@ -128,11 +135,16 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 		s.WriteString(attr)
 		return s.String()
 	}
-
 	for _, v := range allTypes {
-		if _, ok := tyMap[v.Nm]; !ok {
-			tyMap[v.Nm] = true
+		tyNm = v.Nm[strings.Index(v.Nm, ".")+1:]
+		v.Nm = tyNm
+		if _, ok := tyMap[tyNm]; !ok {
+			tyMap[tyNm] = true
 		}
+	}
+
+	for k, v := range allTypes {
+		fmt.Println("allTypes: ", k, v)
 	}
 
 	for ty, _ := range tyMap {
