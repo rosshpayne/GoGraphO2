@@ -67,6 +67,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 		case e := <-EdgeSnCh:
 
+			// optionally: save entries to a file
 			edges = append(edges, e)
 			slog.Log(LogLabel, fmt.Sprintf("received on EdgeSnCn. %#v", e))
 
@@ -91,7 +92,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 						// detect for possible concurrency issues with running attachers - for this to work we need to be aware of when attachers have finished (ie. done)
 						//
 						for r, _ := range attachRunning {
-							// if new edge shares any edges with currently running attach jobs move onot next edge
+							// if new edge shares any edges with currently running attach jobs move onto next edge
 							if e.CSn == r.CSn || e.PSn == r.CSn || e.CSn == r.PSn || e.PSn == r.PSn {
 								dontrun = true
 								break

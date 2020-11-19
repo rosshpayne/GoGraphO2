@@ -1,4 +1,4 @@
-package rdf
+package rdf.m
 
 import (
 	"context"

@@ -5,11 +5,15 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/DynamoGraph/types"
 )
 
 func TestLoadFile(t *testing.T) {
 
-	f, err := os.Open("1million.rdf")
+	//	f, err := os.Open("1million.rdf")
+	types.SetGraph("Movies")
+	f, err := os.Open("test.rdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,6 +35,7 @@ func TestLoadFile(t *testing.T) {
 
 func TestAttach(t *testing.T) {
 
+	types.SetGraph("Movies")
 	t0 := time.Now()
 	Attach()
 	t1 := time.Now()

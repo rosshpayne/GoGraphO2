@@ -50,7 +50,7 @@ func init() {
 
 	cfg = esv7.Config{
 		Addresses: []string{
-			"http://ip-172-31-18-75.ec2.internal:9200",
+			"http://ec2-54-226-125-213.compute-1.amazonaws.com:9200",
 		},
 		// ...
 	}
@@ -58,7 +58,6 @@ func init() {
 	if err != nil {
 		syslog(fmt.Sprintf("Error creating the client: %s", err))
 	}
-
 	//
 	// 1. Get cluster info
 	//

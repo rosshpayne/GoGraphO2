@@ -135,12 +135,17 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 		s.WriteString(attr)
 		return s.String()
 	}
-	for _, v := range allTypes {
+	for k, v := range allTypes {
 		tyNm = v.Nm[strings.Index(v.Nm, ".")+1:]
 		v.Nm = tyNm
 		if _, ok := tyMap[tyNm]; !ok {
 			tyMap[tyNm] = true
 		}
+		allTypes[k] = v
+	}
+
+	for k, v := range tyMap {
+		fmt.Println("tyMap: ", k, v)
 	}
 
 	for k, v := range allTypes {
@@ -196,9 +201,32 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 		TypeC.TyC[ty] = tc
 		tc = nil
 	}
+	// 	TyAttrC TyAttrCache
+	// TyC     TyCache
+	// AttrTy  AttrTyCache
+	fmt.Println("==== TypeC.AttrTy")
 	for k, v := range TypeC.AttrTy {
 		fmt.Println(k, v)
 	}
+	fmt.Println("==== TypeC.TyC")
+	for k, v := range TypeC.TyC {
+		fmt.Println(k, v)
+	}
+	fmt.Println("===== TypeC.TyAttrC")
+	for k, v := range TypeC.TyAttrC {
+		fmt.Println(k, v)
+	}
+	// confirm caches are populated
+	if len(TypeC.TyC) == 0 {
+		panic(fmt.Errorf("typeC.TyC is empty"))
+	}
+	if len(TypeC.AttrTy) == 0 {
+		panic(fmt.Errorf("typeC.AttrTy is empty"))
+	}
+	if len(TypeC.TyAttrC) == 0 {
+		panic(fmt.Errorf("typeC.TyAttrC is empty"))
+	}
+	//panic(fmt.Errorf("Testing load of DD"))
 	fmt.Println("End populateTyCaches...")
 }
 

@@ -24,11 +24,15 @@ type IID string
 type PersonT struct {
 	Id   IID
 	Uid  util.UID
-	Ty   uint8
+	Ty   uint8 // 1 : director, 2 : actor,  3: both
 	Name string
+	//
+	ActorPerformance []*PerformanceT
+	DirectorFilm     []*MovieT
+	//
 	sync.Mutex
 }
-type PersonMap map[IID]*PersonT
+type PersonMap map[IID]*PersonT // lookup using IID to get Person data + new UUID
 
 type GenreT struct {
 	Id   IID
@@ -50,8 +54,8 @@ type CharacterMap map[IID]CharacterT
 type PerformanceT struct {
 	Id        IID
 	Uid       util.UID
-	Film      IID
-	Actor     IID
+	Film      *MovieT
+	Actor     *PersonT
 	Character *CharacterT
 }
 type performanceMap map[IID]PerformanceT
@@ -59,12 +63,12 @@ type performanceMap map[IID]PerformanceT
 type MovieT struct {
 	Id   IID
 	Uid  util.UID
-	Name []string
+	Name []string // array of names associated with film
 	Ird  string
 	//	Ird         time.Time. - ignore time datatype for loading purposes. treat as Time only when required otherwise stick to string.
 	Genre       []IID
 	Director    []IID
-	Performance []*PerformanceT
+	Performance []*PerformanceT // aka "starring" in rdf file
 }
 type MovieMap map[IID]*MovieT
 
@@ -117,6 +121,7 @@ var (
 	Person      PersonMap
 	Genre       GenreMap
 	GenreMovies GenreMvMap
+	Performance performanceMap
 )
 
 func init() {
@@ -124,6 +129,7 @@ func init() {
 	Person = make(PersonMap)
 	Genre = make(GenreMap)
 	GenreMovies = make(GenreMvMap)
+	Performance = make(performanceMap)
 }
 
 func New(f io.Reader) Reader {
@@ -521,7 +527,7 @@ func (rn *RDFReader) loadMovies() error {
 		case "starring":
 			nameWillbeNew = true
 			uid, _ := util.MakeUID()
-			newPerformance = &PerformanceT{Id: IID(obj), Uid: uid, Film: newMovie.Id}
+			newPerformance = &PerformanceT{Id: IID(obj), Uid: uid, Film: newMovie}
 			newMovie.Performance = append(newMovie.Performance, newPerformance)
 			newPerformance.loadPerformance(rn, newMovie.Id)
 
@@ -606,34 +612,54 @@ func (p *PerformanceT) loadPerformance(rn *RDFReader, movieId IID) error {
 			p.Character.Name = obj // character name - presuming it is the last performance entry - need to find a better way to terminate loadPerformance.
 
 		case "performance.film":
-			p.Film = IID(obj)
-			if p.Film != movieId {
+			//p.Film = IID(obj)
+
+			if m, ok := Movie[IID(obj)]; !ok {
 				fmt.Errorf("Expected film id of %q got %q", p.Id, subj)
+			} else {
+				p.Film = m
 			}
 
 		case "performance.actor":
-			if v, ok := Person[IID(obj)]; !ok {
-				fmt.Errorf("Actor does not exist")
+			if person, ok := Person[IID(subj)]; !ok {
+				fmt.Errorf("Actor does not exist in person map %q", subj)
 			} else {
-				//tr:=v.ty & 2
-				if v.Ty&2 != 2 {
+				// check person is an actor
+				if person.Ty&2 != 2 {
 					fmt.Errorf("Expected actor but got director ", p.Id, subj)
 				}
+				/// check obj is current performance id
+				if IID(obj) != p.Id {
+					fmt.Errorf("Expected performance id of %q got %q", p.Id, subj)
+				}
+				// add actor to performance
+				p.Actor = person
 			}
 
-			if IID(subj) != p.Id {
-				fmt.Errorf("Expected performance id of %q got %q", p.Id, subj)
-			}
-			p.Actor = IID(obj)
+		case "actor.film": // should be actor.performance - belongs to person node
 
-		case "actor.film":
-			// check valid
-			if p.Actor != IID(subj) {
-				fmt.Errorf("Expected actor id of %q got %q", p.Actor, subj)
+			// validate subj is Person(actor) and obj is a Performance
+			// if p.Actor != IID(subj) {
+			// 	fmt.Errorf("Expected actor id of %q got %q", p.Actor, subj)
+			// }
+			// if p.IID != IID(obj) {
+			// 	fmt.Errorf("Expected film id of %q got %q", p.Actor, subj)
+			// }
+			if person, ok := Person[IID(obj)]; !ok {
+				fmt.Errorf("Actor does not exist")
+			} else {
+				// check person is an actor
+				if person.Ty&2 != 2 {
+					fmt.Errorf("Expected actor but got director ", p.Id, subj)
+				}
+				/// check obj is current performance id
+				if IID(subj) != p.Id {
+					fmt.Errorf("Expected performance id of %q got %q", p.Id, subj)
+				}
+				// add performance to actor
+				person.ActorPerformance = append(person.ActorPerformance, p)
 			}
-			if movieId != IID(obj) {
-				fmt.Errorf("Expected film id of %q got %q", p.Actor, subj)
-			}
+			//
 
 		case "performance.character":
 			uid, _ := util.MakeUID()

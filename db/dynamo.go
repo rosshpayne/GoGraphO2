@@ -284,6 +284,7 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 	// Marshal primary key of parent node
 	//
 	pKey := pKey{PKey: di.PKey, SortK: di.SortK}
+	syslog(fmt.Sprintf("pKey in SaveCompleteUpred: %#v", pKey))
 	av, err := dynamodbattribute.MarshalMap(&pKey)
 	if err != nil {
 		return newDBMarshalingErr("SaveCompleteUpred", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)

@@ -140,6 +140,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 	)
 	for _, nv := range nv_ {
 
+		fmt.Printf("In saveRDFNode:  nv = %#v\n", nv)
 		// append child attr value to parent uid-pred list
 		switch nv.DT {
 
@@ -184,7 +185,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Int ")
+				err = fmt.Errorf(" nv.Value is not an string (float) for predicate  %s", nv.Name)
 			}
 
 		case "S":
@@ -198,6 +199,8 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				//
 				// use Ix attribute to determine whether the P attribute (PK of GSI) should be populated.
 				//  For Ix value of FT (full text search)the S attribute will not appear in the GSI (P_S) as ElasticSearch has it covered
+				//  For Ix value of "x" is used for List or Set types which will have the result of expanding the array of values into
+				//  individual items which will be indexed. Usual to be able to query contents of a Set/List.
 				//  TODO: is it worthwhile have an FTGSI attribute to have it both index in ES and GSI
 				//
 				switch nv.Ix {
@@ -275,7 +278,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Int ")
+				err = fmt.Errorf(" nv.Value is not an string for attribute %s ", nv.Name)
 			}
 
 		case "Bl":
@@ -292,7 +295,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Int ")
+				err = fmt.Errorf(" nv.Value is not an BL for attribute %s ", nv.Name)
 			}
 
 		case "B":
@@ -309,7 +312,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Int ")
+				err = fmt.Errorf(" nv.Value is not an []byte ")
 			}
 
 		case "LI":
@@ -329,7 +332,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Int ")
+				err = fmt.Errorf(" nv.Value is not an []int64 for attribute, %s. Type: %T ", nv.Name, nv.Value)
 			}
 
 		case "LF":
@@ -349,7 +352,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Int ")
+				err = fmt.Errorf(" nv.Value is not an LF for attribute %s ", nv.Name)
 			}
 
 		case "SI":
@@ -362,7 +365,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not a slice of int")
+				err = fmt.Errorf(" nv.Value is not a slice of SI for attribute %s ", nv.Name)
 			}
 
 		case "SF":
@@ -407,7 +410,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an String Set ")
+				err = fmt.Errorf(" nv.Value is not an String Set for attribte %s ", nv.Name)
 			}
 
 		case "SB":
@@ -420,7 +423,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Int ")
+				err = fmt.Errorf(" nv.Value is not an Set of Binary for predicate %s ", nv.Name)
 			}
 
 		case "Nd":

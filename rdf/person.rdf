@@ -52,7 +52,6 @@ _:c SalaryLast3Year "45000" .
 _:c SalaryLast3Year "90000" .
 _:c SalaryLast3Year "1000" .
 
-
 _:d __type "Person" . /* specify type for blank Payne node */
 _:d __ID "OlTBKXemTNWATwDDt6U5/A==" . 
 _:d Name "Phil Smith"  .

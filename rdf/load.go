@@ -259,7 +259,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 // 	N    bool   // true: nullable (attribute may not exist) false: not nullable
 // 	Pg   bool   // true: propagate scalar data to parent
 // }
-//unmarshalRDF deconstructs the rdf lines for an individual node (identical subject value) to create NV entries for attribjte
+//unmarshalRDF deconstructs the rdf lines for an individual node (identical subject value) to create NV entries
 func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
 	defer wg.Done()
 
@@ -305,6 +305,7 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	// may need to merge multiple s-p-o lines with the same pred into one attr entry.
 	// attr will then be used to create NV entries, where the name (pred) gets associated with value (ob)
 	var found bool
+	fmt.Printf("ty : %#v\n", ty)
 	for _, v := range ty {
 		found = false
 		//	fmt.Println("node.Lines: ", len(node.Lines), node.Lines)

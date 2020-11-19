@@ -5,10 +5,13 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/DynamoGraph/types"
 )
 
 func TestLoadFile(t *testing.T) {
 
+	types.SetGraph("Relationship")
 	f, err := os.Open("person.rdf")
 	if err != nil {
 		t.Fatal(err)

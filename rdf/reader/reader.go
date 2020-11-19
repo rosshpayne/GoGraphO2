@@ -97,7 +97,7 @@ func (rn RDFReader) Read(n []*ds.Node) (int, bool, error) {
 		prevSubj        = "__"
 		subj, pred, obj string
 	)
-	syslog(fmt.Sprintf("reader: batch size -= ", len(n)))
+	syslog(fmt.Sprintf("reader: batch size -=  %d", len(n)))
 
 	v := n[0]
 	for ii := 0; ii < len(n); {

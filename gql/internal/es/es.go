@@ -50,7 +50,7 @@ func init() {
 	}
 	cfg = esv7.Config{
 		Addresses: []string{
-			"http://ec2-3-85-210-133.compute-1.amazonaws.com:9200",
+			"http://ec2-54-226-125-213.compute-1.amazonaws.com:9200",
 		},
 		// ...
 	}
