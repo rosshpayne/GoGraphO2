@@ -10,6 +10,7 @@ import (
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/client"
+	param "github.com/DynamoGraph/dygparam"
 	"github.com/DynamoGraph/gql/monitor"
 	"github.com/DynamoGraph/rdf/internal/db"
 	"github.com/DynamoGraph/types"
@@ -26,7 +27,7 @@ import (
 
 const (
 	// number of nodes in rdf to load in single read
-	readBatchSize = 2 // prod: 20
+	readBatchSize = 20 // prod: 20
 //	processBatchSize = 2 // prod 3 (total 60 concurrent nodes )
 )
 const (
@@ -182,9 +183,9 @@ func Load(f io.Reader) error { // S P O
 	// cancel context (close Done channel) on all autonomous goroutines
 	lcherr := make(chan elog.ErrorS)
 	elog.ListReqCh <- lcherr
-	syslog("11.....")
+
 	ex := <-lcherr
-	syslog(fmt.Sprintf("22.....error cnt: %d", len(ex)))
+	syslog(fmt.Sprintf("Eerror cnt: %d", len(ex)))
 
 	for _, e := range ex {
 		fmt.Println("Errors: ", e.Error())
@@ -212,7 +213,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 	// concurrent settings for goroutines
 	//
 	//	unmarshalTrg := grmgr.Trigger{R: routine, C: 5, Ch: make(chan struct{})}
-	limiter := grmgr.New("unmarshall", 5)
+	limiter := grmgr.New("unmarshall", 6)
 
 	syslog("verify started....")
 	// the loop will terminate on close of channel
@@ -305,7 +306,9 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	// may need to merge multiple s-p-o lines with the same pred into one attr entry.
 	// attr will then be used to create NV entries, where the name (pred) gets associated with value (ob)
 	var found bool
-	fmt.Printf("ty : %#v\n", ty)
+	if param.DebugOn {
+		fmt.Printf("unmarshalRDF: ty = %#v\n", ty)
+	}
 	for _, v := range ty {
 		found = false
 		//	fmt.Println("node.Lines: ", len(node.Lines), node.Lines)
@@ -446,20 +449,19 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 				// _:d Friends _:abc .
 				// _:d Friends _:b .
 				// _:d Friends _:c .
-				// need to convert n.Obj  value of SName to UID
+				// need to convert n.Obj value of SName to UID
 				if a, ok := attr[v.Name]; !ok {
 					ss := make([]string, 1)
-					ss[0] = n.Obj
-					//attr[v.Name] = ss
+					ss[0] = n.Obj // child node
 					attr[v.Name] = &mergedRDF{value: ss, dt: v.DT, c: v.C}
-					//addEdgesCh<-
 				} else {
+					// attach child (obj) short name to value slice (reperesenting list of child nodes to be attached)
 					if nd, ok := a.value.([]string); !ok {
 						err := fmt.Errorf("Conflict with Nd type at line %d", n.N)
 						node.Err = append(node.Err, err)
 					} else {
 						nd = append(nd, n.Obj)
-						attr[v.Name].value = nd // _:abc,_:b,_:c
+						attr[v.Name].value = nd // child nodes: _:abc,_:b,_:c
 					}
 				}
 				//	addEdgesCh<-
@@ -489,21 +491,17 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	//
 	// unmarshal attr into NV -except Nd types, handle in next for
 	//
-	var addTy = true
+	// add type of node to NV
+	//
+	e := ds.NV{Sortk: "A#T", SName: node.ID, Value: node.TyName, DT: "ty"}
+	nv = append(nv, e)
+	//
+	// add scalar predicates
+	//
 	for k, v := range attr {
 		//
 		if v.dt == Nd {
 			continue
-		}
-		if addTy {
-			// add type of node to NV -
-			//
-			// ***  Note: any requested UUID drives off this NV entry only - see saveRDFnode()
-			//      SName, UUID have the same value for each ds.NV entry for an individual node. TODO: this could be improved by separating these values from NV.
-			//
-			e := ds.NV{Sortk: "A#T", SName: node.ID, Value: node.TyName, DT: "ty"}
-			nv = append(nv, e)
-			addTy = false
 		}
 		//
 		// for nullable attributes only, populate Ty (which should be anyway) plus Ix (with "x") so a GSI entry is created in Ty_Ix to support Has(<predicate>) func.
@@ -518,16 +516,17 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		if v.DT == Nd {
 			// create empty item
 			value := []string{"__"}
-			e := ds.NV{Sortk: genSortK(v), Name: v.Name, SName: "__", Value: value, DT: Nd}
+			e := ds.NV{Sortk: genSortK(v), Name: v.Name, SName: "__", Value: value, DT: Nd, Ty: node.TyName} // TODO: added Ty so A#T item can be removed (at some point)
 			nv = append(nv, e)
 		}
 	}
 	//
-	//  build list of attachNodes (in uuid pkg) to be processed after all other tuples have been added to db
+	//  build list of attach node pairs (using anmgr) to be processed after all other node and predicates  have been added to db
 	//
 	for _, v := range attr {
 		if v.dt == "Nd" {
-			x := v.value.([]string)
+			// in the case of nodes wihtout scalars we need to add a type item
+			x := v.value.([]string) // child nodes
 			// for the node create a edge entry to each child node (for the Nd pred) in the anmgr service
 			// These entries will be used later to attach the actual nodes together (propagate child data etc)
 			for _, s := range x {
@@ -566,7 +565,7 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 	//
 	// define goroutine limiters
 	//
-	limiterSave := grmgr.New("saveNode", 2)
+	limiterSave := grmgr.New("saveNode", 6)
 
 	// upto 5 concurrent save routines
 	var c int

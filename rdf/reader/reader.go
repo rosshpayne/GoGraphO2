@@ -70,7 +70,7 @@ func New(f io.Reader) (Reader, util.UID) {
 	var s scanner.Scanner
 	// treat leading `_:` as part of an identifier
 	s.IsIdentRune = func(ch rune, i int) bool {
-		return ch == '_' && i == 0 || ch == '_' && i == 1 || ch == ':' && i == 1 || unicode.IsLetter(ch) || unicode.IsDigit(ch) && i > 0
+		return ch == '_' && i == 0 || ch == '_' && i == 1 || ch == ':' && i == 1 || unicode.IsLetter(ch) || unicode.IsDigit(ch) && i > 0 || ch == '.' || ch == '-' || ch == '_'
 	}
 	rdf.ts = s
 	//
@@ -121,15 +121,18 @@ func (rn RDFReader) Read(n []*ds.Node) (int, bool, error) {
 
 					switch i {
 					case 0:
+						fmt.Println("subj TokenText : ", rn.ts.TokenText())
 						subj = rn.ts.TokenText()[2:]
 					case 1:
+						fmt.Println("pred TokenText : ", rn.ts.TokenText())
 						pred = rn.ts.TokenText()
 					case 2:
 						obj = rn.ts.TokenText()
 					case 3:
 						_ = rn.ts.TokenText()
 					default:
-						return ii, false, fmt.Errorf("Unexpected token %q at end of line %d ", rn.line, tok)
+						fmt.Println("default TokenText : ", rn.ts.TokenText())
+						return ii, false, fmt.Errorf("Unexpected token %d at end of line %c ", tok, rn.line)
 					}
 					i++
 				}

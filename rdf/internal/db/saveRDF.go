@@ -78,7 +78,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 		Nd    [][]byte `json:",omitempty"`
 		XF    []int    `json:",omitempty"`
 		Id    []int    `json:",omitempty"`
-		Ty    string
+		Ty    string   `json:",omitempty"`
 	}
 
 	defer wg.Done()
@@ -134,13 +134,19 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 	UID := <-localCh
 
 	var (
-		NdUid     util.UID
+		//NdUid     util.UID
 		tyShortNm string
-		ok        bool
 	)
 	for _, nv := range nv_ {
 
-		fmt.Printf("In saveRDFNode:  nv = %#v\n", nv)
+		tyShortNm, _ = types.GetTyShortNm(nv.Ty)
+		// if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
+		// 	syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
+		// 	panic(fmt.Errorf("Error: type name %q not found in types.GetTyShortNm. sname: %s, nv: %#v\n", nv.Ty, sname, nv))
+		// }
+		///syslog(fmt.Sprintf("saveRDF: tySHortNm = %q", tyShortNm))
+
+		//fmt.Printf("In saveRDFNode:  nv = %#v\n", nv)
 		// append child attr value to parent uid-pred list
 		switch nv.DT {
 
@@ -154,46 +160,34 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				Ty    string // node type
 			}
 
-			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
-				return
-			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if i, ok := nv.Value.(int); !ok {
-				err = fmt.Errorf("Value is not an Int ")
+				panic(fmt.Errorf("Value is not an Int "))
 			} else {
 				// populate with dummy item to establish LIST
 				a := Item{PKey: UID, SortK: nv.Sortk, N: i, P: nv.Name, Ty: tyShortNm} // nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "failed to marshal type definition ", err.Error()))
 				}
 			}
 
 		case "F":
 
-			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
-				return
-			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if f, ok := nv.Value.(string); ok {
 				// populate with dummy item to establish LIST
 				a := Item{PKey: UID, SortK: nv.Sortk, N: f, P: nv.Name, Ty: tyShortNm} //nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an string (float) for predicate  %s", nv.Name)
+				panic(fmt.Errorf(" nv.Value is not an string (float) for predicate  %s", nv.Name))
 			}
 
 		case "S":
 
-			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
-				return
-			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if v, ok := nv.Value.(string); ok {
 				//
@@ -217,7 +211,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					a := Item{PKey: UID, SortK: nv.Sortk, S: v, P: nv.Name, Ty: tyShortNm} //nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+						panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 					}
 
 				case "FT", "ft":
@@ -230,7 +224,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					a := Item{PKey: UID, SortK: nv.Sortk, S: v, Ty: tyShortNm} //nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+						panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 					}
 
 				default:
@@ -238,30 +232,26 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					a := Item{PKey: UID, SortK: nv.Sortk, S: v, P: nv.Name, Ty: tyShortNm} //nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+						panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 					}
 
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an string ")
+				panic(fmt.Errorf(" nv.Value is not an string "))
 			}
 
 		case "DT": // DateTime
 
-			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
-				return
-			}
 			// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
 			if dt, ok := nv.Value.(time.Time); ok {
 				// populate with dummy item to establish LIST
 				a := Item{PKey: UID, SortK: nv.Sortk, DT: dt.String(), P: nv.Name, Ty: tyShortNm} //nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an String ")
+				panic(fmt.Errorf(" nv.Value is not an String "))
 			}
 
 		case "ty": // node type entry
@@ -275,44 +265,36 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an string for attribute %s ", nv.Name)
+				panic(fmt.Errorf(" nv.Value is not an string for attribute %s ", nv.Name))
 			}
 
 		case "Bl":
 
-			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
-				return
-			}
 			if f, ok := nv.Value.(bool); ok {
 				// populate with dummy item to establish LIST
 				a := Item{PKey: UID, SortK: nv.Sortk, Bl: f, P: nv.Name, Ty: tyShortNm} //nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an BL for attribute %s ", nv.Name)
+				panic(fmt.Errorf(" nv.Value is not an BL for attribute %s ", nv.Name))
 			}
 
 		case "B":
 
-			if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
-				syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
-				return
-			}
 			if f, ok := nv.Value.([]byte); ok {
 				// populate with dummy item to establish LIST
 				a := Item{PKey: UID, SortK: nv.Sortk, B: f, P: nv.Name, Ty: tyShortNm} //nv.Ty}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an []byte ")
+				panic(fmt.Errorf(" nv.Value is not an []byte "))
 			}
 
 		case "LI":
@@ -329,10 +311,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: nv.Sortk, LN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an []int64 for attribute, %s. Type: %T ", nv.Name, nv.Value)
+				panic(fmt.Errorf(" nv.Value is not an []int64 for attribute, %s. Type: %T ", nv.Name, nv.Value))
 			}
 
 		case "LF":
@@ -349,10 +331,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: nv.Sortk, LN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an LF for attribute %s ", nv.Name)
+				panic(fmt.Errorf(" nv.Value is not an LF for attribute %s ", nv.Name))
 			}
 
 		case "SI":
@@ -362,10 +344,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: nv.Sortk, SN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not a slice of SI for attribute %s ", nv.Name)
+				panic(fmt.Errorf(" nv.Value is not a slice of SI for attribute %s ", nv.Name))
 			}
 
 		case "SF":
@@ -381,10 +363,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: nv.Sortk, SN: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an slice float64 ")
+				panic(fmt.Errorf("SF nv.Value is not an slice float64 "))
 			}
 
 		case "SBl":
@@ -394,10 +376,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: nv.Sortk, SBl: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an slice of bool ")
+				panic(fmt.Errorf("Sbl nv.Value is not an slice of bool "))
 			}
 
 		case "SS":
@@ -407,10 +389,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: nv.Sortk, SS: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an String Set for attribte %s ", nv.Name)
+				panic(fmt.Errorf(" SSnv.Value is not an String Set for attribte %s ", nv.Name))
 			}
 
 		case "SB":
@@ -420,10 +402,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				a := Item{PKey: UID, SortK: nv.Sortk, SB: f, Ty: tyShortNm}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an Set of Binary for predicate %s ", nv.Name)
+				panic(fmt.Errorf("SB nv.Value is not an Set of Binary for predicate %s ", nv.Name))
 			}
 
 		case "Nd":
@@ -451,7 +433,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					id[i] = 0
 
 				}
-				NdUid = UID // save to use to create a Type item
+				//NdUid = UID // save to use to create a Type item
 				syslog(fmt.Sprintf("Received UID: %T %v %s\n", UID, UID, UID.String()))
 				a := Item{PKey: UID, SortK: nv.Sortk, Nd: uid, XF: xf, Id: id, Ty: tyShortNm}
 				//e:= uuid.Edges{	PKey  : UID, SortK: nv.SortK, Nd : uid}
@@ -460,10 +442,10 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				syslog(fmt.Sprintf("a: = %#v", a))
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 				}
 			} else {
-				err = fmt.Errorf(" nv.Value is not an string slice ")
+				panic(fmt.Errorf(" Nd nv.Value is not an string slice "))
 			}
 
 		}
@@ -483,44 +465,46 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 		t1 := time.Now()
 		syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 		if err != nil {
-			err = fmt.Errorf("Error: PutItem, %s", err.Error())
+			syslog(fmt.Sprintf("SaveRDFNode: Error %s in PutItem for av %#v", err, av))
+			panic(fmt.Errorf("Error: PutItem, %s", err.Error()))
 			return
 		}
 		//
-		// add a Type item for each uid-pred
+		// add a Type item for each uid-pred. NO USE Ty ATTRIBUTE IN UID_PRED ITEM RATHER THAN CREATE NEW TY ITEM.
 		//
-		if nv.DT == "Nd" {
-			{
-				type Item struct {
-					PKey  []byte
-					SortK string
-					Ty    string // node type
-				}
-				syslog(fmt.Sprintf("Adding Type item for uid-pred %s %s to %s UID: %s", nv.Ty, nv.Sortk, nv.Sortk+"#T", NdUid.String()))
-				// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
-				a := Item{PKey: NdUid, SortK: nv.Sortk + "#T", Ty: tyShortNm}
-				av, err = dynamodbattribute.MarshalMap(a)
-				if err != nil {
-					err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
-				}
-				{
-					t0 := time.Now()
-					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
-						Item:                   av,
-						ReturnConsumedCapacity: aws.String("TOTAL"),
-					})
-					t1 := time.Now()
-					syslog(fmt.Sprintf("SaveRDFNode for Ty: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
-					if err != nil {
-						err = fmt.Errorf("Error: PutItem for uid-pred type  %s", err.Error())
-					}
-				}
-			}
-		}
-		if err != nil {
-			return
-		}
+		// if nv.DT == "Nd" {
+		// 	{
+		// 		type Item struct {
+		// 			PKey  []byte
+		// 			SortK string
+		// 			//	Ty    string // node type
+		// 		}
+		// 		syslog(fmt.Sprintf("Adding Type item for uid-pred %s %s to %s UID: %s", nv.Ty, nv.Sortk, nv.Sortk+"#T", NdUid.String()))
+		// 		// null value for predicate ie. not defined in item. Set value to 0 and use XB to identify as null value
+		// 		a := Item{PKey: NdUid, SortK: nv.Sortk + "#T"} //, Ty: tyShortNm}
+		// 		av, err = dynamodbattribute.MarshalMap(a)
+		// 		if err != nil {
+		// 			panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
+		// 		}
+		// 		{
+		// 			t0 := time.Now()
+		// 			ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
+		// 				TableName:              aws.String("DyGraph"),
+		// 				Item:                   av,
+		// 				ReturnConsumedCapacity: aws.String("TOTAL"),
+		// 			})
+		// 			t1 := time.Now()
+		// 			syslog(fmt.Sprintf("SaveRDFNode for Ty: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+		// 			if err != nil {
+		// 				panic(fmt.Errorf("Error: PutItem for uid-pred type  %s", err.Error()))
+		// 			}
+		// 		}
+		// 	}
+		// }
+		// if err != nil {
+		// 	panic(fmt.Errorf("Error: in saveRF Nd  %s", err.Error()))
+		// 	return
+		// }
 
 	}
 	//
@@ -547,7 +531,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					a := Item{PKey: UID, SortK: sk, P: nv.Name, S: s, Ty: tyShortNm} //nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+						panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
@@ -558,11 +542,12 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					t1 := time.Now()
 					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						err = fmt.Errorf("Error: PutItem, %s", err.Error())
+						panic(fmt.Errorf("Error: PutItem, %s", err.Error()))
 					}
 				}
 			}
 			if err != nil {
+				panic(fmt.Errorf("Error: in saveRF  SS  %s", err.Error()))
 				return
 			}
 
@@ -590,7 +575,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					a := Item{PKey: UID, SortK: sk, P: nv.Name, N: float64(s), Ty: tyShortNm} //nv.Ty}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+						panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
@@ -601,11 +586,12 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					t1 := time.Now()
 					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						err = fmt.Errorf("Error: PutItem, %s", err.Error())
+						panic(fmt.Errorf("Error: PutItem, %s", err.Error()))
 					}
 				}
 			}
 			if err != nil {
+				panic(fmt.Errorf("Error: in saveRF  SI  %s", err.Error()))
 				return
 			}
 
@@ -620,7 +606,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					a := Item{PKey: UID, SortK: sk, P: nv.Name, S: s}
 					av, err = dynamodbattribute.MarshalMap(a)
 					if err != nil {
-						err = fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+						panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
@@ -631,11 +617,12 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					t1 := time.Now()
 					syslog(fmt.Sprintf("SaveRDFNode: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 					if err != nil {
-						err = fmt.Errorf("Error: PutItem, %s", err.Error())
+						panic(fmt.Errorf("Error: PutItem, %s", err.Error()))
 					}
 				}
 			}
 			if err != nil {
+				panic(fmt.Errorf("Error: in saveRF  LS  %s", err.Error()))
 				return
 			}
 

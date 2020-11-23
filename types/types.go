@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	blk "github.com/DynamoGraph/block"
+	param "github.com/DynamoGraph/dygparam"
 	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/types/internal/db"
 )
@@ -115,7 +116,6 @@ func SetGraph(graph_ string) {
 		}
 		populateTyCaches(dd)
 	}
-	fmt.Println("End types init()")
 }
 
 func populateTyCaches(allTypes blk.TyIBlock) {
@@ -201,20 +201,23 @@ func populateTyCaches(allTypes blk.TyIBlock) {
 		TypeC.TyC[ty] = tc
 		tc = nil
 	}
-	// 	TyAttrC TyAttrCache
-	// TyC     TyCache
-	// AttrTy  AttrTyCache
-	fmt.Println("==== TypeC.AttrTy")
-	for k, v := range TypeC.AttrTy {
-		fmt.Println(k, v)
-	}
-	fmt.Println("==== TypeC.TyC")
-	for k, v := range TypeC.TyC {
-		fmt.Println(k, v)
-	}
-	fmt.Println("===== TypeC.TyAttrC")
-	for k, v := range TypeC.TyAttrC {
-		fmt.Println(k, v)
+	if param.DebugOn {
+		fmt.Println("==== TypeC.AttrTy")
+		for k, v := range TypeC.AttrTy {
+			for _, v2 := range v {
+				fmt.Printf("%s       %c\n", k, v2)
+			}
+		}
+		fmt.Println("\n==== TypeC.TyC")
+		for k, v := range TypeC.TyC {
+			for _, v2 := range v {
+				fmt.Printf("%s       %#v\n", k, v2)
+			}
+		}
+		fmt.Println("\n===== TypeC.TyAttrC")
+		for k, v := range TypeC.TyAttrC {
+			fmt.Printf("%s       %#v\n", k, v)
+		}
 	}
 	// confirm caches are populated
 	if len(TypeC.TyC) == 0 {

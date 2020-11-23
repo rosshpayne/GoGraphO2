@@ -904,7 +904,7 @@ func InitialisePropagationItem(ty blk.TyAttrD, pUID util.UID, sortK string, tUID
 		err   error
 		av    map[string]*dynamodb.AttributeValue
 	)
-	fmt.Println("+++++++++++++++++ PropagateChildData: sortk , ty", sortK, ty.Name)
+
 	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
 		// fix to possible sdk error/issue for Binary ListAppend operations. SDK builds
 		//  a BS rather than a LIST for LISTAPPEND operation invovling binary data.
@@ -954,7 +954,6 @@ func InitialisePropagationItem(ty blk.TyAttrD, pUID util.UID, sortK string, tUID
 
 		}
 	}
-	fmt.Println("PropagateChildData: sortk , ty", sortk, ty.Name)
 
 	var pkey_ []byte
 	if bytes.Equal(pUID, tUID) {
@@ -1380,7 +1379,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 
 // AddReverseEdge maintains reverse edge from child to parent
 // e.g. Ross (parentnode) -> sibling -> Ian (childnode), Ian -> R%Sibling -> Ross
-// sortk: e.g. G#:S, A#G#:F. Attachment point of paraent to which child data is copied.
+// sortk: e.g. A#G#:S, A#G#:F. Attachment point of paraent to which child data is copied.
 //
 // query: detach node connected to parent UID as a friend?
 // Solution: specify field "BS" and  query condition 'contains(PBS,puid+"f")'          where f is the abreviation for friend predicate in type Person
@@ -1506,7 +1505,7 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 // It guarantees the event (operation + data) can only run once.
 // Rather than check parent is attached to child, ie. for cUID in pUID uid-pred which may contain millions of UIDs spread over multiple overflow blocks more efficient
 // to check child is attached to parent in cUID's #R attribute.
-// Solution: specify field "BS" and  query condition 'contains(PBS,puid+"f")'          where f is the abreviation for friend predicate in type Person
+// Solution: specify field "BS" and  query condition 'contains(PBS,puid+"f")'          where f is the short name for the uid-pred predicate
 //           if update errors then node is not attached to that parent-node-predicate, so nothing to delete
 //
 func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {

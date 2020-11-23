@@ -773,63 +773,63 @@ func TestUidPredFilterHasScalar(t *testing.T) {
 	validate(t, result)
 }
 
-func TestUidPredFilterHasUidPred(t *testing.T) {
+// func TestUidPredFilterHasUidPred(t *testing.T) {
 
-	input := `{
-	  me(func: eq(count(Siblings),2)) @filter(has(Friends)) {
-	    Name
-		Address
-		Age
-		Siblings @filter(has(Friends)) {
-			Name
-			Age
-		}
-	    }
-	}`
+// 	input := `{
+// 	  me(func: eq(count(Siblings),2)) @filter(has(Friends)) {
+// 	    Name
+// 		Address
+// 		Age
+// 		Siblings @filter(has(Friends)) {
+// 			Name
+// 			Age
+// 		}
+// 	    }
+// 	}`
 
-	expectedJSON = `{
-        data: [
-                {
-                Name : "Ross Payne",
-                Address : "67/55 Burkitt St Page, ACT, Australia",
-                Age : 62,
-                Siblings : [ 
-                ]
-                }, 
-                {
-                Name : "Ian Payne",
-                 Address : <nil>,
-                Age : 67,
-                Siblings : [ 
-                        { 
-                        Name: "Ross Payne",
-                        Age: 62,
-                        },
-                ]
-                }, 
-                {
-                Name : "Paul Payne",
-                 Address : <nil>,
-                Age : 58,
-                Siblings : [ 
-                        { 
-                        Name: "Ross Payne",
-                        Age: 62,
-                        },
-                ]
-                }
-        ]
-        }`
+// 	expectedJSON = `{
+//         data: [
+//                 {
+//                 Name : "Ross Payne",
+//                 Address : "67/55 Burkitt St Page, ACT, Australia",
+//                 Age : 62,
+//                 Siblings : [
+//                 ]
+//                 },
+//                 {
+//                 Name : "Ian Payne",
+//                  Address : <nil>,
+//                 Age : 67,
+//                 Siblings : [
+//                         {
+//                         Name: "Ross Payne",
+//                         Age: 62,
+//                         },
+//                 ]
+//                 },
+//                 {
+//                 Name : "Paul Payne",
+//                  Address : <nil>,
+//                 Age : 58,
+//                 Siblings : [
+//                         {
+//                         Name: "Ross Payne",
+//                         Age: 62,
+//                         },
+//                 ]
+//                 }
+//         ]
+//         }`
 
-	expectedTouchLvl = []int{3, 2}
-	expectedTouchNodes = 5
+// 	expectedTouchLvl = []int{3, 2}
+// 	expectedTouchNodes = 5
 
-	stmt := Execute("Relationship", input)
-	result := stmt.MarshalJSON()
-	t.Log(stmt.String())
+// 	stmt := Execute("Relationship", input)
+// 	result := stmt.MarshalJSON()
+// 	t.Log(stmt.String())
 
-	validate(t, result)
-}
+// 	validate(t, result)
+// }
 
 func TestRootFilteranyofterms1(t *testing.T) {
 

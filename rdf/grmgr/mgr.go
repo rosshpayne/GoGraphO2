@@ -161,8 +161,10 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 			if b, ok := rWait[r]; ok {
 				if b && rCnt[r] < rLimit[r].c {
+					// Send ack to waiting routine
 					slog.Log("grmgr: ", fmt.Sprintf("Send ack to waiting %s...", r))
 					rLimit[r].ch <- struct{}{}
+					rCnt[r] += 1
 					rWait[r] = false
 				}
 			}
@@ -170,6 +172,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 		case r = <-rAskCh:
 
 			if rCnt[r] < rLimit[r].c {
+				// has ASKed
 				rLimit[r].ch <- struct{}{} // proceed to run gr
 				rCnt[r] += 1
 				slog.Log("grmgr: ", fmt.Sprintf("has ASKed. Under cnt limit. Send ACK on routine channel..for %s  cnt: %d", r, rCnt[r]))

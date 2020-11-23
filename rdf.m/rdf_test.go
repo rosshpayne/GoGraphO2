@@ -33,15 +33,15 @@ func TestLoadFile(t *testing.T) {
 	//	time.Sleep(4 * time.Second)
 }
 
-func TestAttach(t *testing.T) {
+// func TestAttach(t *testing.T) {
 
-	types.SetGraph("Movies")
-	t0 := time.Now()
-	Attach()
-	t1 := time.Now()
-	fmt.Println("Duration: ", t1.Sub(t0))
+// 	types.SetGraph("Movies")
+// 	t0 := time.Now()
+// 	Attach()
+// 	t1 := time.Now()
+// 	fmt.Println("Duration: ", t1.Sub(t0))
 
-	t.Log("Finished...")
+// 	t.Log("Finished...")
 
-	//	time.Sleep(4 * time.Second)
-}
+// 	//	time.Sleep(4 * time.Second)
+// }

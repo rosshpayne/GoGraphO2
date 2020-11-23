@@ -149,7 +149,8 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 	// TyAttrC populated in NodeAttach(). Get Name of attribute that is the attachment point, based on sortk
 	//
 	i := strings.IndexByte(sortK, ':')
-	for _, v := range types.TypeC.TyAttrC {
+	// find attribute name of parent attach predicate
+	for _, v := range types.TypeC.TyC[ty] {
 		if v.C == sortK[i+1:] {
 			attachAttrNm = v.Name
 			found = true
@@ -157,7 +158,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		}
 	}
 	if !found {
-		return fmt.Errorf(fmt.Sprintf("Error in SetUpredAvailable. Attach point attribute not found in type map for sortk %q", sortK))
+		panic(fmt.Errorf(fmt.Sprintf("Error in SetUpredAvailable. Attach point attribute not found in type map for sortk %q", sortK)))
 	}
 	//
 	// get type short name
@@ -908,9 +909,13 @@ func (d *NodeCache) GetType() (tyN string, ok bool) { // TODO: source type from 
 	syslog(fmt.Sprintf("d.m: %#v\n", d.m))
 	if di, ok = d.m["A#T"]; !ok {
 		syslog("in GetType: no A#T entry in NodeCache")
+		panic(fmt.Errorf("GetType: no A#T entry in NodeCache"))
 		return "", ok
 	}
-	ty, _ := types.GetTyLongNm(di.GetTy())
+	ty, b := types.GetTyLongNm(di.GetTy())
+	if b == false {
+		panic(fmt.Errorf("cache.GetType() errored. Could not find long type name for short name %s", di.GetTy()))
+	}
 	return ty, true
 }
 
@@ -1008,9 +1013,10 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 		di.Nd = append(di.Nd, cUID)
 		di.XF = append(di.XF, blk.CuidInuse)
 		di.Id = append(di.Id, 0)
-
+		fmt.Printf("before SvaeCompleteUpred: %s %d %s %s %s\n", cUID, blk.CuidInuse, sortK, cUID, pUID)
 		err := db.SaveCompleteUpred(di)
 		if err != nil {
+			panic(err)
 			return nil, 0, fmt.Errorf("SaveCompleteUpred: %s", err)
 		}
 		return pUID, 0, nil // attachment point is the parent UID

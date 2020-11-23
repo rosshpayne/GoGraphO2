@@ -13,6 +13,9 @@ func TestLoadFile(t *testing.T) {
 
 	types.SetGraph("Relationship")
 	f, err := os.Open("person.rdf")
+
+	// types.SetGraph("Movies")
+	// f, err := os.Open("movie_test.rdf")
 	if err != nil {
 		t.Fatal(err)
 	}
