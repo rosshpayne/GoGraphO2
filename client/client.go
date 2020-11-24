@@ -204,10 +204,8 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		//
 		s := strings.Split(sortK, "#")
 		attachPoint := s[len(s)-1][1:]
-		fmt.Println("Compare attach types:1 & attachPoint ", cTyName, attachPoint)
 		var found bool
 		for _, v := range pty {
-			fmt.Println("Compare attach types:2 ", v.Ty, cTyName)
 			if v.C == attachPoint {
 				found = true
 				//
@@ -216,7 +214,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 				// is a IncP defined in the type definition. This will define the child attributes to propagate (short names used).
 				// Note: to support has() all nullable (type attribute N = true) must be propagated
 				//
-				fmt.Println("Compare attach types:3 ", v.Ty, cTyName)
 				if v.Ty != cTyName {
 					panic(fmt.Errorf("Parent node attachpoint does not match child type")) //TODO: replace panic with error message
 				}

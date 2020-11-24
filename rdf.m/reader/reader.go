@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"text/scanner"
@@ -159,6 +160,7 @@ func (rn *RDFReader) Read() error {
 	var (
 		l string
 	)
+	defer dumpErrs()
 
 	for rn.bs.Scan() {
 
@@ -227,16 +229,16 @@ func (rn *RDFReader) loadDirectors() {
 			fmt.Println("Exit LoadDirectors...")
 			break
 		}
-		fmt.Println("x: ", l)
+		//fmt.Println("x: ", l)
 		rn.ts.Init(strings.NewReader(l))
-		fmt.Println("In LoadDirectors...")
+		//fmt.Println("In LoadDirectors...")
 		//s.Mode ^= scanner.SkipComments // disable skip comments is enabled by default. Xor will toggle bit 10 to 0 to enable comment display
 
 		subj, pred, obj, dot = "", "", "", ""
 
 		for i, tok := 0, rn.ts.Scan(); tok != scanner.EOF; tok = rn.ts.Scan() {
 
-			fmt.Println("In text/scanner: ", rn.ts.TokenText())
+			//fmt.Println("In text/scanner: ", rn.ts.TokenText())
 			switch i {
 			case 0:
 				subj = strings.TrimLeft(strings.TrimRight(rn.ts.TokenText(), ">"), "<")
@@ -257,16 +259,16 @@ func (rn *RDFReader) loadDirectors() {
 		}
 		fmt.Println(">> ", subj, pred, obj)
 		if dot != "." {
-			fmt.Println("Errored: expected . got ", dot)
+			saveErr(fmt.Errorf("Errored: expected . got ", dot))
 		}
 		uid, err := util.MakeUID()
 		if err != nil {
-			panic(err)
+			saveErr(err)
 		}
 		if pred == "name" {
 			Person[IID(subj)] = &PersonT{Id: IID(subj), Name: obj, Uid: uid, Ty: 1}
 		} else {
-			panic(fmt.Errorf("LoadDirectors: expected a predicate of name got %q", pred))
+			saveErr(fmt.Errorf("LoadDirectors: expected a predicate of name got %q", pred))
 		}
 
 	}
@@ -329,7 +331,7 @@ func (rn *RDFReader) loadActors() {
 		}
 		uid, err := util.MakeUID()
 		if err != nil {
-			panic(err)
+			saveErr(err)
 		}
 		if pred == "name" {
 			if v, ok := Person[IID(subj)]; ok {
@@ -339,7 +341,7 @@ func (rn *RDFReader) loadActors() {
 				Person[IID(subj)] = &PersonT{Id: IID(subj), Name: obj, Uid: uid, Ty: 1 << (Actor - 1)}
 			}
 		} else {
-			panic(fmt.Errorf("LoadDirectors: expected a predicate of name got %s", pred))
+			saveErr(fmt.Errorf("LoadDirectors: expected a predicate of name got %s", pred))
 		}
 
 	}
@@ -372,12 +374,12 @@ func (rn *RDFReader) loadGenre() {
 		subj, pred, obj string
 		dot             string
 	)
-
+	fmt.Println("loadGenre......")
 	for rn.bs.Scan() {
 		i++
 		l = strings.Trim(l, " ")
 		l = strings.Trim(rn.bs.Text(), string(9))
-		fmt.Printf("rn.line %d, %q\n", i, l)
+		//fmt.Printf("rn.line %d, %q\n", i, l)
 		if len(l) == 0 {
 			continue
 		}
@@ -418,12 +420,12 @@ func (rn *RDFReader) loadGenre() {
 		}
 		uid, err := util.MakeUID()
 		if err != nil {
-			panic(err)
+			saveErr(err)
 		}
 		if pred == "name" {
 			Genre[IID(subj)] = &GenreT{Id: IID(subj), Name: obj, Uid: uid}
 		} else {
-			panic(fmt.Errorf("LoadDirectors: expected a predicate of name got %s", pred))
+			saveErr(fmt.Errorf("LoadDirectors: expected a predicate of name got %s", pred))
 		}
 
 	}
@@ -445,18 +447,18 @@ func (rn *RDFReader) loadMovies() error {
 
 		l = strings.Trim(l, " ")
 		l = strings.Trim(rn.bs.Text(), string(9))
-		fmt.Printf("rn.line %d, %q\n", i, l)
-		fmt.Println("loadMovies: l=", l)
+		//fmt.Printf("rn.line %d, %q\n", i, l)
+		//fmt.Println("loadMovies: l=", l)
 		if len(l) == 0 {
 			continue
 		}
-		fmt.Printf("rn.line %d, %q\n", i, l)
+		//fmt.Printf("rn.line %d, %q\n", i, l)
 		if l[0] == '#' {
 			fmt.Println("loadMovies: break ")
 			break
 		}
 
-		fmt.Printf("Loadmovies: %q\n", l)
+		////fmt.Printf("Loadmovies: %q\n", l)
 		rn.ts.Init(strings.NewReader(l))
 
 		//s.Mode ^= scanner.SkipComments // disable skip comments is enabled by default. Xor will toggle bit 10 to 0 to enable comment display
@@ -465,7 +467,7 @@ func (rn *RDFReader) loadMovies() error {
 
 		for i, tok := 0, rn.ts.Scan(); tok != scanner.EOF; tok = rn.ts.Scan() {
 
-			fmt.Println("In text/scanner: ", rn.ts.TokenText())
+			//fmt.Println("In text/scanner: ", rn.ts.TokenText())
 			switch i {
 			case 0:
 				subj = strings.TrimLeft(strings.TrimRight(rn.ts.TokenText(), ">"), "<")
@@ -498,13 +500,13 @@ func (rn *RDFReader) loadMovies() error {
 				// Load ALL movies
 				//
 				i++
-				if i > 120 {
+				if i > 520 {
 					return nil
 				}
-				fmt.Println("LoadMovie: ", i)
+				//fmt.Println("LoadMovie: ",i)
 				uid, err := util.MakeUID()
 				if err != nil {
-					panic(err)
+					saveErr(err)
 				}
 				nameWillbeNew = false
 				newMovie = &MovieT{Uid: uid, Id: IID(subj)}
@@ -523,7 +525,7 @@ func (rn *RDFReader) loadMovies() error {
 		case "director.film":
 			nameWillbeNew = true
 			if d, ok := Person[IID(subj)]; !ok {
-				panic(fmt.Errorf("LoadMovies: Person (director) not found %q", subj))
+				saveErr(fmt.Errorf("LoadMovies: Person (director) not found %q", subj))
 			} else {
 				newMovie.Director = append(newMovie.Director, d)
 				d.DirectorFilm = append(d.DirectorFilm, newMovie)
@@ -533,7 +535,7 @@ func (rn *RDFReader) loadMovies() error {
 		case "genre":
 			nameWillbeNew = true
 			if d, ok := Genre[IID(obj)]; !ok {
-				panic(fmt.Errorf("LoadMovies: Person (director) not found %q", subj))
+				saveErr(fmt.Errorf("LoadMovies: Person (director) not found %q", subj))
 			} else {
 				newMovie.Genre = append(newMovie.Genre, d)
 			}
@@ -546,7 +548,7 @@ func (rn *RDFReader) loadMovies() error {
 			newPerformance = &PerformanceT{Id: IID(obj), Uid: uid, Film: newMovie}
 			Performance[IID(obj)] = newPerformance
 			newMovie.Performance = append(newMovie.Performance, newPerformance)
-			fmt.Printf("Movie so far: %#v\n", *newMovie)
+			//:q!fmt.Printf("Movie so far: %#v\n", *newMovie)
 			newPerformance.loadPerformance(rn, newMovie.Id)
 
 		default:
@@ -586,7 +588,7 @@ func (p *PerformanceT) loadPerformance(rn *RDFReader, movieId IID) error {
 		if len(l) == 0 {
 			continue
 		}
-		fmt.Printf("In Performance:  rn.line %d, %q\n", i, l)
+		//fmt.Printf("In Performance:  rn.line %d, %q\n", i, l)
 		if l[0] == '#' {
 			break
 		}
@@ -599,7 +601,7 @@ func (p *PerformanceT) loadPerformance(rn *RDFReader, movieId IID) error {
 
 		for i, tok := 0, rn.ts.Scan(); tok != scanner.EOF; tok = rn.ts.Scan() {
 
-			fmt.Println("=========================== In text/scanner: ", rn.ts.TokenText())
+			//fmt.Println("=========================== In text/scanner: ", rn.ts.TokenText())
 			switch i {
 			case 0:
 				subj = strings.TrimLeft(strings.TrimRight(rn.ts.TokenText(), ">"), "<")
@@ -621,7 +623,7 @@ func (p *PerformanceT) loadPerformance(rn *RDFReader, movieId IID) error {
 		if dot != "." {
 			fmt.Println("Errored: expected . but got ", dot)
 		}
-		fmt.Println("Movies: ", i, subj, pred, obj)
+		fmt.Println("Performance: ", i, subj, pred, obj)
 		//
 		ii++
 		switch pred {
@@ -633,25 +635,25 @@ func (p *PerformanceT) loadPerformance(rn *RDFReader, movieId IID) error {
 			//p.Film = IID(obj)
 
 			if m, ok := Movie[IID(obj)]; !ok {
-				fmt.Printf("Expected film id of %q got %q", p.Id, subj)
+				saveErr(fmt.Errorf("Expected film id of %q got %q", p.Id, subj))
 			} else {
 				p.Film = m
 			}
 
 		case "performance.actor":
 			if person, ok := Person[IID(obj)]; !ok {
-				fmt.Printf("Actor does not exist in person map %q", subj)
+				saveErr(fmt.Errorf("Actor does not exist in person map %q", subj))
 			} else {
 				// check person is an actor
 				if person.Ty&2 != 2 {
-					fmt.Printf("Expected actor but got director ", p.Id, subj)
+					saveErr(fmt.Errorf("Expected actor but got director ", p.Id, subj))
 				}
 				/// check obj is current performance id
 				if IID(obj) != p.Id {
-					fmt.Printf("Expected performance id of %q got %q", p.Id, subj)
+					saveErr(fmt.Errorf("Expected performance id of %q got %q", p.Id, subj))
 				}
 				// add actor to performance
-				fmt.Println("============ performance.actor set =========")
+				//fmt.Println("============ performance.actor set =========")
 				p.Actor = person
 			}
 
@@ -665,15 +667,15 @@ func (p *PerformanceT) loadPerformance(rn *RDFReader, movieId IID) error {
 			// 	fmt.Printf("Expected film id of %q got %q", p.Actor, subj)
 			// }
 			if person, ok := Person[IID(subj)]; !ok {
-				fmt.Printf("Actor does not exist")
+				saveErr(fmt.Errorf("Actor does not exist"))
 			} else {
 				// check person is an actor
 				if person.Ty&2 != 2 {
-					fmt.Printf("Expected actor but got director ", p.Id, subj)
+					saveErr(fmt.Errorf("Expected actor but got director ", p.Id, subj))
 				}
 				/// check obj is current performance id
 				if IID(obj) != p.Id {
-					fmt.Printf("Expected performance id of %q got %q", p.Id, subj)
+					saveErr(fmt.Errorf("Expected performance id of %q got %q", p.Id, subj))
 				}
 				// add performance to actor
 				person.ActorPerformance = append(person.ActorPerformance, p)
@@ -696,4 +698,20 @@ func (p *PerformanceT) loadPerformance(rn *RDFReader, movieId IID) error {
 	}
 
 	return nil
+}
+
+var dataErrs []error
+
+func saveErr(err error) {
+	dataErrs = append(dataErrs)
+	if len(dataErrs) > 10 {
+		dumpErrs()
+		os.Exit(1)
+	}
+}
+
+func dumpErrs() {
+	for _, v := range dataErrs {
+		fmt.Println(v.Error())
+	}
 }

@@ -1,0 +1,46 @@
+{
+   "DyGTypes2":  [
+      {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "#Scalar" }, 
+            	    "Atr" : { "S" : "B" }
+                  }} 
+      },
+       {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "#Scalar" }, 
+            	    "Atr" : { "S" : "Bl" }
+                  }} 
+      },
+            {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "#Scalar" }, 
+            	    "Atr" : { "S" : "DT" }
+                  }} 
+      },
+            {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "#Scalar" }, 
+            	    "Atr" : { "S" : "F" }
+                  }} 
+      },
+            {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "#Scalar" }, 
+            	    "Atr" : { "S" : "I" }
+                  }} 
+      },
+            {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "#Scalar" }, 
+            	    "Atr" : { "S" : "S" }
+                  }} 
+      }
+     ]
+    }

@@ -107,7 +107,7 @@ func SavePersons(batch []*reader.PersonT, tyBlock blk.TyAttrBlock, tyName string
 				iCnt++
 				t0 := time.Now()
 				ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-					TableName:              aws.String("DyGraph"),
+					TableName:              aws.String(graphTbl),
 					Item:                   av,
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
@@ -137,7 +137,7 @@ func SavePersons(batch []*reader.PersonT, tyBlock blk.TyAttrBlock, tyName string
 					t0 := time.Now()
 
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -190,7 +190,7 @@ func SavePersons(batch []*reader.PersonT, tyBlock blk.TyAttrBlock, tyName string
 					t0 := time.Now()
 					iCnt++
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -277,7 +277,7 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) {
 				t0 := time.Now()
 				iCnt++
 				ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-					TableName:              aws.String("DyGraph"),
+					TableName:              aws.String(graphTbl),
 					Item:                   av,
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
@@ -323,7 +323,7 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) {
 				t0 := time.Now()
 				iCnt++
 				ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-					TableName:              aws.String("DyGraph"),
+					TableName:              aws.String(graphTbl),
 					Item:                   av,
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
@@ -366,7 +366,7 @@ func SaveGenres(tyBlock blk.TyAttrBlock, tyName string) {
 					iCnt++
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -441,7 +441,7 @@ func SaveCharacters(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName stri
 
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -486,7 +486,7 @@ func SaveCharacters(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName stri
 
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -561,7 +561,7 @@ func SavePerformances(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName st
 				t0 := time.Now()
 				iCnt++
 				ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-					TableName:              aws.String("DyGraph"),
+					TableName:              aws.String(graphTbl),
 					Item:                   av,
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
@@ -604,7 +604,7 @@ func SavePerformances(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName st
 					iCnt++
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -698,7 +698,7 @@ func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, 
 			iCnt++
 			t0 := time.Now()
 			ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-				TableName:              aws.String("DyGraph"),
+				TableName:              aws.String(graphTbl),
 				Item:                   av,
 				ReturnConsumedCapacity: aws.String("TOTAL"),
 			})
@@ -740,7 +740,7 @@ func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, 
 				convertSet2list(av)
 				t0 := time.Now()
 				ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-					TableName:              aws.String("DyGraph"),
+					TableName:              aws.String(graphTbl),
 					Item:                   av,
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
@@ -789,7 +789,7 @@ func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, 
 					iCnt++
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -820,9 +820,9 @@ func SaveMovies(batch []*reader.MovieT, tyBlock blk.TyAttrBlock, tyName string, 
 // 		ExpressionAttributeValues: expr.Values(),
 // 		FilterExpression:          expr.Filter(),
 // 		ProjectionExpression:      expr.Projection(),
-// 		TableName:                 aws.String("DyGraph"),
+// 		TableName:                 aws.String(graphTbl),
 // 	}
-// 	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+// 	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 
 // 	//
 // 	syslog("db.Orson check if exists about to scan  ")

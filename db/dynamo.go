@@ -27,6 +27,8 @@ import (
 const (
 	DELETE = 'D'
 	ADD    = 'A'
+	// graph table name
+	graphTbl = param.GraphTable
 )
 
 type gsiResult struct {
@@ -101,7 +103,7 @@ func NodeExists(uid util.UID, subKey ...string) (bool, error) {
 	input := &dynamodb.GetItemInput{
 		Key: av,
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	// GetItem
 	//
@@ -146,7 +148,7 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	// Query
 	//
@@ -200,7 +202,7 @@ func FetchNodeEncode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	// Query - returns ALL the node data + any propagated child data
 	//
@@ -296,7 +298,7 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 		ExpressionAttributeValues: values,
 		UpdateExpression:          expr.Update(),
 	}
-	update = update.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	update = update.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -376,7 +378,7 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx int, cnt int
 		ExpressionAttributeValues: values,
 		UpdateExpression:          expr.Update(),
 	}
-	update = update.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	update = update.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -418,7 +420,7 @@ func SaveOvflBlkFull(di *blk.DataItem, idx int) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	updii = updii.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	updii = updii.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -457,7 +459,7 @@ func SetCUIDpgFlag(tUID, cUID util.UID, sortk string) error {
 		ProjectionExpression:     expr.Projection(),
 		ExpressionAttributeNames: expr.Names(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	type Attached struct {
 		Nd [][]byte
@@ -501,7 +503,7 @@ func SetCUIDpgFlag(tUID, cUID util.UID, sortk string) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	updii = updii.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	updii = updii.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -558,7 +560,9 @@ func SaveChildUIDtoOvflBlock(cUID, tUID util.UID, sortk string, id int) error { 
 	//
 	// Marshal primary key of parent node
 	//
-	fmt.Println("***** SaveChildUIDtoOvflBlock:  ", cUID.String(), tUID.String(), sortk)
+	if param.DebugOn {
+		fmt.Println("***** SaveChildUIDtoOvflBlock:  ", cUID.String(), tUID.String(), sortk)
+	}
 	pkey := pKey{PKey: tUID, SortK: sortk}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
@@ -597,7 +601,7 @@ func SaveChildUIDtoOvflBlock(cUID, tUID util.UID, sortk string, id int) error { 
 		UpdateExpression:          expr.Update(),
 		ConditionExpression:       expr.Condition(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	{
 		t0 := time.Now()
 		uio, err := dynSrv.UpdateItem(input)
@@ -701,7 +705,7 @@ func AddOvflUIDs(di *blk.DataItem, OfUIDs []util.UID) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	{
 		t0 := time.Now()
 		uio, err := dynSrv.UpdateItem(input)
@@ -779,7 +783,7 @@ func AddUIDPropagationTarget(tUID util.UID, sortk string, id int) error {
 
 	t0 := time.Now()
 	ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-		TableName:              aws.String("DyGraph"),
+		TableName:              aws.String(graphTbl),
 		Item:                   av,
 		ReturnConsumedCapacity: aws.String("TOTAL"),
 	})
@@ -867,7 +871,7 @@ func MakeOvflBlocks(di *blk.DataItem, ofblk []util.UID, id int) error {
 			{
 				t0 := time.Now()
 				ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-					TableName:              aws.String("DyGraph"),
+					TableName:              aws.String(graphTbl),
 					Item:                   av,
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
@@ -1060,7 +1064,7 @@ func InitialisePropagationItem(ty blk.TyAttrD, pUID util.UID, sortK string, tUID
 	{
 		t0 := time.Now()
 		ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-			TableName:              aws.String("DyGraph"),
+			TableName:              aws.String(graphTbl),
 			Item:                   av,
 			ReturnConsumedCapacity: aws.String("TOTAL"),
 		})
@@ -1086,7 +1090,7 @@ func InitialisePropagationItem(ty blk.TyAttrD, pUID util.UID, sortK string, tUID
 	// 	}
 	// 	t0 := time.Now()
 	// 	ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-	// 		TableName:              aws.String("DyGraph"),
+	// 		TableName:              aws.String(graphTbl),
 	// 		Item:                   av,
 	// 		ReturnConsumedCapacity: aws.String("TOTAL"),
 	// 	})
@@ -1146,7 +1150,6 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 			}
 		}
 	}
-	fmt.Println("====================  PropagateChildData  ===========================")
 	if bytes.Equal(pUID, tUID) {
 		if ty.DT != "Nd" {
 			// simple scalar e.g. Age
@@ -1335,15 +1338,15 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 	var pkey_ util.UID
 
 	if bytes.Equal(pUID, tUID) {
-		fmt.Println("tUID same as pUID")
 		// pUIDb64 := pUID.Encodeb64() - when loading via CLI
 		// pkey_ = []byte(pUIDb64)
 		pkey_ = pUID
 	} else {
-		fmt.Println("tUID NOT the same as pUID")
 		pkey_ = tUID
 	}
-	fmt.Println("PropagateChildData: ADD CHILD DATA TO : ", pkey_, pkey_.Encodeb64())
+	if param.DebugOn {
+		fmt.Println("PropagateChildData: ADD CHILD DATA TO : ", pkey_, pkey_.Encodeb64())
+	}
 	//	pUIDb64 := pUID.Encodeb64()
 	pkey := pKey{PKey: pkey_, SortK: sortk}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
@@ -1358,7 +1361,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 		ExpressionAttributeValues: values,
 		UpdateExpression:          expr.Update(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -1429,7 +1432,7 @@ func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, itemId int) erro
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -1447,7 +1450,9 @@ func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, itemId int) erro
 // removeReverseEdge deletes parent UID from child's R# predicate, attributes BS (PBS was removed in sential func EdgeExists()
 func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 
-	fmt.Println("RemoveReverseEdge: on ", cuid, tUID)
+	if param.DebugOn {
+		fmt.Println("RemoveReverseEdge: on ", cuid, tUID)
+	}
 	//
 	// BS : set of binary values representing puid + tUID + sortk(last entry). Used to determine the tUID the child is data is saved to.
 	// PBS : set of binary values representing puid + sortk (last entry). Can be used to quickly access of child is attached to parent
@@ -1472,12 +1477,15 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 	}
 	//
 	//
-	for k, v := range expr.Names() {
-		fmt.Println(k, *v)
+	if param.DebugOn {
+		for k, v := range expr.Names() {
+			fmt.Println(k, *v)
+		}
+		fmt.Println("ExpressionAttributeValues: ", expr.Values())
+
+		xx := expr.Update()
+		fmt.Println("expr.Update(): ", *xx)
 	}
-	fmt.Println("ExpressionAttributeValues: ", expr.Values())
-	xx := expr.Update()
-	fmt.Println("expr.Update(): ", *xx)
 
 	input := &dynamodb.UpdateItemInput{
 		Key:                       av,
@@ -1486,7 +1494,7 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 		UpdateExpression:          expr.Update(),
 		ConditionExpression:       expr.Condition(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -1510,7 +1518,9 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 //
 func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 
-	fmt.Println("In EdgeExists: on ", cuid, puid)
+	if param.DebugOn {
+		fmt.Println("In EdgeExists: on ", cuid, puid)
+	}
 	//
 
 	var (
@@ -1603,7 +1613,7 @@ func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 		UpdateExpression:          expr.Update(),
 		ConditionExpression:       expr.Condition(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -1663,8 +1673,9 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 		}
 		return s_[len(s_)-1][1:]
 	}
-
-	fmt.Println("DetachNode:  cUID, pUID ", cUID.String(), pUID.String())
+	if param.DebugOn {
+		fmt.Println("DetachNode:  cUID, pUID ", cUID.String(), pUID.String())
+	}
 	// TODO: check if nodes are attached - this should be performed in client pkg
 
 	//
@@ -1685,7 +1696,7 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 	input := &dynamodb.GetItemInput{
 		Key: av,
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	type parents struct {
 		BS [][]byte // binary set
@@ -1730,7 +1741,6 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 		return fmt.Errorf("ErrNoParentAttachmentPointFound")
 	}
 	tUID := bsMember[16:32]
-	fmt.Println("* ** *** tUID, sortk: ", util.UID(tUID).Encodeb64(), sortk)
 	//
 	// get item-id within target UID (last component of BS)
 	//
@@ -1771,7 +1781,7 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 		ProjectionExpression:     expr.Projection(),
 		ExpressionAttributeNames: expr.Names(),
 	}
-	input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	type Attached struct {
 		Nd [][]byte
@@ -1836,7 +1846,7 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	updii = updii.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+	updii = updii.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -2051,7 +2061,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {
@@ -2091,7 +2101,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 		ExpressionAttributeNames:  expr.Names(),
 // 		ExpressionAttributeValues: expr.Values(),
 // 	}
-// 	input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+// 	input = input.SetTableName(graphTbl).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 // 	//
 // 	result, err := dynSrv.Query(input)
 // 	if err != nil {
@@ -2131,7 +2141,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 		ExpressionAttributeNames:  expr.Names(),
 // 		ExpressionAttributeValues: expr.Values(),
 // 	}
-// 	input = input.SetTableName("DyGraph").SetIndexName("P_B").SetReturnConsumedCapacity("TOTAL")
+// 	input = input.SetTableName(graphTbl).SetIndexName("P_B").SetReturnConsumedCapacity("TOTAL")
 // 	//
 // 	result, err := dynSrv.Query(input)
 // 	if err != nil {
@@ -2172,7 +2182,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 		ExpressionAttributeNames:  expr.Names(),
 // 		ExpressionAttributeValues: expr.Values(),
 // 	}
-// 	input = input.SetTableName("DyGraph").SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
+// 	input = input.SetTableName(graphTbl).SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
 // 	//
 // 	result, err = dynSrv.Query(input)
 // 	if err != nil {
@@ -2214,7 +2224,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 			ExpressionAttributeNames:  expr.Names(),
 // 			ExpressionAttributeValues: expr.Values(),
 // 		}
-// 		input = input.SetTableName("DyGraph").SetReturnConsumedCapacity("TOTAL")
+// 		input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 // 		//
 // 		result, err := dynSrv.Query(input)
 // 		if err != nil {

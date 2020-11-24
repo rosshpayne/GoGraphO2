@@ -34,7 +34,7 @@
             "AttributeType": "S"
         }
     ], 
-    "TableName": "DyGraph", 
+    "TableName": "DyGraphOD", 
     "KeySchema": [
         {
             "AttributeName": "PKey", 
@@ -45,10 +45,7 @@
             "KeyType": "RANGE"
         }
     ],
-    "ProvisionedThroughput": {
-                "ReadCapacityUnits": 500, 
-                "WriteCapacityUnits": 500
-    },
+    "BillingMode":  "PAY_PER_REQUEST",
     "GlobalSecondaryIndexes": [
         { "IndexName": "P_N", 
             "KeySchema": [
@@ -64,10 +61,6 @@
              "Projection": {
                 "ProjectionType": "INCLUDE",
                  "NonKeyAttributes" : [ "Ty" ]
-            }, 
-            "ProvisionedThroughput": {
-                "ReadCapacityUnits": 2, 
-                "WriteCapacityUnits": 20
             }
         },
         { "IndexName": "P_S", 
@@ -84,10 +77,6 @@
              "Projection": {
                 "ProjectionType": "INCLUDE",
                 "NonKeyAttributes" : [ "Ty" ]
-            }, 
-            "ProvisionedThroughput": {
-                "ReadCapacityUnits": 2, 
-                "WriteCapacityUnits": 500
             }
         },
         { "IndexName": "P_B", 
@@ -103,10 +92,6 @@
             ], 
              "Projection": {
                 "ProjectionType": "KEYS_ONLY"
-            }, 
-            "ProvisionedThroughput": {
-                "ReadCapacityUnits": 2, 
-                "WriteCapacityUnits": 2
             }
         },
         { "IndexName": "Ty_Ix", 
@@ -122,10 +107,6 @@
             ], 
              "Projection": {
                 "ProjectionType": "KEYS_ONLY"
-            }, 
-            "ProvisionedThroughput": {
-                "ReadCapacityUnits": 2, 
-                "WriteCapacityUnits": 2
             }
         }
     ]

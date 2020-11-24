@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DynamoGraph/dbConn"
+	param "github.com/DynamoGraph/dygparam"
 	slog "github.com/DynamoGraph/syslog"
 	"github.com/DynamoGraph/util"
 
@@ -16,6 +17,8 @@ type Equality int
 
 const (
 	logid = "gqlDB: "
+
+	graphTbl = param.GraphTable
 )
 const (
 	EQ Equality = iota + 1
@@ -91,7 +94,7 @@ func GSIQueryN(attr AttrName, lv float64, op Equality) (QResult, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {
@@ -141,7 +144,7 @@ func GSIQueryS(attr AttrName, lv string, op Equality) (QResult, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {
@@ -183,7 +186,7 @@ func GSIhasS(attr AttrName) (QResult, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {
@@ -223,7 +226,7 @@ func GSIhasN(attr AttrName) (QResult, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGraph").SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(graphTbl).SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {

@@ -1,0 +1,143 @@
+{
+   "DyGTypes2":  [
+      {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "#Graph" }, 
+            	    "Atr" : { "S" : "r" },
+            	    "Lnm" : { "S": "Relationship" }
+                  }} 
+      },
+            {    
+          "PutRequest" : {
+          "Item" : {
+               	"Nm"  : {"S": "#r.T" }, 
+            	    "Atr" : { "S" : "Pn" },
+            	    "LongNm" : { "S": "Person" }
+                  }} 
+      },
+      {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Name" },
+            	    "Ty" : { "S": "S" },
+            	    "F" : { "SS" : ["Changed#Bl#C"] },
+                    "C" : { "S": "N" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : false }, 
+            	    "Ix": { "S" : "FTg" },
+            	    "Pg" : { "BOOL" : true }
+                  } 
+     } },
+     {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Age" },
+            	    "Ty" : { "S": "I" },
+            	    "F" : { "SS" : ["HealthStatus#F#H","HasDoctor#Bl#D"]},
+            	    "C" : { "S": "A" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : false },
+            	    "Pg" : { "BOOL" : true }
+                  } 
+     } },
+          {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Comment" },
+            	    "Ty" : { "S": "S" },
+            	    "C" : { "S": "Ct" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : true },
+            	    "Pg" : { "BOOL" : false },
+            	    "Ix" : { "S" : "FT" }
+                  } 
+     } },
+     {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Cars" },
+            	    "Ty" : { "S": "SS" },
+            	    "C" : { "S": "C" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : true },
+            	    "Ix": { "S" : "x" }  
+                  } 
+     } },
+     {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Jobs" },
+            	    "Ty" : { "S": "LS" },
+            	    "C" : { "S": "J" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : true }
+                  } 
+     } },
+          {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "SalaryLast3Year" },
+            	    "Ty" : { "S": "SI" },
+            	    "C" : { "S": "SLY" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : true },
+            	    "Ix": { "S" : "x" }   
+                  } 
+     } },
+      {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "DOB" },
+            	    "Ty" : { "S": "S" },
+            	    "C" : { "S": "D" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : false },
+            	    "Pg" : { "BOOL" : true }
+                  } 
+     } },
+     {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Siblings" },
+            	    "Ty" : { "S": "[Person]" },
+            	    "C" : { "S": "S" },
+            	    "P" : { "S" : "A" },
+            	     "N" : {"BOOL":true},
+            	    "IncP" : {"SS" :["A","N"]}
+                  } 
+     } },
+     {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Friends" },
+            	    "Ty" : { "S": "[Person]" },
+            	    "N" : {"BOOL":true},
+            	    "C" : { "S": "F" },
+            	    "P" : { "S" : "A" },
+            	    "IncP" : { "SS" :["A","N","Ct"]}
+                  } 
+     } },
+     {    
+          "PutRequest" : {
+          "Item" : {
+                	"Nm"  : {"S": "r.Person" }, 
+            	    "Atr" : { "S" : "Address" },
+            	    "Ty" : { "S": "S" },
+            	    "C" : { "S": "E" },
+            	    "P" : { "S" : "A" },
+            	    "N" : { "BOOL" : true },
+            	    "Pg" : { "BOOL" : true }
+                  } 
+     } }
+     ]
+    }

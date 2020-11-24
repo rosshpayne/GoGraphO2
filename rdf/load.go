@@ -1,9 +1,10 @@
-package rdf
+package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"io"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,9 +79,12 @@ func init() {
 	saveCh = make(chan savePayload, 2*readBatchSize)
 }
 
+var inputFile = flag.String("f", "rdf_test.rdf", "RDF Filename: ")
+var graph = flag.String("g", "", "Graph: ")
+
 // uid PKey of the sname-UID pairs - consumed and populated by the SaveRDFNode()
 
-func Load(f io.Reader) error { // S P O
+func main() { //(f io.Reader) error { // S P O
 	//
 	// context - used to shutdown goroutines that are not part fo the pipeline
 	//
@@ -93,6 +97,21 @@ func Load(f io.Reader) error { // S P O
 		n              int // for loop counter
 		eof            bool
 	)
+	//
+	flag.Parse()
+	fmt.Println("graph, inputfile: ", *graph, *inputFile)
+	//
+	// set graph to use
+	//
+	types.SetGraph(*graph)
+
+	f, err := os.Open(*inputFile)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Process file: ", *inputFile)
+
 	//
 	// ES test
 	//
@@ -196,7 +215,7 @@ func Load(f io.Reader) error { // S P O
 	ctxEnd.Wait()
 	syslog("loader exits.....")
 
-	return err
+	return
 }
 
 func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitGroup) {

@@ -6,6 +6,7 @@ import (
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/dbConn"
+	param "github.com/DynamoGraph/dygparam"
 	slog "github.com/DynamoGraph/syslog"
 
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -14,7 +15,8 @@ import (
 )
 
 const (
-	logid = "TypesDB: "
+	logid    = "TypesDB: "
+	typesTbl = param.TypesTable
 )
 
 type tyNames struct {
@@ -94,7 +96,7 @@ func LoadDataDictionary() (blk.TyIBlock, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGTypes2").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName(typesTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	t0 := time.Now()
 	result, err := dynSrv.Scan(input)
@@ -135,7 +137,7 @@ func loadTypeShortNames() ([]tyNames, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGTypes2").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName(typesTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	t0 := time.Now()
 	result, err := dynSrv.Query(input)
@@ -180,7 +182,7 @@ func getGraphId(graphNm string) (string, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName("DyGTypes2").SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName(typesTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	t0 := time.Now()
 	result, err := dynSrv.Query(input)

@@ -138,6 +138,7 @@ func (n *NodeCache) GetDataItem(sortk string) (*blk.DataItem, bool) {
 // targetUID is the propagation block that contains the child scalar data.
 // id - overflow block id
 // cnt - increment counter by 0 (if errored) or 1 (if node attachment successful)
+// ty - type of the  parent
 func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.UID, id int, cnt int, ty string) error {
 	var (
 		attachAttrNm string
@@ -1013,7 +1014,7 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 		di.Nd = append(di.Nd, cUID)
 		di.XF = append(di.XF, blk.CuidInuse)
 		di.Id = append(di.Id, 0)
-		fmt.Printf("before SvaeCompleteUpred: %s %d %s %s %s\n", cUID, blk.CuidInuse, sortK, cUID, pUID)
+
 		err := db.SaveCompleteUpred(di)
 		if err != nil {
 			panic(err)

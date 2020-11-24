@@ -8,6 +8,7 @@ import (
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/dbConn"
+	param "github.com/DynamoGraph/dygparam"
 	"github.com/DynamoGraph/rdf/ds"
 	"github.com/DynamoGraph/rdf/es"
 	"github.com/DynamoGraph/rdf/grmgr"
@@ -23,6 +24,8 @@ import (
 
 const (
 	logid = "rdfSaveDB: "
+
+	graphTbl = param.GraphTable
 )
 
 type tyNames struct {
@@ -458,7 +461,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 		//
 		t0 := time.Now()
 		ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-			TableName:              aws.String("DyGraph"),
+			TableName:              aws.String(graphTbl),
 			Item:                   av,
 			ReturnConsumedCapacity: aws.String("TOTAL"),
 		})
@@ -489,7 +492,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 		// 		{
 		// 			t0 := time.Now()
 		// 			ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-		// 				TableName:              aws.String("DyGraph"),
+		// 				TableName:              aws.String(graphTbl),
 		// 				Item:                   av,
 		// 				ReturnConsumedCapacity: aws.String("TOTAL"),
 		// 			})
@@ -535,7 +538,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -579,7 +582,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -610,7 +613,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String("DyGraph"),
+						TableName:              aws.String(graphTbl),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
