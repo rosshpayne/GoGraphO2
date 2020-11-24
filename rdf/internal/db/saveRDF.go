@@ -425,7 +425,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 				id := make([]int, len(f), len(f))
 				for i, n := range f {
 					request := uuid.Request{SName: n, RespCh: localCh}
-					syslog(fmt.Sprintf("UID Nd request  : %#v", request))
+					//syslog(fmt.Sprintf("UID Nd request  : %#v", request))
 
 					uuid.ReqCh <- request
 
@@ -437,12 +437,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 
 				}
 				//NdUid = UID // save to use to create a Type item
-				syslog(fmt.Sprintf("Received UID: %T %v %s\n", UID, UID, UID.String()))
 				a := Item{PKey: UID, SortK: nv.Sortk, Nd: uid, XF: xf, Id: id, Ty: tyShortNm}
-				//e:= uuid.Edges{	PKey  : UID, SortK: nv.SortK, Nd : uid}
-				//execute AttachNode based on data in a
-				//uuid.EdgesCh <- uuid.Edges(a)
-				syslog(fmt.Sprintf("a: = %#v", a))
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))
@@ -527,6 +522,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 
 					if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 						syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
+						panic(fmt.Errorf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 						return
 					}
 
@@ -570,6 +566,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 
 					if tyShortNm, ok = types.GetTyShortNm(nv.Ty); !ok {
 						syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
+						panic(fmt.Errorf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 						return
 					}
 

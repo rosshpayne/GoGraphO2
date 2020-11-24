@@ -88,16 +88,21 @@ func main() { //(f io.Reader) error { // S P O
 	//
 	flag.Parse()
 	//
-	syslog(fmt.Sprintf("Argument: inputfile: %s", *inputfile))
+	syslog(fmt.Sprintf("Argument: inputfile: %s", *inputFile))
 	syslog(fmt.Sprintf("Argument: graph: %s", *graph))
 	//
 	// set graph to use
 	//
+	if len(*graph) == 0 {
+		fmt.Printf("Must supply a graph name\n")
+		flag.PrintDefaults()
+		return
+	}
 	types.SetGraph(*graph)
 	//
 	f, err := os.Open(*inputFile)
 	if err != nil {
-		syslog(fmt.Sprintf("Error opening file %q, %s", *inputfile, err))
+		syslog(fmt.Sprintf("Error opening file %q, %s", *inputFile, err))
 		fmt.Println(err)
 		return
 	}
@@ -109,7 +114,6 @@ func main() { //(f io.Reader) error { // S P O
 	var (
 		wpStart, wpEnd sync.WaitGroup
 		ctxEnd         sync.WaitGroup
-		err            error
 		n              int // for loop counter
 		eof            bool
 	)
