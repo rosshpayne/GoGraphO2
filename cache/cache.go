@@ -145,13 +145,15 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		found        bool
 		err          error
 	)
-	syslog(fmt.Sprintf("In SetUpredAvailable: pUid, tUID:  %s %s %s", pUID, targetUID, sortK))
+	syslog(fmt.Sprintf("In SetUpredAvailable:  pUid, tUID:  %s %s %s", pUID, targetUID, sortK))
 	//
 	// TyAttrC populated in NodeAttach(). Get Name of attribute that is the attachment point, based on sortk
 	//
 	i := strings.IndexByte(sortK, ':')
+	fmt.Println("SetUpredAvailable, ty, attachpoint, sortK ", ty, sortK[i+1:], sortK, len(types.TypeC.TyC[ty]))
 	// find attribute name of parent attach predicate
-	for _, v := range types.TypeC.TyC[ty] {
+	for k, v := range types.TypeC.TyC[ty] {
+		fmt.Println("SetUpredAvailable, k,v ", k, v.C, sortK[i+1:], sortK)
 		if v.C == sortK[i+1:] {
 			attachAttrNm = v.Name
 			found = true
@@ -904,12 +906,25 @@ func (d *NodeCache) UnmarshalMap(i interface{}) error {
 
 }
 
-func (d *NodeCache) GetType() (tyN string, ok bool) { // TODO: source type from GSI after Ty attribute is added ???
+func (d *NodeCache) GetType() (tyN string, ok bool) {
 	var di *blk.DataItem
 
-	syslog(fmt.Sprintf("d.m: %#v\n", d.m))
+	syslog(fmt.Sprintf("GetType: d.m: %#v\n", d.m))
 	if di, ok = d.m["A#T"]; !ok {
-		syslog("in GetType: no A#T entry in NodeCache")
+		//
+		// check other predicates as most have a Ty attribute defined (currently propagated data does not)
+		// this check enables us to use more specific sortK values when fetching a node rather than using top level "A#" that fetch all node data (performance hit)
+		//
+		for _, di := range d.m {
+			//
+			if len(di.GetTy()) != 0 {
+				ty, b := types.GetTyLongNm(di.GetTy())
+				if b == false {
+					panic(fmt.Errorf("cache.GetType() errored. Could not find long type name for short name %s", di.GetTy()))
+				}
+				return ty, true
+			}
+		}
 		panic(fmt.Errorf("GetType: no A#T entry in NodeCache"))
 		return "", ok
 	}
@@ -952,6 +967,13 @@ func (pn *NodeCache) SetOvflBlkFull(ovflBlkUID util.UID, sortk string) error {
 // in the case of overflow block it may require more overflow blocks to be created if less than a certain number are available.
 // ConfigureUpred makes changes to the node cache (i.e. adds overflows in the cache first). The last operation ofConfigureUpred
 // writes the uid-pred portion of the nocde cache to the database
+// sortK: uid-predicate of interest in parent node
+// pUID: parent UID
+// cUID: child UID
+// rsvCnt:
+//
+// Note: it is required to read the db data as decisions are based on this data. We then change the data and save the complete block back to the db
+//
 func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ...int) (util.UID, int, error) {
 	var (
 		ok          bool
@@ -982,6 +1004,8 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 	//
 	if di, ok = pn.m[sortK]; !ok {
 		// no uid-pred exists - create an empty one
+		syslog(fmt.Sprintf("ConfigureUpred: sortK not cached so create empty blk.DataItem for pUID %s", pUID))
+		//TODO - when is this used?
 		di = new(blk.DataItem)
 		pn.m[sortK] = di
 		//	return nil, 0, fmt.Errorf("GetTargetBlock: Target attribute %q does not exit", sortK)
@@ -1014,12 +1038,13 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 		di.Nd = append(di.Nd, cUID)
 		di.XF = append(di.XF, blk.CuidInuse)
 		di.Id = append(di.Id, 0)
-
+		syslog(fmt.Sprintf("ConfigureUpred: about to db.SaveCompleteUpred() for %s", pUID))
 		err := db.SaveCompleteUpred(di)
 		if err != nil {
 			panic(err)
 			return nil, 0, fmt.Errorf("SaveCompleteUpred: %s", err)
 		}
+		syslog(fmt.Sprintf("ConfigureUpred: about to db.SaveCompleteUpred()for for %s", pUID))
 		return pUID, 0, nil // attachment point is the parent UID
 	}
 	//

@@ -120,6 +120,8 @@ var (
 	//	GenreMovies GenreMvMap
 	Performance performanceMap
 	Character   CharacterMap
+	//
+	filmLimit int // number of films to migrate
 )
 
 func init() {
@@ -151,6 +153,10 @@ func New(f io.Reader) Reader {
 type cur struct {
 	obj, subj, pred string
 	set             bool
+}
+
+func SetLimit(n int) {
+	filmLimit = n
 }
 
 // Read read rdf file and bundles common tuples into nodes upto len(n) nodes and passes back via n.
@@ -438,8 +444,8 @@ func (rn *RDFReader) loadMovies() error {
 		newMovie        *MovieT
 		newPerformance  *PerformanceT
 		nameWillbeNew   bool = true
+		i               int
 	)
-	//i := 0
 	fmt.Printf("in Loadmovies:......")
 	for rn.bs.Scan() {
 
@@ -497,10 +503,10 @@ func (rn *RDFReader) loadMovies() error {
 				//
 				// Load ALL movies
 				//
-				// i++
-				// if i > 200 {
-				// 	return nil
-				// }
+				i++
+				if i > filmLimit {
+					return nil
+				}
 				//fmt.Println("LoadMovie: ",i)
 				uid, err := util.MakeUID()
 				if err != nil {

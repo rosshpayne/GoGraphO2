@@ -2,7 +2,6 @@ package cache
 
 import (
 	"fmt"
-	"strings"
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/db"
@@ -35,16 +34,24 @@ func (g *GraphCache) LockNode(uid util.UID) {
 
 }
 
+// FetchForUpdate is used as a substitute for database lock. If all db access is via this routine (or similar) then all updates will be serialised preventing
+// mutliple concurrent updates from corrupting each other.
 func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, error) {
-	var sortk_ string
-	//	return g.FetchNode(uid, true)
+	var (
+		sortk_  string
+		fetched bool
+	)
+	//
+	//	g lock protects global cache with UID key
+	//
 	g.Lock()
 	if len(sortk) > 0 {
 		sortk_ = sortk[0]
 	} else {
 		sortk_ = "A#"
 	}
-	//slog.Log("FetchForUpdate: ", fmt.Sprintf("** Cache FetchForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk_))
+
+	slog.Log("FetchForUpdate: ", fmt.Sprintf("** Cache FetchForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk_))
 	e := g.cache[uid.String()]
 	if e == nil {
 		e = &entry{ready: make(chan struct{})}
@@ -56,6 +63,7 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 			slog.Log("FetchForUpdate: ", fmt.Sprintf("db fetchnode error: %s", err.Error()))
 			return nil, err
 		}
+		fetched = true
 		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
 		en := e.NodeCache
 		en.Uid = uid
@@ -68,31 +76,99 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 		<-e.ready
 	}
 	//
-	// lock e to prevent updates from other routines. Must explicitly Unlock() from client.
+	// e lock protects Node Cache with sortk key.
+	// lock e to prevent updates from other routines. Must explicitly Unlock() some stage later.
 	//  Note: e can only be acquired from outside of this package via the Fetch* api.
 	//
 	e.Lock()
-	//if e != nil && e.NodeCache == nil || e == nil {
-	// node cache has been cleared. Start again.
+	//
+	// fetch will always do a db fetch - why? Because db data may have changed, as some changes go direct to db e.g. attachNode/detachNode.
+	// the cache is not used for caching as such but as a locking mechanism for Dynamodb and synchronising application transactions
+	//
+	//
+	if e.NodeCache != nil && !fetched {
+		e.fetchSortK(sortk_)
+	}
 	if e.NodeCache == nil {
-		slog.Log("FetchForUpdate: ", "e.NodeCache == nil TRUE bad a bout to e=nil")
+
+		slog.Log("FetchForUpdate: ", "e.NodeCache == nil. Retry FetchForUpdate")
 		// cache has been cleared. Start again.
 		e = nil
 		g.FetchForUpdate(uid, sortk_)
 	}
 	e.ffuEnabled = true
 	e.locked = false
-	var found bool
-	// check sortk is cached
-	// TODO: better algorithm required to detect if sortk is cached.
-	if sortk_ == "A#" && len(e.m) < 4 {
-		e.fetchItems(sortk_)
-	}
 
-	if !found {
-		e.fetchItems(sortk_) // e.NodeCache.fetchItems(sortk)
-	}
+	return e.NodeCache, nil
+}
 
+// FetchForUpdate is used as a substitute for database lock. If all db access is via this routine (or similar) then all updates will be serialised preventing
+// mutliple concurrent updates from corrupting each other. Problem with current design is it does a complete node fetch when its not necessary.
+// Is is possible just to use the mutex lock without querying the db - not likely as we need some of the data in the cache for processing, but certainly not all the node data.
+func (g *GraphCache) FetchUIDpredForUpdate(uid util.UID, sortk string) (*NodeCache, error) {
+	//
+	//	g lock protects global cache
+	//
+	g.Lock()
+
+	slog.Log("FetchUIDpredForUpdate: ", fmt.Sprintf("Cache FetchUIDpredForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk))
+	e := g.cache[uid.String()]
+	if e == nil {
+		//
+		// first time e cache is being accessed
+		//
+		e = &entry{ready: make(chan struct{})}
+		g.cache[uid.String()] = e
+		g.Unlock()
+		// nb: type blk.NodeBlock []*DataItem
+		nb, err := db.FetchNodeItem(uid, sortk)
+		if err != nil {
+			slog.Log("FetchUIDpredForUpdate: ", fmt.Sprintf("db fetchnode error: %s", err.Error()))
+			return nil, err
+		}
+		//
+		// create new NodeCache and populate with fetched blk.NodeBlock
+		//
+		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
+		en := e.NodeCache
+		en.Uid = uid
+		for _, v := range nb {
+			en.m[v.SortK] = v
+		}
+		close(e.ready)
+	} else {
+		g.Unlock()
+		<-e.ready
+	}
+	//
+	// e lock protects NodeCache.m
+	// given we are about to read and potentially update m we must first get a lock
+	// note: in this case the cache is acting as a cache as well as a database lock on the node cache.
+	//
+	e.Lock()
+	//
+	// check if sortk is in node cache
+	//
+	if _, ok := e.m[sortk]; !ok {
+		slog.Log("FetchUIDpredForUpdate: ", fmt.Sprintf("About to db.FetchNodeItem() for %s %s", uid, sortk))
+		nb, err := db.FetchNodeItem(uid, sortk)
+		if err != nil {
+			slog.Log("FetchUIDpredForUpdate: ", fmt.Sprintf("db fetchnode error: %s", err.Error()))
+			return nil, err
+		}
+		//
+		// while in possession of lock, add sortk entry to node cache m
+		//
+		for _, v := range nb {
+			e.m[v.SortK] = v
+		}
+	} else {
+		slog.Log("FetchUIDpredForUpdate: ", fmt.Sprintf("uidPred is already cached. %s %s", uid, sortk))
+	}
+	e.ffuEnabled = true
+	e.locked = false
+
+	// e must be unlocked by app
 	return e.NodeCache, nil
 }
 
@@ -125,9 +201,11 @@ func (g *GraphCache) FetchNodeExec_(uid util.UID, sortk string, ty string) (*Nod
 	return nil, nil
 }
 
+// FetchNodeNonCache will perform a db fetch for each execution.
+// Why? For testing purposes it's more realistic to access non-cached node data.
+// This API is used in GQL testing.
 func (g *GraphCache) FetchNodeNonCache(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var sortk_ string
-	fmt.Printf("** Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk)
 
 	g.Lock()
 	if len(sortk) > 0 {
@@ -137,14 +215,16 @@ func (g *GraphCache) FetchNodeNonCache(uid util.UID, sortk ...string) (*NodeCach
 	}
 	uids := uid.String()
 	e := g.cache[uids]
-	fmt.Printf("**2 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
+	//
+	// force db read by setting e to nil
+	//
 	e = nil
+	//
 	if e == nil {
 		e = &entry{ready: make(chan struct{})}
 		g.cache[uids] = e
 		g.Unlock()
 		// nb: type blk.NodeBlock []*DataIte
-		fmt.Printf("**3 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
 		nb, err := db.FetchNode(uid, sortk_)
 		if err != nil {
 			return nil, err
@@ -165,25 +245,9 @@ func (g *GraphCache) FetchNodeNonCache(uid util.UID, sortk ...string) (*NodeCach
 	// lock node cache. TODO: when is it unlocked?????
 	//
 	e.RLock()
-	if e.NodeCache == nil {
-		// cache has been cleared. Start again.
-		e = nil
-		g.FetchNode(uid, sortk_)
-	}
+
 	e.locked = true
 	e.ffuEnabled = false
-	var found bool
-	// check sortk is cached
-	for k := range e.m {
-		if strings.HasPrefix(k, sortk_) {
-			found = true
-			break
-		}
-	}
-	if !found {
-		e.RUnlock()
-		e.fetchItems(sortk_)
-	}
 
 	e.RUnlock()
 
@@ -192,7 +256,6 @@ func (g *GraphCache) FetchNodeNonCache(uid util.UID, sortk ...string) (*NodeCach
 
 func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var sortk_ string
-	fmt.Printf("** Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk)
 
 	g.Lock()
 	if len(sortk) > 0 {
@@ -202,19 +265,16 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 	}
 	uids := uid.String()
 	e := g.cache[uids]
-	fmt.Printf("**2 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
 
 	if e == nil {
 		e = &entry{ready: make(chan struct{})}
 		g.cache[uids] = e
 		g.Unlock()
 		// nb: type blk.NodeBlock []*DataIte
-		fmt.Printf("**3 Cache FetchNode uid- %d %s sortK: %s \n\n", len(uid), uid.String(), sortk_)
 		nb, err := db.FetchNode(uid, sortk_)
 		if err != nil {
 			return nil, err
 		}
-
 		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
 		en := e.NodeCache
 		en.Uid = uid
@@ -237,17 +297,17 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 	}
 	e.locked = true
 	e.ffuEnabled = false
-	var found bool
+	var cached bool
 	// check sortk is cached
 	for k := range e.m {
-		if strings.HasPrefix(k, sortk_) {
-			found = true
+		if k == sortk_ {
+			cached = true
 			break
 		}
 	}
-	if !found {
-		e.RUnlock()
-		e.fetchItems(sortk_)
+	if !cached {
+		//	e.RUnlock()
+		e.fetchSortK(sortk_)
 	}
 
 	e.RUnlock()
@@ -255,17 +315,16 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 	return e.NodeCache, nil
 }
 
-func (g *NodeCache) fetchItems(sortk string) error {
+func (nc *NodeCache) fetchSortK(sortk string) error {
 
-	slog.Log("fetchItems: ", fmt.Sprintf("+++  Cache FetchItems for sortk %s UID: [%s] \n", sortk, g.Uid.String()))
-
-	nb, err := db.FetchNode(g.Uid, sortk)
+	slog.Log("fetchSortK: ", fmt.Sprintf("fetchSortK for %s UID: [%s] \n", sortk, nc.Uid.String()))
+	nb, err := db.FetchNode(nc.Uid, sortk)
 	if err != nil {
 		return err
 	}
-	// add data items to cache map
+	// add data items to node cache
 	for _, v := range nb {
-		g.m[v.SortK] = v
+		nc.m[v.SortK] = v
 	}
 
 	return nil

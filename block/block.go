@@ -84,6 +84,7 @@ type DataItem struct {
 	XBl []bool // used for propagated child scalars (List data). True means associated child value is NULL (ie. is not defined)
 	XF  []int  // used in uid-predicate 1 : c-UID, 2 : c-UID is soft deleted, 3 : ovefflow UID, 4 : overflow block full
 	Id  []int  // overflow item number in Overflow block e.g. A#G:S#:A#3 where Id is 3 meaning its the third item in the overflow block. Each item containing 500 or more UIDs in Lists.
+	//
 }
 type NodeBlock []*DataItem
 

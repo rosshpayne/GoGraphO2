@@ -55,7 +55,7 @@ func LogEvent(eventData interface{}) error {
 			ReturnConsumedCapacity: aws.String("TOTAL"),
 		})
 		t1 := time.Now()
-		syslog(fmt.Sprintf("LogEvent for %s: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+		syslog(fmt.Sprintf("LogEvent: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 		if err != nil {
 			return fmt.Errorf("LogEvent Error: PutItem for %s Error: %s", err.Error())
 		}

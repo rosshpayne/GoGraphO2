@@ -1,7 +1,8 @@
 package params
 
 const (
-	DebugOn = false
+	DebugOn = true
+	//SysDebugOn = false
 
 	GraphTable = "DyGraphOD"
 	TypesTable = "DyGTypes2"

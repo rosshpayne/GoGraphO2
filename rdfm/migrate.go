@@ -11,7 +11,8 @@ import (
 	slog "github.com/DynamoGraph/syslog"
 )
 
-var inputFile = flag.String("f", "rdf_test.rdf", "RDF Filename: ")
+var inputFile = flag.String("f", "rdf_test.rdf", "RDF Filename ")
+var numFilms = flag.Int("n", 0, "Number of Films to migrate")
 
 func syslog(s string) {
 	slog.Log("rdfLoader: ", s)
@@ -24,13 +25,18 @@ func main() {
 
 	//
 	flag.Parse()
-	fmt.Println("inputfile: ",*inputFile)
+	fmt.Println("inputfile: ", *inputFile)
+	fmt.Println("films to migrate: ", *numFilms)
+	if *numFilms == 0 || len(*inputFile) == 0 {
+		flag.PrintDefaults()
+		return
+	}
 	f, err := os.Open(*inputFile)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Process file: ", *inputFile)
+	reader.SetLimit(*numFilms)
 
 	rdr := reader.New(f)
 	//

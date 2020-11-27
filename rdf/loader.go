@@ -569,7 +569,6 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 
 	syslog("saveNode started......")
 	wpStart.Done()
-	syslog("define saveNode limiter......")
 	//
 	// define goroutine limiters
 	//
@@ -580,7 +579,6 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 	for py := range saveCh {
 		c++
 
-		//	slog.Log("saveNode: ", fmt.Sprintf("read from saveCH channel %d ", c))
 		limiterSave.Ask()
 		<-limiterSave.RespCh()
 
@@ -588,7 +586,6 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 		go db.SaveRDFNode(py.sname, py.suppliedUUID, py.attributes, &wg, limiterSave)
 
 	}
-	//	syslog("saveNode  waiting on saveRDFNode routines to finish")
 	wg.Wait()
 	syslog("saveNode finished waiting.....now to attach nodes")
 
@@ -607,15 +604,12 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 		if string(e.Cuid) == "eod" {
 			break
 		}
-		//slog.Log("attachNode: ", fmt.Sprintf("read from AttachNodeCh channel %d now ASK limiter", c))
 
 		limiterAttach.Ask()
 		<-limiterAttach.RespCh()
 
-		//slog.Log("attachNode: ", "limiter has ACK and will start goroutine...")
-
 		wg.Add(1)
-		//slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
+		slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
 		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach)
 	}
 

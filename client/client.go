@@ -44,13 +44,7 @@ func IndexMultiValueAttr(cUID util.UID, sortK string) error { return nil }
 
 func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.WaitGroup, lmtr grmgr.Limiter) []error { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
 	//
-	// update data cache to reflect child node attached to parent. This involves
-	// 1. append chid UID to the associated parent uid-predicate, parent e.g. sortk A#G#:S
-	// 2. propagate child scalar data to associated uid-predicate (parent's 'G' type) G#:S#:A etc..
-	//
-	//func AttachNode(cUID, pUID util.UID, sortK string, wg_ *sync.WaitGroup) []error { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
-	//
-	// update data cache to reflect child node attached to parent. This involves
+	// update db only (cached copies of node are not updated) to reflect child node attached to parent. This involves
 	// 1. append chid UID to the associated parent uid-predicate, parent e.g. sortk A#G#:S
 	// 2. propagate child scalar data to associated uid-predicate (parent's 'G' type) G#:S#:A etc..
 	//
@@ -147,9 +141,10 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	go func() {
 		defer wg.Done()
 		//
-		// Grab child scalar data and lock child  node. Unlocked in UnmarshalCache and defer.(?? no need for cUID lock after Unmarshal - I think?)  ALL SCALARS SHOUD BEGIN WITH sortk "A#"
+		// Grab child scalar data (sortk: A#A#) and lock child node. Unlocked in UnmarshalCache and defer.(?? no need for cUID lock after Unmarshal - I think?)  ALL SCALARS SHOUD BEGIN WITH sortk "A#"
 		//
-		cnd, err := gc.FetchForUpdate(cUID, "A#")
+		syslog.Log("AttachNode: gr1 ", fmt.Sprintf("AttachNode: child node: %s   sortk  A#A#", cUID))
+		cnd, err := gc.FetchForUpdate(cUID, "A#A#")
 		defer cnd.Unlock("ON cUID for AttachNode second goroutine..") // note unmarshalCache nolonger release the lock
 		if err != nil {
 			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("AttachNode: error fetching child scalar data: %s", err.Error()))
@@ -178,8 +173,8 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		var payload chPayload
 		// prevent panic on closed channel by using bool test on channel.
 		if payload, ok = <-xch; !ok {
-			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Errored: Channel xch prematurely closed and drained "))
-			errch <- fmt.Errorf("AttachNode: Channel xch prematurely closed and drained")
+			syslog.Log("AttachNode: gr1 ", fmt.Sprintf("Empty payload"))
+			errch <- fmt.Errorf("AttachNode: Channel xch received empty payload because of error in main attach node routine. See errors")
 			return
 		}
 		fmt.Println("Payload received...", payload)
@@ -359,17 +354,16 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		syslog.Log("AttachNode: main ", fmt.Sprintf("SetUpredAvailable succesful %d %d ", id, cnt, ty))
 	}
 
-	//
-	// fetch parent node to find its type. This will lock parent node for update (no shared locks). Explicit unlocked in defer
-	//
-	idx := strings.IndexByte(sortK, '#')
+	syslog.Log("AttachNode: main ", fmt.Sprintf("FetchUIDpredForUpdate using pUID: %s sortK %s", pUID, sortK))
+	//pnd, err = gc.FetchForUpdate(pUID, sortK)
+	pnd, err = gc.FetchUIDpredForUpdate(pUID, sortK)
 
-	pnd, err = gc.FetchForUpdate(pUID, sortK[:idx+1]) //TODO: query all items in UID partition. Sortk should not be shortened. It should search based on entire sortk like below.
 	// to fix need to add Ty item to each uid-pred so type is returned from {uid,sortk} query
 	//	pnd, err = gc.FetchForUpdate(pUID, sortK)
 	if err != nil {
+		syslog.Log("AttachNode: main ", fmt.Sprintf("e.UnLock() for %s", pUID.String()))
 		pnd.Unlock()
-		syslog.Log("AttachNode: main 2 ", fmt.Sprintf("FetchForUpdate:  errored..%s", err.Error()))
+		syslog.Log("AttachNode: main 2 ", fmt.Sprintf("FetchForUpdate: for %s errored..%s", pUID, err.Error()))
 		// send empty payload so concurrent routine will abort -
 		// not necessary to capture nil payload error from routine as it has a buffer size of 1
 		xch <- chPayload{}
@@ -379,6 +373,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	//
 	// get type of child node from A#T sortk e.g "Person"
 	//
+	syslog.Log("AttachNode: main ", fmt.Sprintf("Client GetType() after fetchforupdate using sortk %q.  pUID: %s", sortK, pUID))
 	if pTyName, ok = pnd.GetType(); !ok {
 		pnd.Unlock()
 		syslog.Log("AttachNode: main ", fmt.Sprintf("#Error in GetType"))
@@ -388,6 +383,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		wg.Wait()
 		return addErr(err)
 	}
+	syslog.Log("AttachNode: main ", fmt.Sprintf("pTyName %s sortk %q   %s", pTyName, sortK, pUID))
 	//
 	// get type details from type table for child node
 	//

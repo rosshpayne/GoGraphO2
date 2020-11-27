@@ -178,57 +178,109 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 	return data, nil
 }
 
-// FetchNodeEncode() first base64 encodes UID before querying db.
-// this is required as a workaround to CLI loaded binary data that is effectively double encoded. Firstly it is encoded in the text file then it is encode by the CLI during parsing (which is shouldn't do)
-func FetchNodeEncode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
-	var keyC expression.KeyConditionBuilder
+func FetchNodeItem(uid util.UID, sortk string) (blk.NodeBlock, error) {
 
-	uidb64 := util.UID(uid.Encodeb64()) //uid
-	// Dynamodb sdk will not convert UID to base64 so we must. This is unlike PutItem that will encode all binaries to base64.
-	fmt.Printf("*********** db FetchNodeEncode: [%08b]%d uid: %s subKey: %q\n", uid, len(uid), uid, subKey[0])
-	if len(subKey) > 0 {
-		keyC = expression.KeyEqual(expression.Key("PKey"), expression.Value(uidb64)).And(expression.KeyBeginsWith(expression.Key("SortK"), subKey[0]))
-	} else {
-		keyC = expression.KeyEqual(expression.Key("PKey"), expression.Value(uidb64)).And(expression.KeyBeginsWith(expression.Key("SortK"), "A#"))
-	}
-	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
+	stat := mon.Stat{Id: mon.DBFetch}
+	mon.StatCh <- stat
+
+	// proj := expression.NamesList(expression.Name("SortK"), expression.Name("Nd"), expression.Name("XF"), expression.Name("Id"))
+	// expr, err := expression.NewBuilder().WithProjection(proj).Build()
+	// if err != nil {
+	// 	return nil, newDBExprErr("FetchNodeItem", "", "", err)
+	// }
+	// TODO: remove encoding when load of data via cli is not used.
+
+	pkey := pKey{PKey: []byte(uid), SortK: sortk}
+	syslog(fmt.Sprintf("FetchNodeItem: with pKey of  %#v", pkey, util.UID(pkey.PKey)))
+	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
-		return nil, newDBExprErr("FetchNodeEncode", uidb64.String(), "", err)
+		return nil, newDBMarshalingErr("FetchItem", "", sortk, "MarshalMap", err)
 	}
 	//
-	input := &dynamodb.QueryInput{
-		KeyConditionExpression:    expr.KeyCondition(),
-		FilterExpression:          expr.Filter(),
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
+	input := &dynamodb.GetItemInput{
+		Key: av,
+		// ProjectionExpression:     expr.Projection(),
+		// ExpressionAttributeNames: expr.Names(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
-	// Query - returns ALL the node data + any propagated child data
+	// GetItem
 	//
 	t0 := time.Now()
-	result, err := dynSrv.Query(input)
+	result, err := dynSrv.GetItem(input)
 	t1 := time.Now()
-	//fmt.Println("DB Access: ", t1.Sub(t0))
 	if err != nil {
-		return nil, newDBSysErr("FetchNode", "Query", err)
+		return nil, newDBSysErr("FetchNodeItem", "GetItem", err)
 	}
-	syslog(fmt.Sprintf("FetchNodeEncode:consumed capacity for Query  %s. ItemCount %d  Duration: %s", result.ConsumedCapacity.String(), len(result.Items), t1.Sub(t0)))
+	syslog(fmt.Sprintf("FetchNodeItem:consumed capacity for GetItem  %s. Duration: %s", result.ConsumedCapacity.String(), t1.Sub(t0)))
 	//
-	if int(*result.Count) == 0 {
-		return nil, newDBNoItemFound("FetchNodeEncode", uidb64.String(), "", "Query")
+	if len(result.Item) == 0 {
+		return nil, newDBNoItemFound("FetchNodeItem", "", sortk, "GetItem")
 	}
-	if logerr == nil {
-		fmt.Println("logerr is nil")
-	}
-	data := make(blk.NodeBlock, *result.Count)
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &data)
+	//
+	var di blk.DataItem
+	err = dynamodbattribute.UnmarshalMap(result.Item, &di)
 	if err != nil {
-		return nil, newDBUnmarshalErr("FetchNodeEncode", uidb64.String(), "", "UnmarshalListOfMaps", err)
+		return nil, newDBUnmarshalErr("FetchNodeItem", "", sortk, "UnmarshalMap", err)
 	}
-
-	return data, nil
+	syslog(fmt.Sprintf("FetchNodeItem: result %#v", di))
+	nb := make(blk.NodeBlock, 1, 1)
+	nb[0] = &di
+	return nb, nil
+	//
 }
+
+// // FetchNodeEncode() first base64 encodes UID before querying db.
+// // this is required as a workaround to CLI loaded binary data that is effectively double encoded. Firstly it is encoded in the text file then it is encode by the CLI during parsing (which is shouldn't do)
+// func FetchNodeEncode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
+// 	var keyC expression.KeyConditionBuilder
+
+// 	uidb64 := util.UID(uid.Encodeb64()) //uid
+// 	// Dynamodb sdk will not convert UID to base64 so we must. This is unlike PutItem that will encode all binaries to base64.
+// 	fmt.Printf("*********** db FetchNodeEncode: [%08b]%d uid: %s subKey: %q\n", uid, len(uid), uid, subKey[0])
+// 	if len(subKey) > 0 {
+// 		keyC = expression.KeyEqual(expression.Key("PKey"), expression.Value(uidb64)).And(expression.KeyBeginsWith(expression.Key("SortK"), subKey[0]))
+// 	} else {
+// 		keyC = expression.KeyEqual(expression.Key("PKey"), expression.Value(uidb64)).And(expression.KeyBeginsWith(expression.Key("SortK"), "A#"))
+// 	}
+// 	expr, err := expression.NewBuilder().WithKeyCondition(keyC).Build()
+// 	if err != nil {
+// 		return nil, newDBExprErr("FetchNodeEncode", uidb64.String(), "", err)
+// 	}
+// 	//
+// 	input := &dynamodb.QueryInput{
+// 		KeyConditionExpression:    expr.KeyCondition(),
+// 		FilterExpression:          expr.Filter(),
+// 		ExpressionAttributeNames:  expr.Names(),
+// 		ExpressionAttributeValues: expr.Values(),
+// 	}
+// 	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+// 	//
+// 	// Query - returns ALL the node data + any propagated child data
+// 	//
+// 	t0 := time.Now()
+// 	result, err := dynSrv.Query(input)
+// 	t1 := time.Now()
+// 	//fmt.Println("DB Access: ", t1.Sub(t0))
+// 	if err != nil {
+// 		return nil, newDBSysErr("FetchNode", "Query", err)
+// 	}
+// 	syslog(fmt.Sprintf("FetchNodeEncode:consumed capacity for Query  %s. ItemCount %d  Duration: %s", result.ConsumedCapacity.String(), len(result.Items), t1.Sub(t0)))
+// 	//
+// 	if int(*result.Count) == 0 {
+// 		return nil, newDBNoItemFound("FetchNodeEncode", uidb64.String(), "", "Query")
+// 	}
+// 	if logerr == nil {
+// 		fmt.Println("logerr is nil")
+// 	}
+// 	data := make(blk.NodeBlock, *result.Count)
+// 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &data)
+// 	if err != nil {
+// 		return nil, newDBUnmarshalErr("FetchNodeEncode", uidb64.String(), "", "UnmarshalListOfMaps", err)
+// 	}
+
+// 	return data, nil
+// }
 
 type pKey struct {
 	PKey  []byte
@@ -286,7 +338,7 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 	// Marshal primary key of parent node
 	//
 	pKey := pKey{PKey: di.PKey, SortK: di.SortK}
-	syslog(fmt.Sprintf("pKey in SaveCompleteUpred: %#v", pKey))
+	syslog(fmt.Sprintf("SaveCompleteUpred: pKey: %#v   sortk %s", pKey, di.SortK))
 	av, err := dynamodbattribute.MarshalMap(&pKey)
 	if err != nil {
 		return newDBMarshalingErr("SaveCompleteUpred", util.UID(di.GetPkey()).String(), "", "MarshalMap", err)
@@ -1369,6 +1421,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 		t1 := time.Now()
 		syslog(fmt.Sprintf("PropagateChildData:consumed capacity for UpdateItem  %s.  Duration: %s", uio.ConsumedCapacity, t1.Sub(t0)))
 		if err != nil {
+			//TODO -  what if this is not the error?? Need to check err.
 			return id, newDBSysErr("PropagateChildData", "createPropagationScalarItem", err)
 
 		}
