@@ -161,7 +161,7 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 	syslog(fmt.Sprintf("FetchNode:consumed capacity for Query  %s. ItemCount %d  Duration: %s", result.ConsumedCapacity.String(), len(result.Items), t1.Sub(t0)))
 	//
 	if int(*result.Count) == 0 {
-		// is subKey is a G type ie. child data block associated with current parent node, create empty cache entry
+		// is subKey a G type (uid-predicate) ie. child data block associated with current parent node, create empty dataItem.
 		if len(subKey) > 0 && strings.Index(subKey[0], "#G#") != -1 {
 			data := make(blk.NodeBlock, 1)
 			data[0] = new(blk.DataItem)

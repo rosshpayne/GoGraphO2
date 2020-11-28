@@ -910,7 +910,7 @@ func (d *NodeCache) GetType() (tyN string, ok bool) {
 	var di *blk.DataItem
 
 	syslog(fmt.Sprintf("GetType: d.m: %#v\n", d.m))
-	if di, ok = d.m["A#T"]; !ok {
+	if di, ok = d.m["A#A#T"]; !ok {
 		//
 		// check other predicates as most have a Ty attribute defined (currently propagated data does not)
 		// this check enables us to use more specific sortK values when fetching a node rather than using top level "A#" that fetch all node data (performance hit)

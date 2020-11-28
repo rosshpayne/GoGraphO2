@@ -85,6 +85,14 @@ func newDBSysErr(rt string, api string, err error) error {
 	return syserr
 }
 
+type NotFound string
+
+var NoItemFound NotFound
+
+func (n NotFound) Error() string {
+	return "Not Found"
+}
+
 type DBNoItemFound struct {
 	routine string
 	pkey    string
@@ -94,7 +102,9 @@ type DBNoItemFound struct {
 }
 
 func newDBNoItemFound(rt string, pk string, sk string, api string) error {
+
 	e := DBNoItemFound{routine: rt, pkey: pk, sortk: sk, api: api}
+	e.err = NoItemFound
 	logerr(e)
 	return e
 }

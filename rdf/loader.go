@@ -499,9 +499,10 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 	//
 	// unmarshal attr into NV -except Nd types, handle in next for
 	//
-	// add type of node to NV
+	// add type of node to NV - note a A#A# means it is associated with the scalar attributes. If the node has no scalars it will always
+	// have a A#A#T so the type of the node can be determined if only the scalar data is fetched.
 	//
-	e := ds.NV{Sortk: "A#T", SName: node.ID, Value: node.TyName, DT: "ty"}
+	e := ds.NV{Sortk: "A#A#T", SName: node.ID, Value: node.TyName, DT: "ty"}
 	nv = append(nv, e)
 	//
 	// add scalar predicates
@@ -623,7 +624,7 @@ func getType(node *ds.Node) (blk.TyAttrBlock, error) {
 	// 	sync.Mutex
 	// }
 	//	var ll loc
-	syslog(".  getType..")
+	syslog("getType..")
 
 	// is there a type defined
 	if len(node.TyName) == 0 {

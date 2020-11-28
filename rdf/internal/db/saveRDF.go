@@ -265,7 +265,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					syslog(fmt.Sprintf("Error: type name %q not found in types.GetTyShortNm \n", nv.Ty))
 					return
 				}
-				a := Item{PKey: UID, SortK: "A#T", Ty: tyShortNm, Ix: "X"}
+				a := Item{PKey: UID, SortK: "A#A#T", Ty: tyShortNm, Ix: "X"}
 				av, err = dynamodbattribute.MarshalMap(a)
 				if err != nil {
 					panic(fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error()))

@@ -142,6 +142,7 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		defer wg.Done()
 		//
 		// Grab child scalar data (sortk: A#A#) and lock child node. Unlocked in UnmarshalCache and defer.(?? no need for cUID lock after Unmarshal - I think?)  ALL SCALARS SHOUD BEGIN WITH sortk "A#"
+		// A node may not have any scalar values (its a connecting node in that case), but there should always be a A#A#T item defined which defines the type of the node
 		//
 		syslog.Log("AttachNode: gr1 ", fmt.Sprintf("AttachNode: child node: %s   sortk  A#A#", cUID))
 		cnd, err := gc.FetchForUpdate(cUID, "A#A#")
@@ -197,8 +198,8 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		// find attachment data type from sortK eg. A#G#:S
 		// here S is simply the abreviation for the Ty field which defines the child type  e.g 	"Person"
 		//
-		s := strings.Split(sortK, "#")
-		attachPoint := s[len(s)-1][1:]
+		s := strings.LastIndex(sortK, "#")
+		attachPoint := sortK[s+2:]
 		var found bool
 		for _, v := range pty {
 			if v.C == attachPoint {
@@ -262,13 +263,13 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 
 				// } else {
 
-				// grab all scalars from child type
+				// grab all scalars from child type if the attribute has propagaton enabled or the attribute is nullable (meaning it may or may not be defined)
+				// we need to propagate not nulls to support the has() as its the only to know if its defined for the child as the XF(?) attribute will be true if its defined or false if not.
 				for _, v := range cty {
 					switch v.DT {
-					// scalar types to be propagated
+
 					case "I", "F", "Bl", "S", "DT": //TODO: these attributes should belong to pUpred type only. Can a node be made up of more than one type? Pesuming at this stage only 1, so all scalars are relevant.
 						if v.Pg || v.N {
-							// scalar type has propagation enabled
 							nv := &ds.NV{Name: v.Name}
 							cnv = append(cnv, nv)
 						}
@@ -280,7 +281,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		if !found {
 			panic(fmt.Errorf("Attachmment predicate %q not round in parent", attachPoint)) //TODO - handle as error
 		}
-		fmt.Printf("\nfff  nv : %#v\n", cnv)
 
 		if len(cnv) > 0 {
 			//
