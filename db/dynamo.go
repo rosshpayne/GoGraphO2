@@ -191,7 +191,6 @@ func FetchNodeItem(uid util.UID, sortk string) (blk.NodeBlock, error) {
 	// TODO: remove encoding when load of data via cli is not used.
 
 	pkey := pKey{PKey: []byte(uid), SortK: sortk}
-	syslog(fmt.Sprintf("FetchNodeItem: with pKey of  %#v", pkey, util.UID(pkey.PKey)))
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
 		return nil, newDBMarshalingErr("FetchItem", "", sortk, "MarshalMap", err)
@@ -223,7 +222,6 @@ func FetchNodeItem(uid util.UID, sortk string) (blk.NodeBlock, error) {
 	if err != nil {
 		return nil, newDBUnmarshalErr("FetchNodeItem", "", sortk, "UnmarshalMap", err)
 	}
-	syslog(fmt.Sprintf("FetchNodeItem: result %#v", di))
 	nb := make(blk.NodeBlock, 1, 1)
 	nb[0] = &di
 	return nb, nil
@@ -1566,7 +1564,7 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 // It guarantees the event (operation + data) can only run once.
 // Rather than check parent is attached to child, ie. for cUID in pUID uid-pred which may contain millions of UIDs spread over multiple overflow blocks more efficient
 // to check child is attached to parent in cUID's #R attribute.
-// Solution: specify field "BS" and  query condition 'contains(PBS,puid+"f")'          where f is the short name for the uid-pred predicate
+// Solution: specify field "BS" and  query condition 'contains(PBS,pUID+"f")'          where f is the short name for the uid-pred predicate - combination of two will be unique
 //           if update errors then node is not attached to that parent-node-predicate, so nothing to delete
 //
 func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
@@ -1581,28 +1579,34 @@ func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 		cond expression.ConditionBuilder
 		eav  map[string]*dynamodb.AttributeValue
 	)
+	// pred := func(sk string) string {
+	// 	s_ := strings.Split(sk, "#")
+	// 	if len(s_) == 0 {
+	// 		panic(fmt.Errorf("buildExprValues: SortK of %q, must have at least one # separator", sk))
+	// 	}
+	// 	return s_[len(s_)-1][1:]
+	// }
+	// more efficient pred...
 	pred := func(sk string) string {
-		s_ := strings.Split(sk, "#")
-		if len(s_) == 0 {
-			panic(fmt.Errorf("buildExprValues: SortK of %q, must have at least one # separator", sk))
-		}
-		return s_[len(s_)-1][1:]
+		i := strings.LastIndex(sk, "#")
+		return sk[i+2:]
 	}
-
-	if ok, err := NodeExists(cuid); !ok {
-		if err != nil {
-			return false, fmt.Errorf("Child node %s does not exist:", cuid)
-		} else {
-			return false, fmt.Errorf("Error in NodeExists %w", err)
-		}
-	}
-	if ok, err := NodeExists(puid, sortk); !ok {
-		if err != nil {
-			return false, fmt.Errorf("Parent node and/or attachment predicate %s does not exist")
-		} else {
-			return false, fmt.Errorf("Error in NodeExists %w", err)
-		}
-	}
+	// note EdgeExists is only called on known nodes - so not necessary to check nodes exist.
+	//
+	// if ok, err := NodeExists(cuid); !ok {
+	// 	if err != nil {
+	// 		return false, fmt.Errorf("Child node %s does not exist:", cuid)
+	// 	} else {
+	// 		return false, fmt.Errorf("Error in NodeExists %w", err)
+	// 	}
+	// }
+	// if ok, err := NodeExists(puid, sortk); !ok {
+	// 	if err != nil {
+	// 		return false, fmt.Errorf("Parent node and/or attachment predicate %s does not exist")
+	// 	} else {
+	// 		return false, fmt.Errorf("Error in NodeExists %w", err)
+	// 	}
+	// }
 	//
 	// if the operation is AttachNode we want to ADD the parent node onlyif parent node does not exist otherwise error
 	// if the operation is DetachNode we want to DELETE parent node only if parent node exists otherwise error

@@ -34,8 +34,10 @@ func (g *GraphCache) LockNode(uid util.UID) {
 
 }
 
-// FetchForUpdate is used as a substitute for database lock. If all db access is via this routine (or similar) then all updates will be serialised preventing
-// mutliple concurrent updates from corrupting each other.
+// FetchForUpdate is used as a substitute for database lock. Provided all db access is via this API (or similar) then all updates will be serialised preventing
+// mutliple concurrent updates from corrupting each other. It also guarantees consistency between cache and storage copies of the data.
+// FetchForUpdate performs a Query so returns multiple items. Typically we us this to access all scalar node attribute (e.g. sortk of "A#A#")
+// or all uid-pred and its propagated data (e.g. "A#:G")
 func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var (
 		sortk_  string
@@ -82,10 +84,12 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 	//
 	e.Lock()
 	//
-	// fetch will always do a db fetch - why? Because db data may have changed, as some changes go direct to db e.g. attachNode/detachNode.
-	// the cache is not used for caching as such but as a locking mechanism for Dynamodb and synchronising application transactions
+	// fetch will always do a db fetch - why? Because db data may have changed, as some changes go direct to db e.g. attachNode/detachNode. THIS IS WRONG.
+	// in attachnode processing the cached version (uid-pred only data) is updated and then written to storage.
+	// The lock mechanism does the equivalent of database locks in synchronising access to data. It also has the benefit of caching data and synchronising
+	// the the cached and stored versions. In this way caching can provide the speed of access while maintaining consistency between cache and storage.
 	//
-	//
+	// TODO - provide an algorithm to determine if sortk data is already cached.
 	if e.NodeCache != nil && !fetched {
 		e.fetchSortK(sortk_)
 	}
@@ -102,9 +106,9 @@ func (g *GraphCache) FetchForUpdate(uid util.UID, sortk ...string) (*NodeCache, 
 	return e.NodeCache, nil
 }
 
-// FetchForUpdate is used as a substitute for database lock. If all db access is via this routine (or similar) then all updates will be serialised preventing
-// mutliple concurrent updates from corrupting each other. Problem with current design is it does a complete node fetch when its not necessary.
-// Is is possible just to use the mutex lock without querying the db - not likely as we need some of the data in the cache for processing, but certainly not all the node data.
+// FetchUIDpredForUpdate is called as part of attach node processing. It performs a GetItem on the uid-pred attribute only. The cache copy will be
+// read and updated according to its contents. The cache copy will then be written to storage (API: SaveCompleteUpred*()) before associated lock is released.
+// At that point the cache and storage are in sync. Accessing the cache copy is valid from that point on.
 func (g *GraphCache) FetchUIDpredForUpdate(uid util.UID, sortk string) (*NodeCache, error) {
 	//
 	//	g lock protects global cache
