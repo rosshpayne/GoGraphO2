@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"strings"
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/db"
@@ -114,8 +115,7 @@ func (g *GraphCache) FetchUIDpredForUpdate(uid util.UID, sortk string) (*NodeCac
 	//	g lock protects global cache
 	//
 	g.Lock()
-
-	slog.Log("FetchUIDpredForUpdate: ", fmt.Sprintf("Cache FetchUIDpredForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk))
+	slog.Log("FetchUIDpredForUpdate: ", fmt.Sprintf("Acquired g.Lock(). FetchUIDpredForUpdate Cache Key Value: [%s]   sortk: %s", uid.String(), sortk))
 	e := g.cache[uid.String()]
 	if e == nil {
 		//
@@ -402,6 +402,25 @@ func (e *entry) UnlockNode() error {
 	return nil
 }
 
+func (n *NodeCache) ClearCache(sortk string, subs ...bool) error {
+
+	slog.Log("ClearCache: ", fmt.Sprintf("sortk %s", sortk))
+	//
+	// check if node is cached
+	//
+	delete(n.m, sortk)
+	// if clear all sub-sortk's
+	if len(subs) > 0 && subs[0] {
+		for k := range n.m {
+			if strings.HasPrefix(k, sortk) {
+				delete(n.m, k)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (g *GraphCache) ClearNodeCache(uid util.UID) error {
 
 	fmt.Println()
@@ -471,6 +490,7 @@ func (g *GraphCache) ClearNodeCache(uid util.UID) error {
 	return nil
 }
 
+// Unlock method shadows the RWMutex Unlock
 func (nd *NodeCache) Unlock(s ...string) {
 	if len(s) > 0 {
 		slog.Log("Unlock: ", fmt.Sprintf("******* IN UNLOCK NC ********************  %s", s[0]))
@@ -489,6 +509,8 @@ func (nd *NodeCache) Unlock(s ...string) {
 	if nd.ffuEnabled {
 
 		nd.RWMutex.Unlock()
+		//nd.Unlock()
+		slog.Log("Unlock: ", "Success Unlock()")
 		nd.ffuEnabled = false
 
 	} else if nd.locked {

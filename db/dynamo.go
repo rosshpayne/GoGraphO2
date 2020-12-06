@@ -121,7 +121,7 @@ func NodeExists(uid util.UID, subKey ...string) (bool, error) {
 	return true, nil
 }
 
-// FetchNode
+// FetchNode performs a Query with KeyBeginsWidth on the SortK value, so all item belonging to the SortK are fetched.
 func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 
 	stat := mon.Stat{Id: mon.DBFetch}
@@ -624,7 +624,7 @@ func SaveChildUIDtoOvflBlock(cUID, tUID util.UID, sortk string, id int) error { 
 	v := make([][]byte, 1, 1)
 	v[0] = []byte(cUID)
 	upd = expression.Set(expression.Name("Nd"), expression.ListAppend(expression.Name("Nd"), expression.Value(v)))
-	cond := expression.Name("XF").Size().LessThanEqual(expression.Value(param.OvfwItemLimit))
+	cond := expression.Name("XF").Size().LessThanEqual(expression.Value(param.OvfwBatchLimit))
 	//
 	// add associated flag values
 	//
@@ -770,7 +770,7 @@ func AddOvflUIDs(di *blk.DataItem, OfUIDs []util.UID) error {
 }
 
 // newUIDTarget - creates a dymamo item to receive cUIDs/XF/Id data. Actual progpagated data resides in items with sortK of
-// <target-sortK>#<Id>#:<scalarAbrev>
+// <target-sortK>#<Id>#:<scalarPred>
 func newUIDTarget(tUID util.UID, sortk string, id int) (map[string]*dynamodb.AttributeValue, error) { // create dummy item with flag value of DELETED. Why? To establish Nd & XF attributes as Lists rather than Sets..
 
 	type TargetItem struct {
@@ -787,12 +787,12 @@ func newUIDTarget(tUID util.UID, sortk string, id int) (map[string]*dynamodb.Att
 	xf := make([]int, 1, 1)
 	xf[0] = blk.UIDdetached // this is a nil (dummy) entry so mark it deleted. Used to append other cUIDs too.
 	//
-	// create sortk value
+	// create a "batch" sortk
 	//
 	var s strings.Builder
 	s.WriteString(sortk)
 	s.WriteByte('#')
-	s.WriteString(strconv.Itoa(id))
+	s.WriteString(strconv.Itoa(id)) //  <target-sortK>#<Id>
 	//
 	a := TargetItem{PKey: tUID, SortK: s.String(), Nd: nilUID, XF: xf}
 	av, err := dynamodbattribute.MarshalMap(a)
@@ -804,7 +804,7 @@ func newUIDTarget(tUID util.UID, sortk string, id int) (map[string]*dynamodb.Att
 
 // db.MakeOverflowBlock(ofblk)
 //func MakeOvflBlocks(ofblk []*blk.OverflowItem, di *blk.DataItem) error {
-func AddUIDPropagationTarget(tUID util.UID, sortk string, id int) error {
+func CreateOvflBatch(tUID util.UID, sortk string, id int) error {
 
 	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
 		// fix to possible sdk error/issue for Binary ListAppend operations. SDK builds
@@ -838,11 +838,10 @@ func AddUIDPropagationTarget(tUID util.UID, sortk string, id int) error {
 		ReturnConsumedCapacity: aws.String("TOTAL"),
 	})
 	t1 := time.Now()
-	syslog(fmt.Sprintf("AddUIDPropagationTarget: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
+	syslog(fmt.Sprintf("CreateOvflBatch: consumed capacity for PutItem  %s. Duration: %s", ret.ConsumedCapacity, t1.Sub(t0)))
 	if err != nil {
-		return newDBSysErr("AddUIDPropagationTarget", "PutItem", err)
+		return newDBSysErr("CreateOvflBatch", "PutItem", err)
 	}
-	syslog(fmt.Sprintf("AddUIDPropagationTarget: consumed updateitem capacity: %s, Duration: %s\n", ret.ConsumedCapacity, t1.Sub(t0)))
 
 	return nil
 }
@@ -865,9 +864,11 @@ func MakeOvflBlocks(di *blk.DataItem, ofblk []util.UID, id int) error {
 	//
 	// Initialise overflow block with two items
 	//
-	// Block item 1
+	// Block item 1 - contains a pointer back to the parent ie.PKEY of uid-pred containing the overflow block uid (in Nd)
 
-	// Block item 2
+	// Block item 2 - an uid-pred Nd equivalent item ie. contains uids of child nodes e.g. sortk A#G#:S#<id>. id=1..n
+	//        each A#G#:S#<id> contains some configured number of uids e.g. 500, 1000 etc.
+	//        The id value is sourced from the parent uid-pred "Id" attribute.
 
 	convertSet2list := func(av map[string]*dynamodb.AttributeValue) {
 		// fix to possible sdk error/issue for Binary ListAppend operations. SDK builds
@@ -892,6 +893,7 @@ func MakeOvflBlocks(di *blk.DataItem, ofblk []util.UID, id int) error {
 		av  map[string]*dynamodb.AttributeValue
 		err error
 	)
+	//
 	for _, v := range ofblk {
 
 		for i := Item1; i <= Item2; i++ {
@@ -911,7 +913,7 @@ func MakeOvflBlocks(di *blk.DataItem, ofblk []util.UID, id int) error {
 				}
 
 			case Item2:
-				av, err = newUIDTarget(v, di.SortK, id)
+				av, err = newUIDTarget(v, di.SortK, id) // e.g. sortk#1 A#G#:S#1
 				if err != nil {
 					return err
 				}
@@ -930,8 +932,6 @@ func MakeOvflBlocks(di *blk.DataItem, ofblk []util.UID, id int) error {
 				if err != nil {
 					return newDBSysErr("MakeOverflowBlock", "PutItem", err)
 				}
-				syslog(fmt.Sprintf("MakeOverflowBlock: consumed updateitem capacity: %s, Duration: %s\n", ret.ConsumedCapacity, t1.Sub(t0)))
-
 			}
 		}
 	}
@@ -1328,7 +1328,6 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 		} else {
 			v := make([]string, 1, 1)
 			v[0] = x.String()
-			fmt.Println("LDT                     ......            value = ", lty, v[0])
 			upd = expression.Set(expression.Name(lty), expression.ListAppend(expression.Name(lty), expression.Value(v)))
 		}
 		upd = upd.Set(expression.Name("XBl"), expression.ListAppend(expression.Name("XBl"), expression.Value(null)))
@@ -1354,6 +1353,8 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 			return id, newDBExprErr("PropagateChildData", "", "", err)
 		}
 
+		// update to Nd is performed in ConfigureUpred()
+		//
 		// case "Nd":
 		// 	xf := make([]int, 1)
 		// 	id_ := make([]int, 1)
@@ -1410,9 +1411,15 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: values,
 		UpdateExpression:          expr.Update(),
+		//		ReturnValues:              aws.String("UPDATED_OLD"),
 	}
 	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
+	// type UndoT struct {
+	// 	Name   string
+	// 	Set    string
+	// 	Values map[string]*dynamodbattribute.AttributeValues
+	// }
 	{
 		t0 := time.Now()
 		uio, err := dynSrv.UpdateItem(input)
@@ -1423,6 +1430,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 			return id, newDBSysErr("PropagateChildData", "createPropagationScalarItem", err)
 
 		}
+		//	undo.RegisterCh <- UndoT{Name: "Propagate", Set: "set #v=:v #XBl=:xbl", Values: uio.ReturnValues}
 		// if seq == 1 {
 		// 	return ErrItemSizeExceeded
 		// }
@@ -1441,11 +1449,10 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 //           if query returns, search returned BS and get tUID ie. BS[0][16:32]  which gives you all you need (puid,tUID) to mark {Nd, XF}as deleted.
 //
 // db.AddReverseEdge(eventID, seq, cUID, pUID, ptyName, sortK, tUID, &cwg)
-func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, itemId int) error {
+func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, batchId int) error {
 	//
 	// BS : set of binary values representing puid + tUID + sortk(last entry). Used to determine the tUID the child data saved to.
-	// PBS : set of binary values representing puid + sortk (last entry). Can be used to quickly access of child is attached to parent
-
+	// PBS : set of binary values representing puid + sortk (last entry). Can be used to quickly access if child is attached to parent
 	pred := func(sk string) string {
 		s_ := strings.SplitAfterN(sk, "#", -1) // A#G#:S#:D#3
 		if len(s_) == 0 {
@@ -1453,7 +1460,7 @@ func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, itemId int) erro
 		}
 		return s_[len(s_)-2][1:] + s_[len(s_)-1]
 	}
-	sortk += "#" + strconv.Itoa(itemId)
+	sortk += "#" + strconv.Itoa(batchId)
 	bs := make([][]byte, 1, 1) // representing a binary set.
 	bs[0] = append(puid, []byte(tUID)...)
 	bs[0] = append(bs[0], pred(sortk)...) // D#3
@@ -1634,7 +1641,7 @@ func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 		upd = expression.Add(expression.Name("PBS"), expression.Value(pbs))
 		// Contains - sdk requires a string for second argument however we want to put a B value. Use X as dummyy to be replaced by explicit AttributeValue stmt
 		cond = expression.Contains(expression.Name("PBS"), "X").Not()
-		// workaround: as expression will want Compare(predicate,<string>), but we are comparing Binary will change in ExpressionAttributeValue to use binary attribute value.
+		// workaround: as expression will want Contains(predicate,<string>), but we are comparing Binary will change in ExpressionAttributeValue to use binary attribute value.
 		// also: compare with binary value "v" which is not base64 encoded as the sdk will encode during transport and dynamodb will decode and compare UID (16byte) with UID in set.
 		eav = map[string]*dynamodb.AttributeValue{":0": &dynamodb.AttributeValue{B: pbsC}, ":1": &dynamodb.AttributeValue{BS: pbs}}
 	}
@@ -1669,6 +1676,7 @@ func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 		ExpressionAttributeValues: eav,
 		UpdateExpression:          expr.Update(),
 		ConditionExpression:       expr.Condition(),
+		ReturnValues:              aws.String("ALL_OLD"),
 	}
 	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
 	//
@@ -1802,16 +1810,16 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 	// get item-id within target UID (last component of BS)
 	//
 	fmt.Println("sn: ", string(bsMember[32:]))
-	itemId := strings.Split(string(bsMember[32:]), "#")
-	_, err = strconv.Atoi(itemId[1])
+	batchId := strings.Split(string(bsMember[32:]), "#")
+	_, err = strconv.Atoi(batchId[1])
 	if err != nil {
-		return fmt.Errorf("DetachNode: expected item id to be a number in BS attribute %q", itemId[1])
+		return fmt.Errorf("DetachNode: expected item id to be a number in BS attribute %q", batchId[1])
 	}
 	//
 	// update sortk based on target
 	//
-	if string(itemId[1]) != "0" {
-		sortk += "#" + string(itemId[1])
+	if string(batchId[1]) != "0" {
+		sortk += "#" + string(batchId[1])
 	}
 	fmt.Println("DetachNode based on sortk: ", sortk)
 	// mark cuid as detached in parent uid-pred XF flag

@@ -45,7 +45,7 @@ func (e DBExprErr) Unwrap() error {
 var ErrItemSizeExceeded = errors.New("Item has reached its maximum allowed size")
 var ErrAttributeDoesNotExist = errors.New("An Attribute specified in the update does not exist")
 var ErrConditionalCheckFailed = errors.New("Conditional Check Failed Exception")
-
+var NoDataFound = errors.New("No data found")
 var UidPredSizeLimitReached = errors.New("uid-predicate item limit reached")
 
 var NodeAttached = errors.New("Node is attached")
@@ -85,28 +85,12 @@ func newDBSysErr(rt string, api string, err error) error {
 	return syserr
 }
 
-type NotFound string
-
-var NoItemFound NotFound
-
-func (n NotFound) Error() string {
-	return "Not Found"
-}
-
 type DBNoItemFound struct {
 	routine string
 	pkey    string
 	sortk   string
 	api     string // DB statement
 	err     error
-}
-
-func newDBNoItemFound(rt string, pk string, sk string, api string) error {
-
-	e := DBNoItemFound{routine: rt, pkey: pk, sortk: sk, api: api}
-	e.err = NoItemFound
-	logerr(e)
-	return e
 }
 
 func (e DBNoItemFound) Error() string {
@@ -123,6 +107,21 @@ func (e DBNoItemFound) Error() string {
 
 func (e DBNoItemFound) Unwrap() error {
 	return e.err
+}
+
+func NewDBNoItemFound(rt string, pk string, sk string, api string) error {
+
+	e := DBNoItemFound{routine: rt, pkey: pk, sortk: sk, api: api}
+	e.err = NoDataFound
+	return e
+}
+
+func newDBNoItemFound(rt string, pk string, sk string, api string) error {
+
+	e := DBNoItemFound{routine: rt, pkey: pk, sortk: sk, api: api}
+	e.err = NoDataFound
+	logerr(e)
+	return e
 }
 
 type DBMarshalingErr struct {

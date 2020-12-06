@@ -182,6 +182,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		for i := len(di.Nd); i > 0; i-- {
 			if bytes.Equal(di.Nd[i-1], cUID) {
 				di.XF[i-1] = blk.ChildUID
+				fmt.Println("SetUpredAvailable: about to db.SvaeUpredState()...")
 				err = db.SaveUpredState(di, cUID, blk.ChildUID, i-1, cnt, attachAttrNm, tyShortNm)
 				if err != nil {
 					return err
@@ -197,6 +198,7 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 			if bytes.Equal(di.Nd[i-1], targetUID) {
 				di.XF[i-1] = blk.OvflBlockUID
 				di.Id[i-1] = id
+				fmt.Println("SetUpredAvailable: about to db.SvaeUpredState()...")
 				err = db.SaveUpredState(di, targetUID, blk.OvflBlockUID, i-1, cnt, attachAttrNm, tyShortNm)
 				if err != nil {
 					return err
@@ -207,9 +209,10 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 		}
 	}
 	if !found {
+		fmt.Println("SetUpredAvailable: Failed ")
 		return fmt.Errorf("AttachNode: target UID not found in Nd attribute of parent node")
 	}
-
+	fmt.Println("SetUpredAvailable: Succeeded")
 	return nil
 }
 
@@ -963,6 +966,22 @@ func (pn *NodeCache) SetOvflBlkFull(ovflBlkUID util.UID, sortk string) error {
 	return nil
 }
 
+func (pn *NodeCache) CommitUPred(sortK string, pUID, cUID, tUID util.UID, id int, cnt int, ty string) error { // (util.UID, int, error) {
+
+	var err error
+	// di, ok := pn.m[sortK]
+	// if !ok {
+	// 	panic(fmt.Errorf("CommitUPred inconsistency. Sortk %q does not exist in cache", sortK))
+	// }
+	// err := db.SaveCompleteUpred(di)
+	// if err != nil {
+	// 	return (err)
+	// }
+	err = pn.SetUpredAvailable(sortK, pUID, cUID, tUID, id, cnt, ty)
+
+	return err
+}
+
 // ConfigureUpred returns either the parent block or an overflow block as the target for the propagation of child scalar data
 // in the case of overflow block it may require more overflow blocks to be created if less than a certain number are available.
 // ConfigureUpred makes changes to the node cache (i.e. adds overflows in the cache first). The last operation ofConfigureUpred
@@ -1033,24 +1052,23 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 	//
 	if embedded < param.EmbeddedChildNodes && ovflBlocks == 0 {
 		//
-		// append  cUID  to Nd, XF (not using overflow yet)
+		// append  cUID  to Nd, XF (not using overflow yet) to cached data di
 		//
 		di.Nd = append(di.Nd, cUID)
 		di.XF = append(di.XF, blk.CuidInuse)
 		di.Id = append(di.Id, 0)
-		syslog(fmt.Sprintf("ConfigureUpred: about to db.SaveCompleteUpred() for %s", pUID))
+		//
 		err := db.SaveCompleteUpred(di)
 		if err != nil {
 			panic(err)
 			return nil, 0, fmt.Errorf("SaveCompleteUpred: %s", err)
 		}
-		syslog(fmt.Sprintf("ConfigureUpred: about to db.SaveCompleteUpred()for for %s", pUID))
 		return pUID, 0, nil // attachment point is the parent UID
 	}
 	//
 	if len(availOfUids) <= param.OvFlBlocksGrowBy && ovflBlocks < param.MaxOvFlBlocks {
 		//
-		// create a Overflow UID and subsequent block
+		// create an Overflow UID and subsequent physical block
 		//
 		ouid, err := util.MakeUID()
 		if err != nil {
@@ -1082,47 +1100,51 @@ func (pn *NodeCache) ConfigureUpred(sortK string, pUID, cUID util.UID, rsvCnt ..
 	}
 	//
 	// keep adding overflow blocks until max limit reached then go back and populate into existing overflow blocks
-	// incrementing the item count. An overflow block has 1:n items. Each item contains upto param.UIDsPerOflwItem.
-	// When the item limit is exceeded (ie. cUIDs in an overflow item) and MaxOvFlBlocks is exceeded we keep creating
-	// new items in the existing overflow blocks
+	// incrementing the overflow batch count. An overflow block has 1:n batches. Each batch contains upto param.OvfwBatchLimit.
+	// When the batch limit is exceeded (deteched using Dynamo SIZE() in a conditional update) and MaxOvFlBlocks is exceeded we then simply create
+	// new batches in the existing overflow blocks
 	//
 
 	if ovflBlocks == param.MaxOvFlBlocks && len(availOfUids) == 0 {
-		// only mode now is appending to existing overflow blocks creating new overflow items as item size limit exceeded.
+		// only option now is to create an overflow batch
 		for i, v := range di.XF {
 			if v == blk.OvflItemFull {
-				di.XF[i] = blk.OvflBlockUID
+				di.XF[i] = blk.OvflBlockUID // overflow block can now accept new entries but Id must be increased
 				di.Id[i] += 1
-				db.AddUIDPropagationTarget(di.Nd[i], sortK, di.Id[i])
+				// create new overflow batch (sortk#id)
+				db.CreateOvflBatch(di.Nd[i], sortK, di.Id[i])
 			}
 		}
 		// try again
 		return pn.ConfigureUpred(sortK, pUID, cUID, rsvCnt[0])
 	}
 	//
-	// choose an overflow to use - must be available
+	// choose an overflow block to use - must be available
 	//
+	var idx int
 	tUID = availOfUids[len(availOfUids)-1]
 	// get current Id for tUID
 	for i, v := range di.Nd {
 		if bytes.Equal(v, tUID) {
 			id = di.Id[i]
-			break
-		}
-	}
-	//
-	// mark cache entry as InUse
-	//
-	var idx int
-	for i, v := range di.Nd {
-		if bytes.Equal(v, tUID) {
 			di.XF[i] = blk.OuidInuse
 			idx = i
 			break
 		}
 	}
 	//
-	// generate sortk with item id
+	// mark cache entry as InUse
+	//
+	// var idx int
+	// for i, v := range di.Nd {
+	// 	if bytes.Equal(v, tUID) {
+	// 		di.XF[i] = blk.OuidInuse
+	// 		idx = i
+	// 		break
+	// 	}
+	// }
+	//
+	// generate overflow batch item sortk (a overflow block has 1:M batches)
 	//
 	sortk := sortK + "#" + strconv.Itoa(id)
 	//

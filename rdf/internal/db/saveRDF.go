@@ -208,7 +208,8 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					//
 					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
 
-					go es.Load(ea)
+					es.IndexCh <- ea
+					//	go es.Load(ea)
 
 					// load into GSI by including attribute P in item
 					a := Item{PKey: UID, SortK: nv.Sortk, S: v, P: nv.Name, Ty: tyShortNm} //nv.Ty}
@@ -221,7 +222,8 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 
 					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
 
-					go es.Load(ea)
+					es.IndexCh <- ea
+					//go es.Load(ea)
 
 					// don't load into GSI by eliminating attribute P from item. GSI use P as their PKey.
 					a := Item{PKey: UID, SortK: nv.Sortk, S: v, Ty: tyShortNm} //nv.Ty}

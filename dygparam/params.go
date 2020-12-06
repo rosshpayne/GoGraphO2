@@ -1,7 +1,7 @@
 package params
 
 const (
-	DebugOn = true
+	DebugOn = false
 	//SysDebugOn = false
 
 	GraphTable = "DyGraphOD"
@@ -32,10 +32,10 @@ const (
 	// there will be in cases of high concurrency - ie. lots of child nodes being attached at once.
 	OvFlBlocksGrowBy = 5 // prod value : 100
 	//
-	// OvfwItemLimit - max number of children per Overflow item.  Value should maximise the space consumed in 4KB blocks to improve efficiency of a RCU but should limit
+	// OvfwBatchLimit - max number of child nodes assigned to a Overflow batch.  Value should maximise the space consumed in 4KB blocks to improve efficiency of a RCU but should limit
 	// the number of RCU's required to access an individual child item during insert (an append operation), and update/delete.`
 	// The limit is checked using the dynamodb SIZE function during insert of the child item into the overflow item.
-	OvfwItemLimit = 250 // Prod 100 to 500.
+	OvfwBatchLimit = 250 // Prod 100 to 500.
 
 	ElasticSearchOn = true
 )

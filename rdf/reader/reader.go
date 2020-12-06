@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"text/scanner"
 	"unicode"
@@ -94,6 +95,7 @@ var peekRDF cur
 func (rn RDFReader) Read(n []*ds.Node) (int, bool, error) {
 
 	var (
+		rd              float64
 		prevSubj        = "__"
 		subj, pred, obj string
 	)
@@ -121,10 +123,8 @@ func (rn RDFReader) Read(n []*ds.Node) (int, bool, error) {
 
 					switch i {
 					case 0:
-						fmt.Println("subj TokenText : ", rn.ts.TokenText())
 						subj = rn.ts.TokenText()[2:]
 					case 1:
-						fmt.Println("pred TokenText : ", rn.ts.TokenText())
 						pred = rn.ts.TokenText()
 					case 2:
 						obj = rn.ts.TokenText()
@@ -151,7 +151,10 @@ func (rn RDFReader) Read(n []*ds.Node) (int, bool, error) {
 		// provided there is a type specified the bundle of tuples is then sent on channel verify to be processed by verification process.
 		// if there is no type log
 		//
-		syslog(fmt.Sprintf("spo read:  %s  %s  %s", subj, pred, obj))
+		rd++
+		if math.Mod(rd, 100) == 0 {
+			syslog(fmt.Sprintf("spo read:  %s  %s  %s", subj, pred, obj))
+		}
 		if prevSubj == "__" {
 			prevSubj = subj
 		}

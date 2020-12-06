@@ -76,7 +76,7 @@ func openLogFile() *os.File {
 	s.WriteByte(postfix[0])
 	s.WriteString(".log")
 
-	logf, err := os.OpenFile(s.String(), os.O_WRONLY|os.O_CREATE, 0755)
+	logf, err := os.OpenFile(s.String(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,7 +101,8 @@ func On() {
 	loggingOn = true
 }
 
-var services = []string{"DB", "monitor", "grmgr", "gql", "gqlES", "anmgr", "errlog", "rdfuuid", "rdfLoader", "ElasticSearch", "rdfSaveDB", "gqlDB", "TypesDB"}
+//var services = []string{"DB", "monitor", "grmgr", "gql", "gqlES", "anmgr", "errlog", "rdfuuid", "rdfLoader", "ElasticSearch", "rdfSaveDB", "gqlDB", "TypesDB"}
+var services = []string{"monitor", "grmgr", "gql", "gqlES", "anmgr", "errlog", "rdfuuid", "rdfLoader", "ElasticSearch", "rdfSaveDB", "gqlDB", "TypesDB"}
 
 func Log(prefix string, s string, panic ...bool) {
 

@@ -7,20 +7,28 @@ import (
 	slog "github.com/DynamoGraph/syslog"
 )
 
-type ErrorS []error
+type Errors []*payload
+
+type payload struct {
+	Id  string
+	Err error
+}
 
 var (
-	Add        chan error
+	addCh      chan *payload
 	ListCh     chan error
 	ClearCh    chan struct{}
-	PrintLogCh chan ErrorS
 	checkLimit chan chan bool
-	ListReqCh  chan chan ErrorS
-	AddBatch   chan []error
+	GetErrCh   chan Errors
+	ReqErrCh   chan struct{}
 )
 
 func CheckLimit(lc chan bool) {
 	checkLimit <- lc
+}
+
+func Add(logid string, err error) {
+	addCh <- &payload{logid, err}
 }
 
 func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
@@ -31,44 +39,37 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 	wp.Done()
 
 	var (
-		errors   ErrorS
+		pld      *payload
+		errors   Errors
 		errLimit = 5
-		e        error
-		eb       []error
 		lc       chan bool
-		l        chan ErrorS
 	)
 
-	Add = make(chan error)
-	ListReqCh = make(chan chan ErrorS)
+	addCh = make(chan *payload)
+	ReqErrCh = make(chan struct{}, 1)
+	//	Add = make(chan error)
 	ClearCh = make(chan struct{})
-	PrintLogCh = make(chan ErrorS)
 	checkLimit = make(chan chan bool)
-	AddBatch = make(chan []error)
+	GetErrCh = make(chan Errors)
 
 	for {
 
 		select {
 
-		case e = <-Add:
+		case pld = <-addCh:
 
-			errors = append(errors, e)
-
-		case eb = <-AddBatch:
-
-			errors = append(errors, eb...)
+			slog.Log(pld.Id, pld.Err.Error())
+			errors = append(errors, pld)
 
 		case lc = <-checkLimit:
 
 			lc <- len(errors) > errLimit
 
-		case l = <-ListReqCh:
+		case <-ReqErrCh:
 
-			l <- errors
-
-		case <-ClearCh:
-
-			errors = nil
+			// request can only be performed in zero concurrency otherwise
+			// a copy of errors should be performed
+			GetErrCh <- errors
 
 		case <-ctx.Done():
 			slog.Log("errlog: ", "Powering down...")

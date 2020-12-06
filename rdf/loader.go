@@ -13,23 +13,23 @@ import (
 	"github.com/DynamoGraph/client"
 	param "github.com/DynamoGraph/dygparam"
 	"github.com/DynamoGraph/gql/monitor"
-	"github.com/DynamoGraph/rdf/internal/db"
-	"github.com/DynamoGraph/types"
-	//"github.com/DynamoGraph/es"
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/ds"
 	elog "github.com/DynamoGraph/rdf/errlog"
+	"github.com/DynamoGraph/rdf/es"
 	"github.com/DynamoGraph/rdf/grmgr"
+	"github.com/DynamoGraph/rdf/internal/db"
 	"github.com/DynamoGraph/rdf/reader"
 	"github.com/DynamoGraph/rdf/uuid"
 	slog "github.com/DynamoGraph/syslog"
+	"github.com/DynamoGraph/types"
 	"github.com/DynamoGraph/util"
 )
 
 const (
 	// number of nodes in rdf to load in single read
 	readBatchSize = 20 // prod: 20
-
+	logid         = "rdfLoader:"
 )
 const (
 	I   = "I"
@@ -69,7 +69,7 @@ type verifyNd struct {
 }
 
 func syslog(s string) {
-	slog.Log("rdfLoader: ", s)
+	slog.Log(logid, s)
 }
 
 func init() {
@@ -120,11 +120,11 @@ func main() { //(f io.Reader) error { // S P O
 	//
 	// sync.WorkGroups
 	//
-	wpStart.Add(7)
+	wpStart.Add(8)
 	// check verify and saveNode have finished. Each goroutine is responsible for closing and waiting for all routines they spawn.
 	wpEnd.Add(2)
 	// services
-	ctxEnd.Add(5)
+	ctxEnd.Add(6)
 	//
 	// start pipeline goroutines
 	//
@@ -138,6 +138,7 @@ func main() { //(f io.Reader) error { // S P O
 	go elog.PowerOn(ctx, &wpStart, &ctxEnd)    // error logging service
 	go anmgr.PowerOn(ctx, &wpStart, &ctxEnd)   // attach node service
 	go monitor.PowerOn(ctx, &wpStart, &ctxEnd) // repository of system statistics service
+	go es.PowerOn(ctx, &wpStart, &ctxEnd)      // elasticsearch indexer
 	//
 	// wait for processes to start
 	//
@@ -171,7 +172,7 @@ func main() { //(f io.Reader) error { // S P O
 		n, eof, err = rdr.Read(nodes)
 		if err != nil {
 			// log error and continue to read until eof reached
-			elog.Add <- fmt.Errorf("Read error: %s", err.Error())
+			elog.Add(logid, fmt.Errorf("Read error: %s", err.Error()))
 		}
 		//
 		// send []nodes on pipeline to be unmarshalled and saved to db
@@ -180,7 +181,7 @@ func main() { //(f io.Reader) error { // S P O
 		syslog("Send node batch on channel verifyCh")
 		verifyCh <- v
 
-		// check if too many errors
+		// check if error limit has been reached
 		if errLimitReached() {
 			break
 		}
@@ -191,29 +192,39 @@ func main() { //(f io.Reader) error { // S P O
 			break
 		}
 	}
-
+	//
+	// shutdown verify and save routines
+	//
 	syslog("close verify channel")
 	close(verifyCh)
 	//go processErrors()
 	wpEnd.Wait()
-
-	// cancel context (close Done channel) on all autonomous goroutines
-	lcherr := make(chan elog.ErrorS)
-	elog.ListReqCh <- lcherr
-
-	ex := <-lcherr
-	syslog(fmt.Sprintf("Eerror cnt: %d", len(ex)))
-
-	for _, e := range ex {
-		fmt.Println("Errors: ", e.Error())
-	}
-
+	//
+	// errors
+	//
+	printErrors()
+	//
+	// shutdown support services
+	//
 	cancel()
 
 	ctxEnd.Wait()
-	syslog("loader exits.....")
-
+	syslog("Exit.....")
 	return
+}
+
+func printErrors() {
+
+	elog.ReqErrCh <- struct{}{}
+	errs := <-elog.GetErrCh
+	syslog(fmt.Sprintf(" ==================== ERRORS : %d	==============", len(errs)))
+	fmt.Printf(" ==================== ERRORS : %d	==============\n", len(errs))
+	if len(errs) > 0 {
+		for _, e := range errs {
+			syslog(fmt.Sprintf(" %s:  %s", e.Id, e.Err))
+			fmt.Println(e.Id, e.Err)
+		}
+	}
 }
 
 func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitGroup) {
@@ -251,8 +262,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 			ii := i
 			ty, err := getType(nodes[ii])
 			if err != nil {
-				fmt.Println("Error in getType.....", err.Error())
-				elog.Add <- err
+				elog.Add(logid, err)
 			}
 			// first pipeline func. Passes NV data to saveCh and then to database.
 			//	slog.Log("verify: ", fmt.Sprintf("Pass to unmarshal... %d %#v", i, nodes[ii]))
@@ -491,7 +501,10 @@ func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr gr
 		}
 		if len(node.Err) > 0 {
 			slog.Log("unmarshalRDF: ", fmt.Sprintf("return with %d errors. First error:  %s", len(node.Err), node.Err[0].Error()))
-			elog.AddBatch <- node.Err
+			for _, e := range node.Err {
+				elog.Add("unmarshall:", e)
+			}
+			//elog.AddBatch <- node.Err
 			return
 		}
 
@@ -589,7 +602,9 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 	}
 	wg.Wait()
 	syslog("saveNode finished waiting.....now to attach nodes")
-
+	//
+	close(es.IndexCh)
+	//
 	limiterAttach := grmgr.New("nodeAttach", 6)
 	//
 	// fetch edge node ids from attach-node-manager routine. This will send each edge node pair via its AttachNodeCh.
@@ -605,16 +620,18 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 		if string(e.Cuid) == "eod" {
 			break
 		}
-
+		fmt.Println("..Wating for limiterAttach before client.AttachNode.....1")
 		limiterAttach.Ask()
+		fmt.Println("..Wating for limiterAttach before client.AttachNode.....2")
 		<-limiterAttach.RespCh()
 
 		wg.Add(1)
-		slog.Log("AttachNode: ", fmt.Sprintf("goroutine about to start %d cUID,pUID   %s  %s  ", c, util.UID(e.Cuid).String(), util.UID(e.Puid).String()))
-		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach)
-	}
 
+		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach)
+
+	}
 	wg.Wait()
+
 	syslog("saveNode finished waiting...exiting")
 }
 
