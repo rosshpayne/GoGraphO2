@@ -16,7 +16,6 @@ import (
 	"github.com/DynamoGraph/rdf/anmgr"
 	"github.com/DynamoGraph/rdf/ds"
 	elog "github.com/DynamoGraph/rdf/errlog"
-	"github.com/DynamoGraph/rdf/es"
 	"github.com/DynamoGraph/rdf/grmgr"
 	"github.com/DynamoGraph/rdf/internal/db"
 	"github.com/DynamoGraph/rdf/reader"
@@ -120,11 +119,11 @@ func main() { //(f io.Reader) error { // S P O
 	//
 	// sync.WorkGroups
 	//
-	wpStart.Add(8)
+	wpStart.Add(7)
 	// check verify and saveNode have finished. Each goroutine is responsible for closing and waiting for all routines they spawn.
 	wpEnd.Add(2)
 	// services
-	ctxEnd.Add(6)
+	ctxEnd.Add(5)
 	//
 	// start pipeline goroutines
 	//
@@ -138,7 +137,7 @@ func main() { //(f io.Reader) error { // S P O
 	go elog.PowerOn(ctx, &wpStart, &ctxEnd)    // error logging service
 	go anmgr.PowerOn(ctx, &wpStart, &ctxEnd)   // attach node service
 	go monitor.PowerOn(ctx, &wpStart, &ctxEnd) // repository of system statistics service
-	go es.PowerOn(ctx, &wpStart, &ctxEnd)      // elasticsearch indexer
+	//	go es.PowerOn(ctx, &wpStart, &ctxEnd)      // elasticsearch indexer
 	//
 	// wait for processes to start
 	//
@@ -279,7 +278,7 @@ func verify(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) { //, wg *sync.WaitG
 }
 
 //unmarshalRDF deconstructs the rdf lines for an individual node (identical subject value) to create NV entries
-func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
+func unmarshalRDF(node *ds.Node, ty blk.TyAttrBlock, wg *sync.WaitGroup, lmtr *grmgr.Limiter) {
 	defer wg.Done()
 
 	genSortK := func(ty blk.TyAttrD) string {
@@ -587,8 +586,8 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 	// define goroutine limiters
 	//
 	limiterSave := grmgr.New("saveNode", 6)
+	limiterES := grmgr.New("ES", 6)
 
-	// upto 5 concurrent save routines
 	var c int
 	for py := range saveCh {
 		c++
@@ -597,13 +596,14 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 		<-limiterSave.RespCh()
 
 		wg.Add(1)
-		go db.SaveRDFNode(py.sname, py.suppliedUUID, py.attributes, &wg, limiterSave)
+		go db.SaveRDFNode(py.sname, py.suppliedUUID, py.attributes, &wg, limiterSave, limiterES)
 
 	}
+	syslog(fmt.Sprintf("waiting for SaveRDFNodes to finish..... %d", c))
 	wg.Wait()
 	syslog("saveNode finished waiting.....now to attach nodes")
 	//
-	close(es.IndexCh)
+	//close(es.IndexCh)
 	//
 	limiterAttach := grmgr.New("nodeAttach", 6)
 	//

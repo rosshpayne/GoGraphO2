@@ -61,7 +61,7 @@ func init() {
 // sname : node id, short name  aka blank-node-id
 // uuid  : user supplied node id (util.UIDb64 converted to util.UID)
 // nv_ : node attribute data
-func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.WaitGroup, lmtr grmgr.Limiter) {
+func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.WaitGroup, lmtr *grmgr.Limiter, lmtrES *grmgr.Limiter) {
 
 	type Item struct {
 		PKey  []byte
@@ -208,8 +208,11 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					//
 					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
 
-					es.IndexCh <- ea
-					//	go es.Load(ea)
+					//es.IndexCh <- ea
+					lmtrES.Ask()
+					<-lmtrES.RespCh()
+
+					go es.Load(ea, lmtrES)
 
 					// load into GSI by including attribute P in item
 					a := Item{PKey: UID, SortK: nv.Sortk, S: v, P: nv.Name, Ty: tyShortNm} //nv.Ty}
@@ -222,8 +225,12 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 
 					ea := &es.Doc{Attr: nv.Name, Value: v, PKey: UID.ToString(), SortK: nv.Sortk, Type: tyShortNm}
 
-					es.IndexCh <- ea
+					//es.IndexCh <- ea
 					//go es.Load(ea)
+					lmtrES.Ask()
+					<-lmtrES.RespCh()
+
+					go es.Load(ea, lmtrES)
 
 					// don't load into GSI by eliminating attribute P from item. GSI use P as their PKey.
 					a := Item{PKey: UID, SortK: nv.Sortk, S: v, Ty: tyShortNm} //nv.Ty}

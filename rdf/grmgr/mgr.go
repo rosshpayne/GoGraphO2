@@ -24,7 +24,7 @@ type rCntMap map[Routine]Ceiling
 
 var rCnt rCntMap
 
-type rWaitMap map[Routine]bool
+type rWaitMap map[Routine]int
 
 var rWait rWaitMap
 
@@ -46,15 +46,15 @@ type Limiter struct {
 	on bool // send Wait response
 }
 
-func (l Limiter) Ask() {
+func (l *Limiter) Ask() {
 	rAskCh <- l.r
 }
 
-func (l Limiter) StartR() {
+func (l *Limiter) StartR() {
 	//	StartCh <- l.r
 }
 
-func (l Limiter) EndR() {
+func (l *Limiter) EndR() {
 	EndCh <- l.r
 }
 
@@ -125,10 +125,10 @@ func init() {
 
 //   }
 
-func New(r string, c Ceiling) Limiter {
+func New(r string, c Ceiling) *Limiter {
 	l := Limiter{c: c, r: Routine(r), ch: make(chan struct{}), on: true}
 	registerCh <- &l
-	return l
+	return &l
 }
 
 // use channels to synchronise access to shared memory ie. the various maps, rLimiterMap.rCntMap.
@@ -153,6 +153,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 			rLimit[l.r] = l
 			rCnt[l.r] = 0
+			rWait[l.r] = 0
 
 		case r = <-EndCh:
 
@@ -160,12 +161,12 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			rCnt[r] -= 1
 
 			if b, ok := rWait[r]; ok {
-				if b && rCnt[r] < rLimit[r].c {
+				if b > 0 && rCnt[r] < rLimit[r].c {
 					// Send ack to waiting routine
 					slog.Log("grmgr: ", fmt.Sprintf("Send ack to waiting %s...", r))
 					rLimit[r].ch <- struct{}{}
 					rCnt[r] += 1
-					rWait[r] = false
+					rWait[r] -= 1
 				}
 			}
 
@@ -178,7 +179,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 				slog.Log("grmgr: ", fmt.Sprintf("has ASKed. Under cnt limit. Send ACK on routine channel..for %s  cnt: %d", r, rCnt[r]))
 			} else {
 				slog.Log("grmgr: ", fmt.Sprintf("has ASKed. Cnt is above limit. Mark %s as waiting", r))
-				rWait[r] = true // log routine as waiting to proceed
+				rWait[r] += 1 // log routine as waiting to proceed
 			}
 
 		case <-ctx.Done():

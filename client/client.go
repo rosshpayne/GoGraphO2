@@ -47,7 +47,7 @@ func IndexMultiValueAttr(cUID util.UID, sortK string) error { return nil }
 // sortK is parent's uid-pred to attach child node too. E.g. G#:S (sibling) or G#:F (friend) or A#G#:F It is the parent's attribute to attach the child node.
 // pTy is child type i.e. "Person". This could be derived from child's node cache data.
 
-func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.WaitGroup, lmtr grmgr.Limiter) { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
+func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.WaitGroup, lmtr *grmgr.Limiter) { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
 	//
 	// update db only (cached copies of node are not updated) to reflect child node attached to parent. This involves
 	// 1. append chid UID to the associated parent uid-predicate, parent e.g. sortk A#G#:S

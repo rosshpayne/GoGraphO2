@@ -26,7 +26,7 @@ type index struct {
 	i, j int
 }
 
-func (r *RootStmt) Execute(grl grmgr.Limiter) {
+func (r *RootStmt) Execute(grl *grmgr.Limiter) {
 	//
 	// execute root func - get back slice of unfiltered results
 	//
@@ -57,7 +57,7 @@ func (r *RootStmt) Execute(grl grmgr.Limiter) {
 
 }
 
-func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, result *rootResult) {
+func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, result *rootResult) {
 	var (
 		err error
 		nc  *cache.NodeCache
@@ -206,7 +206,7 @@ func (r *RootStmt) filterRootResult(grl grmgr.Limiter, wg *sync.WaitGroup, resul
 // ty   type of parent node
 // us is the current uid-pred from filterRootResult
 // uidp is uid current node - not used anymore.
-func (u *UidPred) execNode(grl grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID, ty string, lvl int, uidp string, idx index) {
+func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID, ty string, lvl int, uidp string, idx index) {
 
 	var (
 		err error
