@@ -80,6 +80,7 @@ func init() {
 
 var inputFile = flag.String("f", "rdf_test.rdf", "RDF Filename: ")
 var graph = flag.String("g", "", "Graph: ")
+var tableId = flag.String("i", "", "TableId: ")
 
 // uid PKey of the sname-UID pairs - consumed and populated by the SaveRDFNode()
 
@@ -89,6 +90,7 @@ func main() { //(f io.Reader) error { // S P O
 	//
 	syslog(fmt.Sprintf("Argument: inputfile: %s", *inputFile))
 	syslog(fmt.Sprintf("Argument: graph: %s", *graph))
+	syslog(fmt.Sprintf("Argument: tableId: %s", *tableId))
 	//
 	// set graph to use
 	//
@@ -104,6 +106,10 @@ func main() { //(f io.Reader) error { // S P O
 		syslog(fmt.Sprintf("Error opening file %q, %s", *inputFile, err))
 		fmt.Println(err)
 		return
+	}
+	if len(*tableId) > 0 {
+		param.GraphTable += *tableId
+		syslog(fmt.Sprintf("Table: %s", param.GraphTable))
 	}
 	//
 	// context - used to shutdown goroutines that are not part fo the pipeline

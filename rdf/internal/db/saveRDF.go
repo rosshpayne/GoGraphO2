@@ -24,8 +24,6 @@ import (
 
 const (
 	logid = "rdfSaveDB: "
-
-	graphTbl = param.GraphTable
 )
 
 type tyNames struct {
@@ -34,6 +32,7 @@ type tyNames struct {
 }
 
 var (
+
 	dynSrv    *dynamodb.DynamoDB
 	err       error
 	tynames   []tyNames
@@ -465,7 +464,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 		//
 		t0 := time.Now()
 		ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-			TableName:              aws.String(graphTbl),
+			TableName:              aws.String(param.GraphTable),
 			Item:                   av,
 			ReturnConsumedCapacity: aws.String("TOTAL"),
 		})
@@ -496,7 +495,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 		// 		{
 		// 			t0 := time.Now()
 		// 			ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-		// 				TableName:              aws.String(graphTbl),
+		// 				TableName:              aws.String(param.GraphTable),
 		// 				Item:                   av,
 		// 				ReturnConsumedCapacity: aws.String("TOTAL"),
 		// 			})
@@ -543,7 +542,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String(graphTbl),
+						TableName:              aws.String(param.GraphTable),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -588,7 +587,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String(graphTbl),
+						TableName:              aws.String(param.GraphTable),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})
@@ -619,7 +618,7 @@ func SaveRDFNode(sname string, suppliedUUID util.UID, nv_ []ds.NV, wg *sync.Wait
 					}
 					t0 := time.Now()
 					ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-						TableName:              aws.String(graphTbl),
+						TableName:              aws.String(param.GraphTable),
 						Item:                   av,
 						ReturnConsumedCapacity: aws.String("TOTAL"),
 					})

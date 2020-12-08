@@ -126,9 +126,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 					//
 					// wait for running attachers to complete before trying to attach nodes that "donotrun"
 					//
-					slog.Log(LogLabel, fmt.Sprintf("Wait for %d running attach to finish", len(attachRunning)))
 					for i := len(attachRunning); i > 0; i-- {
-						slog.Log(LogLabel, fmt.Sprintf("** waiting on attachDoneCh....i=%d, len(attachRunning) %d", i, len(attachRunning)))
 						e := <-attachDoneCh
 						slog.Log(LogLabel, fmt.Sprintf("** received on attachDoneCh.... %#v", e))
 						attachDone[e] = true

@@ -1,10 +1,11 @@
 package params
 
+var GraphTable = "DyGraphOD" // can be modified by rdf.loader "i" argument
+
 const (
 	DebugOn = false
 	//SysDebugOn = false
 
-	GraphTable = "DyGraphOD"
 	TypesTable = "DyGTypes2"
 	//
 	// Parameters for:  Overflow Blocks - overflow blocks belong to a parent node. It is where the child UIDs and propagated scalar data is stored.

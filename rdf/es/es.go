@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DynamoGraph/rdf/errlog"
 	"github.com/DynamoGraph/rdf/grmgr"
 	slog "github.com/DynamoGraph/syslog"
 
@@ -57,24 +58,28 @@ func init() {
 	}
 	es, err = esv7.NewClient(cfg)
 	if err != nil {
-		syslog(fmt.Sprintf("Error creating the client: %s", err))
+		errlog.Add(logid, fmt.Errorf("ES Error creating the client: %s", err))
+		panic(fmt.Errorf("ES Error creating the client: %s", err))
 	}
 	//
 	// 1. Get cluster info
 	//
 	res, err := es.Info()
 	if err != nil {
-		syslog(fmt.Sprintf("Error getting response: %s", err))
+		errlog.Add(logid, fmt.Errorf("ES Error getting Info response: %s", err))
+		panic(fmt.Errorf("ES Error getting Info response: %s", err))
 	}
 	defer res.Body.Close()
 	// Check response status
 	if res.IsError() {
-		syslog(fmt.Sprintf("Error: %s", res.String()))
+		errlog.Add(logid, fmt.Errorf("ES Error: %s", res.String()))
+		panic(fmt.Errorf("ES Error: %s", res.String()))
 	}
 	// Deserialize the response into a map.
 	var r map[string]interface{}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-		syslog(fmt.Sprintf("Error parsing the response body: %s", err))
+		errlog.Add(logid, fmt.Errorf("ES Error parsing the response body: %s", err))
+		panic(fmt.Errorf("ES Error parsing the response body: %s", err))
 	}
 	// Print client and server version numbers.
 	syslog(fmt.Sprintf("Client: %s", esv7.Version))
@@ -92,7 +97,7 @@ func Load(d *Doc, lmtr *grmgr.Limiter) {
 	// 	syslog(fmt.Sprintf("Error creating the client: %s", err))
 	// }
 	//
-	// 2. Index documents concurrently
+	// 2. Index document
 	//
 	// Build the request body.
 	var b strings.Builder
@@ -119,79 +124,80 @@ func Load(d *Doc, lmtr *grmgr.Limiter) {
 	res, err := req.Do(context.Background(), es)
 	t1 := time.Now()
 	if err != nil {
-		syslog(fmt.Sprintf("Error getting response: %s", err))
+		errlog.Add(logid, fmt.Errorf("Error getting response: %s", err))
 	}
 	defer res.Body.Close()
 
 	if res.IsError() {
-		syslog(fmt.Sprintf("Error indexing document ID=%s. Status: %v ", d.PKey, res.Status()))
+		errlog.Add(logid, fmt.Errorf("Error indexing document ID=%s. Status: %v ", d.PKey, res.Status()))
 	} else {
 		// Deserialize the response into a map.
 		var r map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-			syslog(fmt.Sprintf("Error parsing the response body: %s", err))
+			errlog.Add(logid, fmt.Errorf("Error parsing the response body: %s", err))
 		} else {
 			// Print the response status and indexed document version.
 			syslog(fmt.Sprintf("[%s] %s; version=%d   API Duration: %s", res.Status(), r["result"].(string), int(r["_version"].(float64)), t1.Sub(t0)))
 		}
 	}
-	//
-	// 3. Search for the indexed documents
-	//
-	// Build the request body.
-	// var buf bytes.Buffer
-	// query := map[string]interface{}{
-	// 	"query": map[string]interface{}{
-	// 		"match": map[string]interface{}{
-	// 			"text": "test",
-	// 		},
-	// 	},
-	// }
-	// if err := json.NewEncoder(&buf).Encode(query); err != nil {
-	// 	syslog(fmt.Sprintf("Error encoding query: %s", err))
-	// }
-
-	// // Perform the search request.
-	// res, err = es.Search(
-	// 	es.Search.WithContext(context.Background()),
-	// 	es.Search.WithIndex("graphstrings"),
-	// 	es.Search.WithBody(&buf),
-	// 	es.Search.WithTrackTotalHits(true),
-	// 	es.Search.WithPretty(),
-	// )
-	// if err != nil {
-	// 	syslog(fmt.Sprintf("Error getting response: %s", err))
-	// }
-	// defer res.Body.Close()
-
-	// if res.IsError() {
-	// 	var e map[string]interface{}
-	// 	if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
-	// 		syslog(fmt.Sprintf("Error parsing the response body: %s", err))
-	// 	} else {
-	// 		// Print the response status and error information.
-	// 		lsyslog(fmt.Sprintf("[%s] %s: %s",
-	// 			res.Status(),
-	// 			e["error"].(map[string]interface{})["type"],
-	// 			e["error"].(map[string]interface{})["reason"],
-	// 		))
-	// 	}
-	// }
-
-	// if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-	// 	syslog(fmt.Sprintf("Error parsing the response body: %s", err))
-	// }
-	// // Print the response status, number of results, and request duration.
-	// syslog(fmt.Sprintf(
-	// 	"[%s] %d hits; took: %dms",
-	// 	res.Status(),
-	// 	int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)),
-	// 	int(r["took"].(float64)),
-	// ))
-	// // Print the ID and document source for each hit.
-	// for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
-	// 	log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
-	// }
-
-	// log.Println(strings.Repeat("=", 37))
 }
+
+//
+// 3. Search for the indexed documents
+//
+// Build the request body.
+// var buf bytes.Buffer
+// query := map[string]interface{}{
+// 	"query": map[string]interface{}{
+// 		"match": map[string]interface{}{
+// 			"text": "test",
+// 		},
+// 	},
+// }
+// if err := json.NewEncoder(&buf).Encode(query); err != nil {
+// 	syslog(fmt.Sprintf("Error encoding query: %s", err))
+// }
+
+// // Perform the search request.
+// res, err = es.Search(
+// 	es.Search.WithContext(context.Background()),
+// 	es.Search.WithIndex("graphstrings"),
+// 	es.Search.WithBody(&buf),
+// 	es.Search.WithTrackTotalHits(true),
+// 	es.Search.WithPretty(),
+// )
+// if err != nil {
+// 	syslog(fmt.Sprintf("Error getting response: %s", err))
+// }
+// defer res.Body.Close()
+
+// if res.IsError() {
+// 	var e map[string]interface{}
+// 	if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+// 		syslog(fmt.Sprintf("Error parsing the response body: %s", err))
+// 	} else {
+// 		// Print the response status and error information.
+// 		lsyslog(fmt.Sprintf("[%s] %s: %s",
+// 			res.Status(),
+// 			e["error"].(map[string]interface{})["type"],
+// 			e["error"].(map[string]interface{})["reason"],
+// 		))
+// 	}
+// }
+
+// if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+// 	syslog(fmt.Sprintf("Error parsing the response body: %s", err))
+// }
+// // Print the response status, number of results, and request duration.
+// syslog(fmt.Sprintf(
+// 	"[%s] %d hits; took: %dms",
+// 	res.Status(),
+// 	int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)),
+// 	int(r["took"].(float64)),
+// ))
+// // Print the ID and document source for each hit.
+// for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
+// 	log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
+// }
+
+// log.Println(strings.Repeat("=", 37))

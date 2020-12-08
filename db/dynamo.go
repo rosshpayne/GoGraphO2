@@ -28,7 +28,6 @@ const (
 	DELETE = 'D'
 	ADD    = 'A'
 	// graph table name
-	graphTbl = param.GraphTable
 )
 
 type gsiResult struct {
@@ -45,7 +44,7 @@ type gsiResult struct {
 //  all the other datatypes do not need to be converted.
 
 var (
-	dynSrv *dynamodb.DynamoDB
+	dynSrv   *dynamodb.DynamoDB
 )
 
 func logerr(e error, panic_ ...bool) {
@@ -103,7 +102,7 @@ func NodeExists(uid util.UID, subKey ...string) (bool, error) {
 	input := &dynamodb.GetItemInput{
 		Key: av,
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	// GetItem
 	//
@@ -148,7 +147,7 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//
 	// Query
 	//
@@ -201,7 +200,7 @@ func FetchNodeItem(uid util.UID, sortk string) (blk.NodeBlock, error) {
 		// ProjectionExpression:     expr.Projection(),
 		// ExpressionAttributeNames: expr.Names(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	// GetItem
 	//
@@ -252,7 +251,7 @@ func FetchNodeItem(uid util.UID, sortk string) (blk.NodeBlock, error) {
 // 		ExpressionAttributeNames:  expr.Names(),
 // 		ExpressionAttributeValues: expr.Values(),
 // 	}
-// 	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+// 	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 // 	//
 // 	// Query - returns ALL the node data + any propagated child data
 // 	//
@@ -348,7 +347,7 @@ func SaveCompleteUpred(di *blk.DataItem) error {
 		ExpressionAttributeValues: values,
 		UpdateExpression:          expr.Update(),
 	}
-	update = update.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	update = update.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -428,7 +427,7 @@ func SaveUpredState(di *blk.DataItem, uid util.UID, status int, idx int, cnt int
 		ExpressionAttributeValues: values,
 		UpdateExpression:          expr.Update(),
 	}
-	update = update.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	update = update.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -470,7 +469,7 @@ func SaveOvflBlkFull(di *blk.DataItem, idx int) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	updii = updii.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	updii = updii.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -509,7 +508,7 @@ func SetCUIDpgFlag(tUID, cUID util.UID, sortk string) error {
 		ProjectionExpression:     expr.Projection(),
 		ExpressionAttributeNames: expr.Names(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	type Attached struct {
 		Nd [][]byte
@@ -553,7 +552,7 @@ func SetCUIDpgFlag(tUID, cUID util.UID, sortk string) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	updii = updii.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	updii = updii.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -651,7 +650,7 @@ func SaveChildUIDtoOvflBlock(cUID, tUID util.UID, sortk string, id int) error { 
 		UpdateExpression:          expr.Update(),
 		ConditionExpression:       expr.Condition(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	{
 		t0 := time.Now()
 		uio, err := dynSrv.UpdateItem(input)
@@ -755,7 +754,7 @@ func AddOvflUIDs(di *blk.DataItem, OfUIDs []util.UID) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	{
 		t0 := time.Now()
 		uio, err := dynSrv.UpdateItem(input)
@@ -833,7 +832,7 @@ func CreateOvflBatch(tUID util.UID, sortk string, id int) error {
 
 	t0 := time.Now()
 	ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-		TableName:              aws.String(graphTbl),
+		TableName:              aws.String(param.GraphTable),
 		Item:                   av,
 		ReturnConsumedCapacity: aws.String("TOTAL"),
 	})
@@ -923,7 +922,7 @@ func MakeOvflBlocks(di *blk.DataItem, ofblk []util.UID, id int) error {
 			{
 				t0 := time.Now()
 				ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-					TableName:              aws.String(graphTbl),
+					TableName:              aws.String(param.GraphTable),
 					Item:                   av,
 					ReturnConsumedCapacity: aws.String("TOTAL"),
 				})
@@ -1114,7 +1113,7 @@ func InitialisePropagationItem(ty blk.TyAttrD, pUID util.UID, sortK string, tUID
 	{
 		t0 := time.Now()
 		ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-			TableName:              aws.String(graphTbl),
+			TableName:              aws.String(param.GraphTable),
 			Item:                   av,
 			ReturnConsumedCapacity: aws.String("TOTAL"),
 		})
@@ -1140,7 +1139,7 @@ func InitialisePropagationItem(ty blk.TyAttrD, pUID util.UID, sortK string, tUID
 	// 	}
 	// 	t0 := time.Now()
 	// 	ret, err := dynSrv.PutItem(&dynamodb.PutItemInput{
-	// 		TableName:              aws.String(graphTbl),
+	// 		TableName:              aws.String(param.GraphTable),
 	// 		Item:                   av,
 	// 		ReturnConsumedCapacity: aws.String("TOTAL"),
 	// 	})
@@ -1413,7 +1412,7 @@ func PropagateChildData(ty blk.TyAttrD, pUID util.UID, sortK string, tUID util.U
 		UpdateExpression:          expr.Update(),
 		//		ReturnValues:              aws.String("UPDATED_OLD"),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	// type UndoT struct {
 	// 	Name   string
@@ -1490,7 +1489,7 @@ func UpdateReverseEdge(cuid, puid, tUID util.UID, sortk string, batchId int) err
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -1552,7 +1551,7 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 		UpdateExpression:          expr.Update(),
 		ConditionExpression:       expr.Condition(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -1678,7 +1677,7 @@ func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 		ConditionExpression:       expr.Condition(),
 		ReturnValues:              aws.String("ALL_OLD"),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -1761,7 +1760,7 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 	input := &dynamodb.GetItemInput{
 		Key: av,
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	type parents struct {
 		BS [][]byte // binary set
@@ -1846,7 +1845,7 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 		ProjectionExpression:     expr.Projection(),
 		ExpressionAttributeNames: expr.Names(),
 	}
-	input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	type Attached struct {
 		Nd [][]byte
@@ -1911,7 +1910,7 @@ func DetachNode(cUID, pUID util.UID, sortk string) error {
 		ExpressionAttributeValues: expr.Values(),
 		UpdateExpression:          expr.Update(),
 	}
-	updii = updii.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+	updii = updii.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 	//
 	{
 		t0 := time.Now()
@@ -2126,7 +2125,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 	}
-	input = input.SetTableName(graphTbl).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+	input = input.SetTableName(param.GraphTable).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 	//
 	result, err := dynSrv.Query(input)
 	if err != nil {
@@ -2166,7 +2165,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 		ExpressionAttributeNames:  expr.Names(),
 // 		ExpressionAttributeValues: expr.Values(),
 // 	}
-// 	input = input.SetTableName(graphTbl).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
+// 	input = input.SetTableName(param.GraphTable).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 // 	//
 // 	result, err := dynSrv.Query(input)
 // 	if err != nil {
@@ -2206,7 +2205,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 		ExpressionAttributeNames:  expr.Names(),
 // 		ExpressionAttributeValues: expr.Values(),
 // 	}
-// 	input = input.SetTableName(graphTbl).SetIndexName("P_B").SetReturnConsumedCapacity("TOTAL")
+// 	input = input.SetTableName(param.GraphTable).SetIndexName("P_B").SetReturnConsumedCapacity("TOTAL")
 // 	//
 // 	result, err := dynSrv.Query(input)
 // 	if err != nil {
@@ -2247,7 +2246,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 		ExpressionAttributeNames:  expr.Names(),
 // 		ExpressionAttributeValues: expr.Values(),
 // 	}
-// 	input = input.SetTableName(graphTbl).SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
+// 	input = input.SetTableName(param.GraphTable).SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
 // 	//
 // 	result, err = dynSrv.Query(input)
 // 	if err != nil {
@@ -2289,7 +2288,7 @@ func GSIS(attr AttrName, lv string) ([]gsiResult, error) {
 // 			ExpressionAttributeNames:  expr.Names(),
 // 			ExpressionAttributeValues: expr.Values(),
 // 		}
-// 		input = input.SetTableName(graphTbl).SetReturnConsumedCapacity("TOTAL")
+// 		input = input.SetTableName(param.GraphTable).SetReturnConsumedCapacity("TOTAL")
 // 		//
 // 		result, err := dynSrv.Query(input)
 // 		if err != nil {
