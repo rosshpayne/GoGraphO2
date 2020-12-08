@@ -52,7 +52,6 @@ func init() {
 }
 
 func AttachDone(e EdgeSn) {
-	slog.Log(LogLabel, "++++++++++++++++++ Signal AttachDONE....")
 	attachDoneCh <- e
 }
 func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
@@ -75,7 +74,7 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			edges = append(edges, e)
 			ec++
 			if math.Mod(ec, 100) == 0 {
-				slog.Log(LogLabel, fmt.Sprintf("Edge Count. %d", ec))
+				slog.Log(LogLabel, fmt.Sprintf("Edge Count. %g", ec))
 			}
 
 		case <-AttachCh:
@@ -87,7 +86,6 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			)
 			if len(edges) > 0 {
 				//
-				slog.Log(LogLabel, fmt.Sprintf("len(attachDone) < len(edges). %d %d", len(attachDone), len(edges)))
 				for len(attachDone) < len(edges) { // 1 accounts for last currently  running attacher which has just been started
 					//
 					for _, e := range edges {
@@ -128,7 +126,6 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 						attachRunning[e] = true
 					}
-					slog.Log(LogLabel, fmt.Sprintf("for edge loop finished %d  %d ", len(attachDone), len(edges)))
 					//
 					// wait for running attachers to complete before trying to attach nodes that "donotrun"
 					//
