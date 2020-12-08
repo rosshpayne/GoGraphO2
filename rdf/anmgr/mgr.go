@@ -3,6 +3,7 @@ package anmgr
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -57,6 +58,8 @@ func AttachDone(e EdgeSn) {
 func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 	defer wgEnd.Done()
 
+	var ec float64
+
 	slog.Log("anmgr: ", "Powering on...")
 	wp.Done()
 
@@ -70,7 +73,10 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 			// optionally: save entries to a file
 			edges = append(edges, e)
-			slog.Log(LogLabel, fmt.Sprintf("received on EdgeSnCn. %#v", e))
+			ec++
+			if math.Mod(ec, 100) == 0 {
+				slog.Log(LogLabel, fmt.Sprintf("Edge Count. %d", ec))
+			}
 
 		case <-AttachCh:
 
