@@ -626,9 +626,7 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 		if string(e.Cuid) == "eod" {
 			break
 		}
-		fmt.Println("..Wating for limiterAttach before client.AttachNode.....1")
 		limiterAttach.Ask()
-		fmt.Println("..Wating for limiterAttach before client.AttachNode.....2")
 		<-limiterAttach.RespCh()
 
 		wg.Add(1)

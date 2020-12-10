@@ -89,6 +89,22 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 				for len(attachDone) < len(edges) { // 1 accounts for last currently  running attacher which has just been started
 					//
 					for _, e := range edges {
+						// interested in unattached nodes only - checking for attach complete message for running attach routines.
+						switch {
+						case attachDone[e]:
+							continue
+						case attachRunning[e]:
+							// poll for attach complete message
+							select {
+							case e := <-attachDoneCh:
+								slog.Log(LogLabel, fmt.Sprintf("** Received on attachDoneCh.... %#v", e))
+								attachDone[e] = true
+								delete(attachRunning, e)
+							default:
+							}
+							continue
+						}
+
 						dontrun = false
 						if attachRunning[e] || attachDone[e] {
 							continue
@@ -122,16 +138,19 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 
 						slog.Log(LogLabel, fmt.Sprintf("Run AttachNodeCh: %s  %s  %s %s", e.CSn, e.PSn, csn.String(), psn.String()))
 
+						// send AttachNode msg. This will be throttled by rdf.Loader's limiterAttach, allowed concurrent client.AttachNode routines
+
 						AttachNodeCh <- Edge{Cuid: csn, Puid: psn, Sortk: e.Sortk, E: e}
 
 						attachRunning[e] = true
+
 					}
 					//
 					// wait for running attachers to complete before trying to attach nodes that "donotrun"
 					//
 					for i := len(attachRunning); i > 0; i-- {
 						e := <-attachDoneCh
-						slog.Log(LogLabel, fmt.Sprintf("** received on attachDoneCh.... %#v", e))
+						slog.Log(LogLabel, fmt.Sprintf("**** received on attachDoneCh.... %#v", e))
 						attachDone[e] = true
 						delete(attachRunning, e)
 					}
@@ -143,8 +162,6 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 			// all edges joined - send end-of-data on channel
 
 			AttachNodeCh <- Edge{Cuid: []byte("eod")}
-
-		case <-attachDoneCh:
 
 		case <-ctx.Done():
 			slog.Log("anmgr: ", "Powering down...")
