@@ -89,26 +89,22 @@ func PowerOn(ctx context.Context, wp *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 				for len(attachDone) < len(edges) { // 1 accounts for last currently  running attacher which has just been started
 					//
 					for _, e := range edges {
-						// interested in unattached nodes only - checking for attach complete message for running attach routines.
-						switch {
-						case attachDone[e]:
+						// ignore processed or processing edges in the case of multiple scans through edges
+						if attachDone[e] || attachRunning[e] {
 							continue
-						case attachRunning[e]:
-							// poll for attach complete message
-							select {
-							case e := <-attachDoneCh:
-								slog.Log(LogLabel, fmt.Sprintf("** Received on attachDoneCh.... %#v", e))
-								attachDone[e] = true
-								delete(attachRunning, e)
-							default:
-							}
-							continue
+						}
+						//
+						// poll for attachDone message
+						//
+						select {
+						case e := <-attachDoneCh:
+							slog.Log(LogLabel, fmt.Sprintf("** Received on attachDoneCh.... %#v", e))
+							attachDone[e] = true
+							delete(attachRunning, e)
+						default:
 						}
 
 						dontrun = false
-						if attachRunning[e] || attachDone[e] {
-							continue
-						}
 						//
 						// detect for possible concurrency issues with running attachers - for this to work we need to be aware of when attachers have finished (ie. done)
 						//
