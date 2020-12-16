@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	param "github.com/DynamoGraph/dygparam"
 )
@@ -22,7 +23,10 @@ const (
 )
 
 // global logger - accessible from any routine
-var logr *log.Logger
+var (
+	logr  *log.Logger
+	lsync sync.Mutex // protect logr from concurrent updates to prefix
+)
 
 func init() {
 	logf := openLogFile()
@@ -102,14 +106,14 @@ func On() {
 }
 
 //var services = []string{"DB", "monitor", "grmgr", "gql", "gqlES", "anmgr", "errlog", "rdfuuid", "rdfLoader", "ElasticSearch", "rdfSaveDB", "gqlDB", "TypesDB"}
-var services = []string{"monitor", "grmgr", "gql", "gqlES", "anmgr", "errlog", "rdfuuid", "rdfLoader", "ElasticSearch", "rdfSaveDB", "gqlDB", "TypesDB"}
+var services = []string{"monitor", "grmgr", "gql", "gqlES", "anmgr", "errlog", "rdfuuid", "rdfLoader", "ElasticSearch", "rdfSaveDB", "gqlDB", "TypesDB", "AttachNode"}
 
 func Log(prefix string, s string, panic ...bool) {
 
 	// check if prefix is on the must log services
 	var logit bool
-	for _, s := range services {
-		if strings.HasPrefix(prefix, s) {
+	for _, srv := range services {
+		if strings.HasPrefix(prefix, srv) {
 			logit = true
 			break
 		}
@@ -119,6 +123,9 @@ func Log(prefix string, s string, panic ...bool) {
 		return
 	}
 	// log it
+	lsync.Lock()
+	defer lsync.Unlock()
+
 	logr.SetPrefix(prefix)
 	if len(panic) != 0 && panic[0] {
 		logr.Panic(s)

@@ -152,8 +152,8 @@ func (nc *NodeCache) SetUpredAvailable(sortK string, pUID, cUID, targetUID util.
 	i := strings.IndexByte(sortK, ':')
 	fmt.Println("SetUpredAvailable, ty, attachpoint, sortK ", ty, sortK[i+1:], sortK, len(types.TypeC.TyC[ty]))
 	// find attribute name of parent attach predicate
-	for k, v := range types.TypeC.TyC[ty] {
-		fmt.Println("SetUpredAvailable, k,v ", k, v.C, sortK[i+1:], sortK)
+	for _, v := range types.TypeC.TyC[ty] {
+		//	fmt.Println("SetUpredAvailable, k,v ", k, v.C, sortK[i+1:], sortK)
 		if v.C == sortK[i+1:] {
 			attachAttrNm = v.Name
 			found = true
