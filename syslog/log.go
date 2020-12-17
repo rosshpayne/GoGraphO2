@@ -110,6 +110,9 @@ var services = []string{"monitor", "grmgr", "gql", "gqlES", "anmgr", "errlog", "
 
 func Log(prefix string, s string, panic ...bool) {
 
+	lsync.Lock()
+	defer lsync.Unlock()
+
 	// check if prefix is on the must log services
 	var logit bool
 	for _, srv := range services {
@@ -123,8 +126,6 @@ func Log(prefix string, s string, panic ...bool) {
 		return
 	}
 	// log it
-	lsync.Lock()
-	defer lsync.Unlock()
 
 	logr.SetPrefix(prefix)
 	if len(panic) != 0 && panic[0] {
