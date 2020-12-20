@@ -36,7 +36,6 @@ func (r *RootStmt) Execute(grl *grmgr.Limiter) {
 		return
 	}
 	var wgRoot sync.WaitGroup
-
 	stat := mon.Stat{Id: mon.Candidate, Value: len(result)}
 	mon.StatCh <- stat
 

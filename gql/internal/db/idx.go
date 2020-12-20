@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DynamoGraph/dbConn"
 	param "github.com/DynamoGraph/dygparam"
@@ -94,11 +95,13 @@ func GSIQueryN(attr AttrName, lv float64, op Equality) (QResult, error) {
 	}
 	input = input.SetTableName(param.GraphTable).SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
 	//
+	t0 := time.Now()
 	result, err := dynSrv.Query(input)
+	t1 := time.Now()
 	if err != nil {
 		return nil, newDBSysErr("GSIS", "Query", err)
 	}
-	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
+	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  Duration: %s ", result.ConsumedCapacity, len(result.Items), t1.Sub(t0)))
 	//
 	if int(*result.Count) == 0 {
 		return nil, newDBNoItemFound("GSIS", attr, "", "Query") //TODO add lv
@@ -144,11 +147,13 @@ func GSIQueryS(attr AttrName, lv string, op Equality) (QResult, error) {
 	}
 	input = input.SetTableName(param.GraphTable).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 	//
+	t0 := time.Now()
 	result, err := dynSrv.Query(input)
 	if err != nil {
 		return nil, newDBSysErr("GSIS", "Query", err)
 	}
-	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
+	t1 := time.Now()
+	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  Duration: %s ", result.ConsumedCapacity, len(result.Items), t1.Sub(t0)))
 	//
 	if int(*result.Count) == 0 {
 		return nil, newDBNoItemFound("GSIS", attr, lv, "Query")
@@ -186,11 +191,13 @@ func GSIhasS(attr AttrName) (QResult, error) {
 	}
 	input = input.SetTableName(param.GraphTable).SetIndexName("P_S").SetReturnConsumedCapacity("TOTAL")
 	//
+	t0 := time.Now()
 	result, err := dynSrv.Query(input)
+	t1 := time.Now()
 	if err != nil {
 		return nil, newDBSysErr("GSIhasS", "Query", err)
 	}
-	syslog(fmt.Sprintf("GSIhasS: consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
+	syslog(fmt.Sprintf("GSIhasS: consumed capacity for Query index P_S, %s.  ItemCount %d  Duration: %s ", result.ConsumedCapacity, len(result.Items), t1.Sub(t0)))
 	if int(*result.Count) == 0 {
 		return nil, nil
 	}
@@ -226,11 +233,13 @@ func GSIhasN(attr AttrName) (QResult, error) {
 	}
 	input = input.SetTableName(param.GraphTable).SetIndexName("P_N").SetReturnConsumedCapacity("TOTAL")
 	//
+	t0 := time.Now()
 	result, err := dynSrv.Query(input)
+	t1 := time.Now()
 	if err != nil {
 		return nil, newDBSysErr("GSIhasN", "Query", err)
 	}
-	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  %d ", result.ConsumedCapacity, len(result.Items), *result.Count))
+	syslog(fmt.Sprintf("GSIS:consumed capacity for Query index P_S, %s.  ItemCount %d  Duration: %s ", result.ConsumedCapacity, len(result.Items), t1.Sub(t0)))
 	//
 	if int(*result.Count) == 0 {
 		return nil, nil

@@ -3,7 +3,7 @@ package params
 var GraphTable = "DyGraphOD" // can be modified by rdf.loader "i" argument
 
 const (
-	DebugOn = false
+	DebugOn = true
 	//SysDebugOn = false
 
 	TypesTable = "DyGTypes2"
