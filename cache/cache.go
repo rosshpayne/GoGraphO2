@@ -356,15 +356,19 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 		ok             bool
 		err            error
 	)
-	// for k := range nc.m {
-	// 	fmt.Println(" key: ", k)
-	// }
+
+	for k := range nc.m {
+		fmt.Println(" key: ", k)
+	}
 	if len(ty_) > 0 {
 		ty = ty_[0]
+		fmt.Println("ty 1= ", ty)
 	} else {
+		fmt.Println("here..")
 		if ty, ok = nc.GetType(); !ok {
 			return NoNodeTypeDefinedErr
 		}
+		fmt.Println("ty 2= ", ty)
 	}
 	//TODO: consider checking ty_ against cache type and error if different.
 	fmt.Println("ty: ", ty)

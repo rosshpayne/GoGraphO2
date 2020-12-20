@@ -113,7 +113,7 @@ func Execute(graph string, query string) *ast.RootStmt {
 	//clear monitor stats
 	stat.ClearCh <- struct{}{}
 
-	golimiter := grmgr.New("execute", 66)
+	golimiter := grmgr.New("execute", 3)
 
 	t0 = time.Now()
 	p := parser.New(graph, query)

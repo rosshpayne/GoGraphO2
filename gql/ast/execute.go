@@ -78,12 +78,13 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 	// generate sortk - determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible.
 	//
 	sortkS := cache.GenSortK(nvc, result.tyS)
+	fmt.Println("sortkS ", sortkS)
 	//
 	// fetch data - with optimised fetch - perform queries sequentially becuase of mutex lock on node map
 	//
 	gc := cache.GetCache()
 	for _, sortk := range sortkS {
-		//		fmt.Println("filterRoot - FetchNodeNonCache for : ", result.uid, sortk)
+		fmt.Println("filterRoot - FetchNodeNonCache for : ", result.uid, sortk)
 		stat := mon.Stat{Id: mon.NodeFetch}
 		mon.StatCh <- stat
 
@@ -92,6 +93,7 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 	//
 	// assign cached data to NV
 	//
+	fmt.Println("about to .. UnmarshalNodeCache")
 	err = nc.UnmarshalNodeCache(nvc, result.tyS)
 	if err != nil {
 		panic(err)

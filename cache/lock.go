@@ -209,54 +209,60 @@ func (g *GraphCache) FetchNodeExec_(uid util.UID, sortk string, ty string) (*Nod
 // Why? For testing purposes it's more realistic to access non-cached node data.
 // This API is used in GQL testing.
 func (g *GraphCache) FetchNodeNonCache(uid util.UID, sortk ...string) (*NodeCache, error) {
-	var sortk_ string
-
-	g.Lock()
 	if len(sortk) > 0 {
-		sortk_ = sortk[0]
-	} else {
-		sortk_ = "A#"
+		return g.FetchNode(uid, sortk...)
 	}
-	uids := uid.String()
-	e := g.cache[uids]
-	//
-	// force db read by setting e to nil
-	//
-	e = nil
-	//
-	if e == nil {
-		e = &entry{ready: make(chan struct{})}
-		g.cache[uids] = e
-		g.Unlock()
-		// nb: type blk.NodeBlock []*DataIte
-		nb, err := db.FetchNode(uid, sortk_)
-		if err != nil {
-			return nil, err
-		}
-
-		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
-		en := e.NodeCache
-		en.Uid = uid
-		for _, v := range nb {
-			en.m[v.SortK] = v
-		}
-		close(e.ready)
-	} else {
-		g.Unlock()
-		<-e.ready
-	}
-	//
-	// lock node cache. TODO: when is it unlocked?????
-	//
-	e.RLock()
-
-	e.locked = true
-	e.ffuEnabled = false
-
-	e.RUnlock()
-
-	return e.NodeCache, nil
+	return g.FetchNode(uid)
 }
+
+// 	var sortk_ string
+
+// 	g.Lock()
+// 	if len(sortk) > 0 {
+// 		sortk_ = sortk[0]
+// 	} else {
+// 		sortk_ = "A#"
+// 	}
+// 	uids := uid.String()
+// 	e := g.cache[uids]
+// 	//
+// 	// force db read by setting e to nil
+// 	//
+// 	e = nil
+// 	//
+// 	if e == nil {
+// 		e = &entry{ready: make(chan struct{})}
+// 		g.cache[uids] = e
+// 		g.Unlock()
+// 		// nb: type blk.NodeBlock []*DataIte
+// 		nb, err := db.FetchNode(uid, sortk_)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
+// 		en := e.NodeCache
+// 		en.Uid = uid
+// 		for _, v := range nb {
+// 			en.m[v.SortK] = v
+// 		}
+// 		close(e.ready)
+// 	} else {
+// 		g.Unlock()
+// 		<-e.ready
+// 	}
+// 	//
+// 	// lock node cache. TODO: when is it unlocked?????
+// 	//
+// 	e.RLock()
+
+// 	e.locked = true
+// 	e.ffuEnabled = false
+
+// 	e.RUnlock()
+
+// 	return e.NodeCache, nil
+// }
 
 func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var sortk_ string
