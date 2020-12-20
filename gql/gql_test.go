@@ -1098,3 +1098,134 @@ func TestUPredFiltertermsStat(t *testing.T) {
 	validate(t, result)
 
 }
+
+func TestMovie(t *testing.T) {
+
+	input := `{
+  me(func: allofterms(title, "jones indiana crusade")) {
+    title
+    film.genre {
+      name
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{5, 19}
+	expectedTouchNodes = 24
+
+	stmt := Execute("Movies", input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
+}
+
+func TestMovieCrusade(t *testing.T) {
+
+	input := `{
+  me(func: allofterms(title, "jones indiana crusade")) {
+    title
+    film.genre {
+      name
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{1, 4}
+	expectedTouchNodes = 5
+
+	stmt := Execute("Movies", input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
+}
+
+func TestMovieEq(t *testing.T) {
+
+	input := `{
+  me(func:eq(title, "Poison")) {
+    title
+    film.genre {
+      name
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{1, 4}
+	expectedTouchNodes = 5
+
+	stmt := Execute("Movies", input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
+}
+
+func TestMovie1a(t *testing.T) {
+
+	input := `{
+  me(func: eq(name, "Steven Spielberg")) @filter(has(director.film)) {
+    name
+    director.film  {
+      title
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{1, 30}
+	expectedTouchNodes = 31
+
+	stmt := Execute("Movies", input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
+}
+func TestMovie1b(t *testing.T) {
+
+	input := `{
+  me(func: eq(name, "Steven Spielberg")) @filter(has(director.film)) {
+    name
+    director.film @filter(anyofterms(title,"War Minority") {
+      title
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{1, 4}
+	expectedTouchNodes = 5
+
+	stmt := Execute("Movies", input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
+}
+
+func TestMovie1c(t *testing.T) {
+
+	input := `{
+  me(func: eq(count(film.genre), 13)) {
+    title
+    film.genre {
+      name
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{6, 78}
+	expectedTouchNodes = 84
+
+	stmt := Execute("Movies", input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+
+}
