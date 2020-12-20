@@ -81,6 +81,7 @@ func init() {
 var inputFile = flag.String("f", "rdf_test.rdf", "RDF Filename: ")
 var graph = flag.String("g", "", "Graph: ")
 var tableId = flag.String("i", "", "TableId: ")
+var attachers = flag.Int("a", 6, "Attachers: ")
 
 // uid PKey of the sname-UID pairs - consumed and populated by the SaveRDFNode()
 
@@ -91,6 +92,7 @@ func main() { //(f io.Reader) error { // S P O
 	syslog(fmt.Sprintf("Argument: inputfile: %s", *inputFile))
 	syslog(fmt.Sprintf("Argument: graph: %s", *graph))
 	syslog(fmt.Sprintf("Argument: tableId: %s", *tableId))
+	syslog(fmt.Sprintf("Argument: attachers: %d", *attachers))
 	//
 	// set graph to use
 	//
@@ -611,11 +613,11 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 	//
 	//close(es.IndexCh)
 	//
-	limiterAttach := grmgr.New("nodeAttach", 6)
+	limiterAttach := grmgr.New("nodeAttach", *attachers)
 	//
 	// fetch edge node ids from attach-node-manager routine. This will send each edge node pair via its AttachNodeCh.
 	//
-	anmgr.AttachCh <- struct{}{}
+	anmgr.JoinNodes <- struct{}{}
 	c = 0
 	//
 	// AttachNodeCh is populated by service anmgr (AttachNodeManaGeR)
@@ -631,7 +633,7 @@ func saveNode(wpStart *sync.WaitGroup, wpEnd *sync.WaitGroup) {
 
 		wg.Add(1)
 
-		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e.E, &wg, limiterAttach)
+		go client.AttachNode(util.UID(e.Cuid), util.UID(e.Puid), e.Sortk, e, &wg, limiterAttach)
 
 	}
 	wg.Wait()

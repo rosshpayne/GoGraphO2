@@ -34,7 +34,7 @@
             "AttributeType": "S"
         }
     ], 
-    "TableName": "DyGraphOD2", 
+    "TableName": "DyGraphOD5", 
     "KeySchema": [
         {
             "AttributeName": "PKey", 

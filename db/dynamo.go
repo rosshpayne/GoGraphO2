@@ -44,7 +44,7 @@ type gsiResult struct {
 //  all the other datatypes do not need to be converted.
 
 var (
-	dynSrv   *dynamodb.DynamoDB
+	dynSrv *dynamodb.DynamoDB
 )
 
 func logerr(e error, panic_ ...bool) {
@@ -1576,10 +1576,10 @@ func removeReverseEdge(cuid, puid, tUID util.UID, bs []byte) error {
 func EdgeExists(cuid, puid util.UID, sortk string, action byte) (bool, error) {
 
 	if param.DebugOn {
-		fmt.Println("In EdgeExists: on ", cuid, puid)
+		fmt.Println("In EdgeExists: on ", cuid, puid, sortk)
 	}
 	//
-
+	fmt.Println("In EdgeExists: on ", cuid, puid, sortk)
 	var (
 		upd  expression.UpdateBuilder
 		cond expression.ConditionBuilder

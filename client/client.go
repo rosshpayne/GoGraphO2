@@ -47,7 +47,7 @@ func IndexMultiValueAttr(cUID util.UID, sortK string) error { return nil }
 // sortK is parent's uid-pred to attach child node too. E.g. G#:S (sibling) or G#:F (friend) or A#G#:F It is the parent's attribute to attach the child node.
 // pTy is child type i.e. "Person". This could be derived from child's node cache data.
 
-func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.WaitGroup, lmtr *grmgr.Limiter) { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
+func AttachNode(cUID, pUID util.UID, sortK string, e_ *anmgr.Edge, wg_ *sync.WaitGroup, lmtr *grmgr.Limiter) { // pTy string) error { // TODO: do I need pTy (parent Ty). They can be derived from node data. Child not must attach to parent attribute of same type
 	//
 	// update db only (cached copies of node are not updated) to reflect child node attached to parent. This involves
 	// 1. append chid UID to the associated parent uid-predicate, parent e.g. sortk A#G#:S
@@ -346,14 +346,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 
 	}()
 
-	// setAvailable := func(tUID util.UID, id int, cnt int, ty string) {
-	// 	err = pnd.SetUpredAvailable(sortK, pUID, cUID, tUID, id, cnt, ty)
-	// 	if err != nil {
-	// 		errlog.Add(logid, fmt.Errorf("AttachNode main errored in SetUpredAvailable. Ty %s. Error: %s", ty, err.Error()))
-	// 	}
-	// 	syslog(fmt.Sprintf("SetUpredAvailable succesful %d %d %s", id, cnt, ty))
-	// }
-
 	handleErr := func(err error) {
 		pnd.Unlock()
 		errlog.Add(logid, err)
@@ -404,7 +396,6 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 	pass := chPayload{tUID: targetUID, itemId: id, nd: pnd, pTy: pty}
 	xch <- pass
 
-	syslog(fmt.Sprintf("AttachNode: Waitng for child routine to finish"))
 	wg.Wait()
 
 	if childErr != nil {
@@ -412,10 +403,10 @@ func AttachNode(cUID, pUID util.UID, sortK string, e_ anmgr.EdgeSn, wg_ *sync.Wa
 		err = childErr
 		syslog(fmt.Sprintf("AttachNode (cUID->pUID: %s->%s %s) failed Error: %s", cUID, pUID, sortK, childErr))
 		pnd.ClearCache(sortK, true)
+		panic(fmt.Errorf("AttachNode (cUID->pUID: %s->%s %s) failed Error: %s", cUID, pUID, sortK, childErr))
 
 	} else {
 
-		syslog(fmt.Sprintf("AttachNode (cUID->pUID: %s->%s %s) Suceeded", cUID, pUID, sortK))
 		err = pnd.CommitUPred(sortK, pUID, cUID, targetUID, id, 1, pTyName)
 		if err != nil {
 			errlog.Add(logid, fmt.Errorf("AttachNode main errored in SetUpredAvailable. Ty %s. Error: %s", pTyName, err.Error()))

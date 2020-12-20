@@ -21,8 +21,5 @@
             "KeyType": "RANGE"
         }
     ],
-    "ProvisionedThroughput": {
-                "ReadCapacityUnits": 2, 
-                "WriteCapacityUnits": 2
-    }
+    "BillingMode":  "PAY_PER_REQUEST"
 }
