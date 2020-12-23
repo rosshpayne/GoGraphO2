@@ -358,102 +358,101 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 	)
 
 	for k := range nc.m {
-		fmt.Println(" key: ", k)
+		fmt.Println(" UnmarshalNodeCache  key: ", k)
 	}
 	if len(ty_) > 0 {
 		ty = ty_[0]
 		fmt.Println("ty 1= ", ty)
 	} else {
-		fmt.Println("here..")
 		if ty, ok = nc.GetType(); !ok {
 			return NoNodeTypeDefinedErr
 		}
 		fmt.Println("ty 2= ", ty)
 	}
 	//TODO: consider checking ty_ against cache type and error if different.
-	fmt.Println("ty: ", ty)
+	fmt.Println("UnmarshalNodeCache  ty: ", ty)
+
 	// if ty is short name convert to long name
 	if x, ok := types.GetTyLongNm(ty); ok {
 		ty = x
 	}
-	fmt.Println("ty: ", ty)
+	// current Type (long name)
+	fmt.Println("UnmarshalNodeCache  ty: ", ty)
 	// types.FetchType populates  struct cache.TypeC with map types TyAttr, TyC
 	if _, err = types.FetchType(ty); err != nil {
 		return err
 	}
 
-	genSortK := func(attr string) (string, bool) {
+	//cTy := ty
+
+	var (
+		cTys  []string
+		cTys_ blk.TyAttrBlock
+	)
+	cTys = append(cTys, ty)
+	cTys_ = append(cTys_, blk.TyAttrD{})
+
+	genSortK := func(attr string) (string, string, bool) {
 		var (
-			pd  strings.Builder
-			aty blk.TyAttrD
+			pd     strings.Builder
+			aty    blk.TyAttrD
+			attrDT string
+			ok     bool
 		)
-		attr_ := strings.Split(attr, ":")
-
-		if len(attr_) > 1 {
-			//
-			// uid-pred e.g. Siblings: (Nd type) , Siblings:Age, director.film:Revenue, director.film:starring
-			//
-			pd.WriteString("A#G")
-			// check each attribute in attr for consistency with type definitions.
-			for i := 0; i < len(attr_); i++ {
-				//
-				// check for case of "siblings:" ie. "<uid-pred>:"
-				if len(attr_[len(attr_)-1]) == 0 {
-					if aty, ok = types.TypeC.TyAttrC[ty+":"+attr_[0]]; !ok {
-						return "", false //fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
-					}
-					pd.WriteString("#:")
-					pd.WriteString(aty.C) // attribute compressed identifier
-					attrDT = aty.DT
-					break
-				}
-				//
-				// check child node type defined e.g. Sibling, which is type "Person"
-				//
-				// first check first attribute (Sibling) exists as an attribute in type, cTy.Ty
-				fmt.Println("key: ", ty+":"+attr_[i])
-				// attr_ is the predicate name
-				if aty, ok = types.TypeC.TyAttrC[ty+":"+attr_[i]]; !ok {
-					return "", false //  fmt.Errorf("Client NC attribute %q does not exist in type %q", attr[i], ty)
-				} else {
-					// now check sibling's (child node) type exists
-					if len(aty.Ty) > 0 { // uidpred type
-						if _, ok := types.TypeC.TyC[aty.Ty]; !ok {
-							panic(fmt.Errorf("UnmarshalNodeCache: Composite NV name %q not defined as a type", aty.Ty))
-						}
-						// shift current type, ty, to child node type, aTy
-						fmt.Printf("change ty to : %#v\n", aty)
-						ty = aty.Ty
-						// get type data
-						if _, err = types.FetchType(ty); err != nil {
-							return "", false
-						}
-					}
-				}
-				pd.WriteString("#:")
-				pd.WriteString(aty.C) // predicate short name
+		// Scalar attribute
+		if strings.IndexByte(attr, ':') == -1 {
+			if aty, ok = types.TypeC.TyAttrC[cTys[0]+":"+attr]; !ok {
+				return "", "", false
 			}
-			if aty.DT != "Nd" {
-				attrDT = "UL" + aty.DT
-			}
-
-		} else {
-			//
-			// scalar e.g. Age
-			//
-			if aty, ok = types.TypeC.TyAttrC[ty+":"+attr]; !ok {
-				return "", false //fmt.Errorf("Client NC attribute %q does not exist in type %q", attr, ty)
-			}
+			attrDT = aty.DT
 			pd.WriteString("A#")
 			pd.WriteString(aty.P)
 			pd.WriteString("#:")
-			pd.WriteString(aty.C) // attribute compressed identifier
-			attrDT = aty.DT
+			pd.WriteString(aty.C)
+			return pd.String(), attrDT, true
 		}
-		// build a item clause
-		fmt.Println("return: ", pd.String())
-		return pd.String(), true
+		attr_ := strings.Split(attr, ":")
+		cnt := strings.Count(attr, ":")
+
+		switch len(attr_[len(attr_)-1]) {
+
+		case 0: // change current type (cTY) - film.genre:, film.director:actor.performance:
+
+			fmt.Println("case 0: ", len(attr_), attr_)
+			if aty, ok = types.TypeC.TyAttrC[cTys[cnt-1]+":"+attr_[len(attr_)-2]]; !ok {
+				panic(fmt.Errorf("attr %s.%q does not exist", cTys[cnt-1], attr_[len(attr_)-2]))
+				//return "", false
+			}
+			fmt.Println("change type to ", aty.Ty)
+			if len(cTys)-1 == cnt {
+				cTys[cnt] = aty.Ty
+				cTys_[cnt] = aty
+			} else {
+				cTys = append(cTys, aty.Ty)
+				cTys_ = append(cTys_, aty)
+			}
+			pd.WriteString(cTys_[cnt].P)
+			pd.WriteString("#G#:")
+			pd.WriteString(cTys_[cnt].C)
+			return pd.String(), "Nd", true
+
+		default: // scalar - film.director:name, film.director:actor.performance:performance.film:name
+
+			if aty, ok = types.TypeC.TyAttrC[cTys[cnt]+":"+attr_[len(attr_)-1]]; !ok {
+				panic(fmt.Errorf("attr %q does not exist", cTys[cnt]+":"+attr_[len(attr_)-1]))
+			}
+			attrDT = "UL" + aty.DT
+			pd.WriteString(cTys_[cnt].P)
+			pd.WriteString("#G#:")
+			pd.WriteString(cTys_[cnt].C)
+			pd.WriteString("#:")
+			pd.WriteString(aty.C)
+			return pd.String(), attrDT, true
+
+		}
+
 	}
+
 	// This data is stored in uid-pred UID item that needs to be assigned to each child data item
 	var State [][]int
 	var OfUIDs [][]byte
@@ -474,10 +473,11 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 	// &ds.NV{Name: "Siblings:Age"},
 	fmt.Println("About to range nv  ", len(nv))
 	for _, a := range nv { // a.Name = "Age"
+		fmt.Printf("****** a: %#v\n", *a)
 		//
 		// field name repesents a scalar. It has a type that we use to generate a sortk <partition>#G#:<uid-pred>#:<scalarpred-type-abreviation>
 		//
-		if sortk, ok = genSortK(a.Name); !ok {
+		if sortk, attrDT, ok = genSortK(a.Name); !ok {
 			// no match between NV name and type attribute name
 			continue
 		}

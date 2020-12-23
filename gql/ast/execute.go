@@ -41,13 +41,13 @@ func (r *RootStmt) Execute(grl *grmgr.Limiter) {
 
 	for _, v := range result {
 
-		// grl.Ask()
-		// <-grl.RespCh()
+		grl.Ask()
+		<-grl.RespCh()
 
 		wgRoot.Add(1)
 		result := &rootResult{uid: v.PKey, tyS: v.Ty, sortk: v.SortK, path: "root"}
 
-		r.filterRootResult(grl, &wgRoot, result)
+		go r.filterRootResult(grl, &wgRoot, result)
 
 	}
 	wgRoot.Wait()
@@ -265,7 +265,7 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 			panic(err)
 		}
 		// for k, v := range nvc {
-		// 	fmt.Printf("nvc: %d  %#v\n", k, *v)
+		// 	fmt.Printf("\n*************** uid: %d  nvc  %#v   idx  %#v \n", k, *v, idx)
 		// }
 		//
 		// save NV data to a map with uid key and map to u's parent, as it is the source of the NV
