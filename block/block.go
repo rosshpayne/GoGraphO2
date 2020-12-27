@@ -1,7 +1,6 @@
 package block
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DynamoGraph/util"
@@ -229,9 +228,9 @@ func (dgv *DataItem) GetULBl() ([]bool, []bool) {
 // }
 func (dgv *DataItem) GetNd() (nd [][]byte, xf []int, ovfl [][]byte) {
 
-	for i, v := range dgv.Nd {
-		fmt.Println("GetNd: i  UID ", i, util.UID(v).String())
-	}
+	// for i, v := range dgv.Nd {
+	// 	fmt.Println("GetNd: i  UID ", i, util.UID(v).String())
+	// }
 	for i, v := range dgv.Nd {
 		if x := dgv.XF[i]; x <= UIDdetached {
 			nd = append(nd, util.UID(v))

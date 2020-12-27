@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -208,11 +207,9 @@ func (f *GQLFunc) String() string {
 }
 
 func (g *GQLFunc) GetPredicates(pred []string) []string {
-	fmt.Printf("\nin Getpredicates for Farg: %T %s\n", g.Farg, g.Farg.Name())
+	//fmt.Printf("\nin Getpredicates for Farg: %T %s\n", g.Farg, g.Farg.Name())
 	s := g.Farg.Name()
-	fmt.Println("s = ", s)
 	pred = append(pred, s)
-	fmt.Println("pred = ", pred)
 	return pred
 }
 

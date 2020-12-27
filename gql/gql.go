@@ -113,7 +113,7 @@ func Execute(graph string, query string) *ast.RootStmt {
 	//clear monitor stats
 	stat.ClearCh <- struct{}{}
 
-	golimiter := grmgr.New("execute", 2)
+	golimiter := grmgr.New("execute", 4)
 
 	t0 = time.Now()
 	p := parser.New(graph, query)
@@ -130,6 +130,7 @@ func Execute(graph string, query string) *ast.RootStmt {
 	syslog(fmt.Sprintf("Duration: Parse  %s  Execute: %s ", t1.Sub(t0), t2.Sub(t1)))
 	time.Sleep(2 * time.Second) // give time for stat to empty its channel queues
 
+	//stat.PrintCh <- struct{}{}
 	//Shutdown()
 
 	return stmt

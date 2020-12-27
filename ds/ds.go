@@ -15,7 +15,7 @@ import (
 //
 type NV struct {
 	Name     string      // predicate (no type required as its based on contents in cache) Name (S), Age (N), Siblings: (Nds), Siblings:Name (list), Friends: (nds), Friends:Name (list)
-	Value    interface{} // its value from cahe
+	Value    interface{} // its value from cache
 	Filtered bool        // true indicates item satisifed uid-pred filter condition and should be ignored when marshaling
 	ItemTy   string      // TODO: is this used???
 	Ignore   bool

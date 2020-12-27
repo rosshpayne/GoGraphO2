@@ -1067,6 +1067,36 @@ func TestUPredFilterterms1b2(t *testing.T) {
 
 }
 
+func TestUPredFilterterms1b3(t *testing.T) {
+
+	input := `{
+  directors(func: eq(count(Siblings), 2) ) {
+    Age
+    Name
+    Friends @filter(anyofterms(Comment,"sodium Germany Chris")) {
+        Age
+    	Name
+    	Comment
+    	Friends @filter(eq(Age,62)) {
+    	  Age
+    	  Name
+	    }
+	    Siblings @filter(gt(Age,55)) {
+    	  Name
+	   	}
+    }
+  }
+}`
+
+	expectedTouchLvl = []int{3, 3, 7}
+	expectedTouchNodes = 13
+
+	stmt := Execute("Relationship", input)
+	result := stmt.MarshalJSON()
+	t.Log(stmt.String())
+
+	validate(t, result)
+}
 func TestUPredFiltertermsStat(t *testing.T) {
 
 	input := `{

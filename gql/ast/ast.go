@@ -165,13 +165,13 @@ type UidPred struct {
 	filterStmt string
 	Select     SelectList
 	//
-	// node data assoicated with this uidpred in GQL stmt
+	// node edge data assoicated with this uidpred in GQL stmt
 	//
-	lvl    int     // depth of grap
+	lvl    int     // depth of graph (TODO is this used???)
 	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
 	nodesc NdNv
-	nodesi NdIdx // nodes's index into parent uid-pred's UL data. e.g. to get Age of this node - nv:=nodes.parent.nodes[uid]; age:= nv["Age"].([][]int); age[nodesi.i][nodesi.j]
-	sync.Mutex
+	nodesi NdIdx // nodes index into parent uid-pred's UL data. e.g. to get Age of this node - nv:=nodes.parent.nodes[uid]; age:= nv["Age"].([][]int); age[nodesi.i][nodesi.j]
+	d      sync.Mutex
 	// scalar nodes for nodes containing this uid-pred is contained in the parent.
 
 }
@@ -235,22 +235,22 @@ func (u *UidPred) assignData(uid string, nvc ds.ClientNV, idx index) ds.NVmap {
 	for _, v := range nvc {
 		nvm[v.Name] = v
 	}
-	// save this edge (represented by key an edge by assigning key to nodes.
-	//	u.Lock() // TODO: have a "concurrent eabled" parameter to determine whether to use lock
+	// save this edge (represented by key UID by assigning key to nodes).
+	u.d.Lock()
 	u.nodes[uid] = nvm
 	u.nodesc[uid] = nvc
-	u.nodesi[uid] = idx
-	//	u.Unlock()
+	u.nodesi[uid] = idx // index into UL cache data. TODO: is this used?
+	u.d.Unlock()
 	return nvm
 }
+
 func (u *UidPred) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
 	nvm, _ := u.nodes[key]
 	nvc, ok := u.nodesc[key]
 	return nvm, nvc, ok
 }
 
-
-func (u *UidPred) genNV(ty string) ds.ClientNV { 
+func (u *UidPred) genNV(ty string) ds.ClientNV {
 	var nvc ds.ClientNV
 
 	for _, v := range u.Select {
@@ -559,12 +559,12 @@ type RootStmt struct {
 	Filter     *expr.Expression //
 	Select     SelectList
 	//
-	//  Node data associated with stmt. Data stored as map with UUID as key and ds.NV containing attribute data.
+	//  Node data associated with stmt. Data stored as map with UUID of node, as key, and ds.NV containing  node attribute data.
 	//
-	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
+	nodes  NdNvMap
 	nodesc NdNv
 	nodesi NdIdx
-	sync.Mutex
+	d      sync.Mutex
 }
 
 func (r *RootStmt) AssignName(input string, loc token.Pos) {
@@ -615,11 +615,11 @@ func (r *RootStmt) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
 		nvm[v.Name] = v
 	}
 	// add to existing nodes on this edge
-	//	r.Lock()
+	r.d.Lock()
 	r.nodes[key] = nvm
 	r.nodesc[key] = nvc
 	r.nodesi[key] = idx
-	//	r.Unlock()
+	r.d.Unlock()
 
 	return nvm
 }

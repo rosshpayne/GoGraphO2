@@ -5,7 +5,6 @@ package expression
 
 import (
 	"fmt"
-	"strings"
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/ds"
@@ -85,8 +84,6 @@ func walk(e operand, nv ds.NVmap, v node) {
 			e.result = e.right.getResult(nv, v)
 
 		}
-		fmt.Println(strings.Repeat("+", 80))
-		fmt.Printf("Result: %v %v\n", e.opr, e.result)
 	}
 
 }
@@ -282,9 +279,6 @@ func (f *FilterFunc) String() string {
 }
 
 func makeExpr(l operand, op token.TokenType, r operand) (*Expression, token.TokenType) {
-
-	fmt.Println("MakeExpression: ", op)
-
 	e := &Expression{left: l, opr: op, right: r}
 
 	return e, ""
@@ -296,14 +290,11 @@ func (c *Expression) extendRight(n *Expression) *Expression {
 
 	c.right = n
 	n.parent = c
-
-	fmt.Printf("++++++++++++++++++++++++++ extendRight  FROM %s  -> [%s]  \n", c.opr, n.opr)
 	return n
 }
 
 func (c *Expression) addParent(n *Expression) *Expression {
 	//
-	fmt.Println("addParent on ", c.opr, n.opr)
 	if c.parent != nil {
 		//  current node must now point to the new node being added, and similar the new node must point back to the current node.
 		c.parent.right = n
@@ -312,7 +303,5 @@ func (c *Expression) addParent(n *Expression) *Expression {
 	// set old parent to new node
 	c.parent = n
 	n.left = c
-
-	fmt.Printf("\n++++++++++++++++++++++++++ addParent  %s on %s \n\n", n.opr, c.opr)
 	return n
 }

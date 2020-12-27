@@ -243,7 +243,6 @@ func GenSortK(nvc ds.ClientNV, ty string) []string {
 	// count predicates, scalar & uid.
 	// ":" used to identify uid-preds
 	//
-	fmt.Println("GenSortK: ty - ", ty)
 	if len(ty) == 0 {
 		panic(fmt.Errorf("Error in GenSortK: argument ty is empty"))
 	}
@@ -357,27 +356,23 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 		err            error
 	)
 
-	for k := range nc.m {
-		fmt.Println(" UnmarshalNodeCache  key: ", k)
-	}
+	// for k := range nc.m {
+	// 	fmt.Println(" UnmarshalNodeCache  key: ", k)
+	// }
 	if len(ty_) > 0 {
 		ty = ty_[0]
-		fmt.Println("ty 1= ", ty)
 	} else {
 		if ty, ok = nc.GetType(); !ok {
 			return NoNodeTypeDefinedErr
 		}
 		fmt.Println("ty 2= ", ty)
 	}
-	//TODO: consider checking ty_ against cache type and error if different.
-	fmt.Println("UnmarshalNodeCache  ty: ", ty)
-
 	// if ty is short name convert to long name
 	if x, ok := types.GetTyLongNm(ty); ok {
 		ty = x
 	}
 	// current Type (long name)
-	fmt.Println("UnmarshalNodeCache  ty: ", ty)
+	//fmt.Println("UnmarshalNodeCache  ty: ", ty)
 	// types.FetchType populates  struct cache.TypeC with map types TyAttr, TyC
 	if _, err = types.FetchType(ty); err != nil {
 		return err
@@ -391,7 +386,9 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 	)
 	cTys = append(cTys, ty)
 	cTys_ = append(cTys_, blk.TyAttrD{})
-
+	//
+	// genSortK - generate SortK given an attribute name
+	//
 	genSortK := func(attr string) (string, string, bool) {
 		var (
 			pd     strings.Builder
@@ -418,12 +415,11 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 
 		case 0: // change current type (cTY) - film.genre:, film.director:actor.performance:
 
-			fmt.Println("case 0: ", len(attr_), attr_)
 			if aty, ok = types.TypeC.TyAttrC[cTys[cnt-1]+":"+attr_[len(attr_)-2]]; !ok {
 				panic(fmt.Errorf("attr %s.%q does not exist", cTys[cnt-1], attr_[len(attr_)-2]))
 				//return "", false
 			}
-			fmt.Println("change type to ", aty.Ty)
+
 			if len(cTys)-1 == cnt {
 				cTys[cnt] = aty.Ty
 				cTys_[cnt] = aty
@@ -471,9 +467,7 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 	// &ds.NV{Name: "Siblings"},    <== important to define Nd type before refering to its attributes
 	// &ds.NV{Name: "Siblings:Name"},
 	// &ds.NV{Name: "Siblings:Age"},
-	fmt.Println("About to range nv  ", len(nv))
 	for _, a := range nv { // a.Name = "Age"
-		fmt.Printf("****** a: %#v\n", *a)
 		//
 		// field name repesents a scalar. It has a type that we use to generate a sortk <partition>#G#:<uid-pred>#:<scalarpred-type-abreviation>
 		//
@@ -481,7 +475,6 @@ func (nc *NodeCache) UnmarshalNodeCache(nv ds.ClientNV, ty_ ...string) error {
 			// no match between NV name and type attribute name
 			continue
 		}
-		fmt.Println("*** aName, sortk : ", a.Name, sortk)
 		//
 		// grab the *blk.DataItem from the cache for the nominated sortk.
 		// we could query the child node to get this data or query the #G data which is its copy of the data

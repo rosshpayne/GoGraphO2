@@ -123,9 +123,6 @@ func NodeExists(uid util.UID, subKey ...string) (bool, error) {
 // FetchNode performs a Query with KeyBeginsWidth on the SortK value, so all item belonging to the SortK are fetched.
 func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 
-	stat := mon.Stat{Id: mon.DBFetch}
-	mon.StatCh <- stat
-
 	var sortk string
 	if len(subKey) > 0 {
 		sortk = subKey[0]
@@ -157,7 +154,8 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 	if err != nil {
 		return nil, newDBSysErr("DB FetchNode", "Query", err)
 	}
-	syslog(fmt.Sprintf("FetchNode:consumed capacity for Query  %s. ItemCount %d  Duration: %s", result.ConsumedCapacity.String(), len(result.Items), t1.Sub(t0)))
+	dur := t1.Sub(t0)
+	syslog(fmt.Sprintf("FetchNode:consumed capacity for Query  %s. ItemCount %d  Duration: %s", result.ConsumedCapacity.String(), len(result.Items), dur.String()))
 	//
 	if int(*result.Count) == 0 {
 		// is subKey a G type (uid-predicate) ie. child data block associated with current parent node, create empty dataItem.
@@ -173,6 +171,12 @@ func FetchNode(uid util.UID, subKey ...string) (blk.NodeBlock, error) {
 	if err != nil {
 		return nil, newDBUnmarshalErr("FetchNode", uid.String(), "", "UnmarshalListOfMaps", err)
 	}
+	//
+	// send stats
+	//
+	v := mon.Fetch{CapacityUnits: *result.ConsumedCapacity.CapacityUnits, Items: len(result.Items), Duration: dur}
+	stat := mon.Stat{Id: mon.DBFetch, Value: &v}
+	mon.StatCh <- stat
 
 	return data, nil
 }

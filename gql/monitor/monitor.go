@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	slog "github.com/DynamoGraph/syslog"
 )
@@ -14,7 +15,11 @@ const (
 	TouchNode
 	TouchLvl
 	NodeFetch
-	DBFetch
+	DBFetch // total db Fetch API calls
+	// CapacityUnits // consumed capacity units
+	// Items         // number of items fetched
+	// Duration      // elapsed time of DB API call
+	//
 	AttachNode
 	DetachNode
 	LIMIT
@@ -24,6 +29,13 @@ type Stat struct {
 	Id    int
 	Lvl   int
 	Value interface{}
+}
+
+type Fetch struct {
+	Fetches       int64
+	CapacityUnits float64
+	Items         int
+	Duration      time.Duration
 }
 
 type Request struct {
@@ -103,6 +115,24 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 					a[s.Lvl] += 1
 				}
 
+			case DBFetch:
+
+				var v *Fetch
+				if f, ok := s.Value.(*Fetch); !ok {
+					panic(fmt.Errorf("Monitor Error: DBFetch has wrong payload type. Should be DBFetcHT"))
+				} else {
+					if stats[s.Id] == nil {
+						v = &Fetch{}
+						stats[s.Id] = v
+					} else {
+						v = stats[s.Id].(*Fetch)
+					}
+					v.Fetches += 1
+					v.CapacityUnits += f.CapacityUnits
+					v.Items += f.Items
+					v.Duration += f.Duration
+				}
+
 			default: // increment ... must be int
 				if s.Value == nil {
 					val = 1
@@ -145,7 +175,7 @@ func PowerOn(ctx context.Context, wps *sync.WaitGroup, wgEnd *sync.WaitGroup) {
 		case <-PrintCh:
 
 			fmt.Printf("monitor: %#v\n", stats)
-			slog.Log("monitor: ", fmt.Sprintf("monitor: %#v\n", stats))
+			slog.Log("monitor: ", fmt.Sprintf("monitor: %#v %#v\n", stats, *(stats[DBFetch].(*Fetch))))
 
 		case <-ctx.Done():
 

@@ -174,6 +174,7 @@ func ieq(ie inEQ, predfunc FargI, value interface{}, nv ds.NVmap, ty string, j, 
 			//
 			// get type of predicate from type info
 			//
+			fmt.Println("ieq func: ", ty, x.Name())
 			if pTy, ok = types.TypeC.TyAttrC[ty+":"+x.Name()]; !ok {
 				// root result type does not contain filter predicate, so root item fails the filter
 				panic(fmt.Errorf("XX Error in inequality func: predicate %q not found in TypeC.TyAttr", ty+":"+x.Name()))

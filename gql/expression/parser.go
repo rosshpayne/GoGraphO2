@@ -232,7 +232,6 @@ func (p *Parser) ParseFunction(s *FilterFunc, tc *token.Token) *Parser {
 
 		p.nextToken() // read over ident
 		p.nextToken() // read over has )
-		fmt.Printf("HAS..................... %#v  %#v \n", gqlf, p.curToken)
 		return p
 
 	case token.UID:

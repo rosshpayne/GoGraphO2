@@ -52,8 +52,6 @@ func (r *RootStmt) Execute(grl *grmgr.Limiter) {
 	}
 	wgRoot.Wait()
 
-	fmt.Println("Execute:  wait. over all done ")
-
 }
 
 func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, result *rootResult) {
@@ -62,7 +60,7 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 		nc  *cache.NodeCache
 	)
 	defer wg.Done()
-	defer grl.EndR()
+	//defer grl.EndR()
 	//
 	// save: filter-visit-node uid
 	//
@@ -70,20 +68,20 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 	// query->cache->unmarshal(nv)
 	//
 	nvc := r.genNV(result.tyS) //TODO: pass in result.tyS to enable validation of GQL stmt predicates against result type
-	for _, n := range nvc {
-		fmt.Println("Root genNV__: ", n.Name, n.Ignore)
-	}
+	// for _, n := range nvc {
+	// 	fmt.Println("Root genNV__: ", n.Name, n.Ignore)
+	// }
 	//
 	// generate sortk - determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible.
 	//
 	sortkS := cache.GenSortK(nvc, result.tyS)
-	fmt.Println("sortkS ", sortkS)
+	//fmt.Println("sortkS ", sortkS)
 	//
 	// fetch data - with optimised fetch - perform queries sequentially becuase of mutex lock on node map
 	//
 	gc := cache.GetCache()
 	for _, sortk := range sortkS {
-		fmt.Println("filterRoot - FetchNodeNonCache for : ", result.uid, sortk)
+		//	fmt.Println("filterRoot - FetchNodeNonCache for : ", result.uid, sortk)
 		stat := mon.Stat{Id: mon.NodeFetch}
 		mon.StatCh <- stat
 
@@ -92,7 +90,7 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 	//
 	// assign cached data to NV
 	//
-	fmt.Println("about to .. UnmarshalNodeCache")
+	//fmt.Println("about to .. UnmarshalNodeCache, result.tyS ", result.tyS)
 	err = nc.UnmarshalNodeCache(nvc, result.tyS)
 	if err != nil {
 		panic(err)
@@ -101,14 +99,14 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 	// root filter
 	//
 	// for _, v := range nvc {
-	// 	fmt.Printf("nvc: %#v\n", v)
+	// 	fmt.Printf("root nvc: %#v\n", v)
 	// }
 	if r.Filter != nil && !r.Filter.RootApply(nvc, result.tyS) {
 		// nc.ClearCache() to free memory // TODO: implement
 		return
 	}
 	//
-	// save nvm to parent
+	// save result node (represented by uid) nvm to root stmt
 	//
 	nvm := r.assignData(result.uid.String(), nvc, index{0, 0})
 	//
@@ -131,9 +129,9 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 				ok  bool
 			)
 			x.lvl = 1
-
 			if aty, ok = types.TypeC.TyAttrC[result.tyS+":"+x.Name()]; !ok {
-				continue // ignore this attribute as it is not in current type
+				panic(fmt.Errorf("% not in ", result.tyS, x.Name()))
+				continue // ignore this attribute as it is in current type
 			}
 			// filter by setting STATE value for each edge in NVM. NVM has been saved to root stmt
 			// and is used by MarshalJSON to output edges from the root node.
@@ -153,13 +151,9 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 					// execute query on each x.Name() item and use the propagated uid-pred data to resolve this uid-pred
 					var (
 						nds [][][]byte
+
 						idx index
 					)
-					// get type of the uid-pred
-					if aty, ok = types.TypeC.TyAttrC[aty.Ty+":"+y.Name()]; !ok {
-						// if gql attribute not in query data type then ignore the attribute and move onto next
-						continue
-					}
 					//
 					// to get the UIDs in y we need to perform a query on each UID in the parent uid-pred (ie. x).
 					// data will contain the parent uids we will want to query. Each uid in y represents a child node to
@@ -172,33 +166,30 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 					if nds, ok = data.Value.([][][]byte); !ok {
 						panic(fmt.Errorf("filterRootResult: data.Value is of wrong type")) // TODO: replace panic with error msg???
 					}
-
+					// for each Nd uid (on uid edge)
 					for i, u := range nds {
 						// for each child in outer uid-pred (x.Name)
 						for j, uid := range u {
 
 							// check the result of the filter condition on x determined at AAA ie. filter on child nodes whose age > 62
 							if data.State[i][j] == blk.UIDdetached || data.State[i][j] == blk.EdgeFiltered { // soft delete set
-								fmt.Println("continue......due to detached XF entry")
 								continue
 							}
 							// i,j - defined key for looking up child node UID in cache block.
-							// grl.EndR()
-							// grl.Ask()
-							// <-grl.RespCh()
+							grl.Ask()
+							<-grl.RespCh()
 
 							wgNode.Add(1)
 							idx = index{i, j} // child node location in UL cache
 
 							// execNode will execute the query on the parent uid which will cache the result in y's uid-pred.
-							y.execNode(grl, &wgNode, util.UID(uid), aty.Ty, 2, y.Name(), idx)
+							go y.execNode(grl, &wgNode, util.UID(uid), aty.Ty, 2, y.Name(), idx)
 						}
 					}
 				}
 			}
 		}
 	}
-	fmt.Println("wait on wgNode")
 	wgNode.Wait()
 
 }
@@ -215,13 +206,19 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 		nvm ds.NVmap // where map key is NV.Name
 		nvc ds.ClientNV
 		ok  bool
+		uty blk.TyAttrD
 	)
-
 	uid := uid_.String() // TODO: chanve to pass uuid into execNode as string
+
+	//fmt.Printf("**************************************************** in execNode() %s, %s Depth: %d  current uidpred: %s\n", uid, ty, lvl, uidp)
+	uty = types.TypeC.TyAttrC[ty+":"+uidp]
 	//
-	// node: source of data (nvm) for u is always associated with the parent of u. u's data is in the list structures of u-parent (propagated data)
+	// note: source of data (nvm) for u is sourced from u's parent propagated data ie. u's data is in the list structures of u-parent (propagated data)
 	//
-	fmt.Printf("**************************************************** in execNode() %s, %s Depth: %d  current uidpred: %s\n", uid, ty, lvl, uidp)
+
+	if grl != nil {
+		defer grl.EndR()
+	}
 	defer wg.Done()
 	//
 	u.lvl = lvl // depth in graph as determined from GQL stmt
@@ -237,9 +234,9 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 		// as the data is sourced from u-parent so must the NV listing. Only interested in the uid-preds and its scalar types, as this includes the data for u (and its uid-pred siblings)
 		//
 		nvc = u.Parent.genNV(ty)
-		for _, n := range nvc {
-			fmt.Println("XgenNV: ", n.Name)
-		}
+		// for _, n := range nvc {
+		// 	fmt.Println("XgenNV: ", n.Name)
+		// }
 		//
 		// generate sortk - source from node type and NV - merge of two.
 		//                  determines extent of node data to be loaded into cache. Tries to keep it as norrow (specific) as possible to minimise RCUs.
@@ -278,7 +275,8 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 	// as u.Filter will modify the map elements (which are pointers to NV), any change will be visible to u's parent, where NV has been assigned.
 	//
 	if u.Filter != nil {
-		u.Filter.Apply(nvm, ty, u.Name())
+		u.Filter.Apply(nvm, uty.Ty, u.Name())
+		//u.Filter.Apply(nvm, ty, u.Name())
 	}
 
 	for _, p := range u.Select {
@@ -291,19 +289,23 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 			// NV entry contains child UIDs i.e nv[upred].Value -> [][][]byte
 			var (
 				nds [][][]byte
-				aty blk.TyAttrD
+				//	aty blk.TyAttrD
 				idx index
 			)
-			// get type of the uid-pred
-			if aty, ok = types.TypeC.TyAttrC[ty+":"+x.Name()]; !ok {
-				continue // ignore this attribute as it is not in current type
-			}
+
+			// fmt.Println("uty+x.Name()  ", p, u.Name(), u.Name())
+			// // get type of the uid-pred
+			// if aty, ok = types.TypeC.TyAttrC[uty.Ty+":"+x.Name()]; !ok {
+			// 	panic(fmt.Errorf("%s.%s not exists", uty, x.Name()))
+			// 	continue // ignore this attribute as it is not in current type
+			// }
+			// fmt.Println("aty.Ty : ", aty.Ty)
 			// results not in nv for this depth in graph. Must query uids stored in nv[i].Value -> [][][]byte
 			data, ok := nvm[u.Name()+":"]
 			if !ok {
-				for k, v := range nvm {
-					fmt.Printf("nvm: %s  %#v\n", k, *v)
-				}
+				// for k, v := range nvm {
+				// 	fmt.Printf("nvm: %s  %#v\n", k, *v)
+				// }
 				panic(fmt.Errorf("%q not in NV map", x.Name()+":"))
 			}
 			if nds, ok = data.Value.([][][]byte); !ok {
@@ -323,7 +325,7 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 
 					wg.Add(1)
 					idx = index{i, j}
-					x.execNode(grl, wg, util.UID(cUid), aty.Ty, u.lvl+1, x.Name(), idx)
+					x.execNode(nil, wg, util.UID(cUid), uty.Ty, u.lvl+1, x.Name(), idx)
 				}
 			}
 		}
