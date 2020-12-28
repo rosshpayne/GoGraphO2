@@ -60,7 +60,7 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 		nc  *cache.NodeCache
 	)
 	defer wg.Done()
-	//defer grl.EndR()
+	defer grl.EndR()
 	//
 	// save: filter-visit-node uid
 	//
