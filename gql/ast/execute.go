@@ -41,13 +41,13 @@ func (r *RootStmt) Execute(grl *grmgr.Limiter) {
 
 	for _, v := range result {
 
-		grl.Ask()
-		<-grl.RespCh()
+		//grl.Ask()
+		//<-grl.RespCh()
 
 		wgRoot.Add(1)
 		result := &rootResult{uid: v.PKey, tyS: v.Ty, sortk: v.SortK, path: "root"}
 
-		go r.filterRootResult(grl, &wgRoot, result)
+		r.filterRootResult(grl, &wgRoot, result)
 
 	}
 	wgRoot.Wait()
@@ -59,15 +59,15 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 		err error
 		nc  *cache.NodeCache
 	)
-	defer wg.Done()
 	defer grl.EndR()
+	defer wg.Done()
 	//
 	// save: filter-visit-node uid
 	//
 	// generate NV from GQL stmt - will also hold data from query response once UmarshalNodeCache is run.
 	// query->cache->unmarshal(nv)
 	//
-	nvc := r.genNV(result.tyS) //TODO: pass in result.tyS to enable validation of GQL stmt predicates against result type
+	nvc := r.genNV(result.tyS)
 	// for _, n := range nvc {
 	// 	fmt.Println("Root genNV__: ", n.Name, n.Ignore)
 	// }
@@ -85,12 +85,12 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 		stat := mon.Stat{Id: mon.NodeFetch}
 		mon.StatCh <- stat
 
-		nc, _ = gc.FetchNodeNonCache(result.uid, sortk) //, result.tyS)
+		nc, _ = gc.FetchNodeNonCache(result.uid, sortk)
 	}
 	//
 	// assign cached data to NV
 	//
-	//fmt.Println("about to .. UnmarshalNodeCache, result.tyS ", result.tyS)
+	// assign the cached data to the Value field in the nvc for each sortkS
 	err = nc.UnmarshalNodeCache(nvc, result.tyS)
 	if err != nil {
 		panic(err)
@@ -106,7 +106,7 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 		return
 	}
 	//
-	// save result node (represented by uid) nvm to root stmt
+	// save result node data (represented by uid - nvm) to root stmt
 	//
 	nvm := r.assignData(result.uid.String(), nvc, index{0, 0})
 	//
@@ -129,6 +129,7 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 				ok  bool
 			)
 			x.lvl = 1
+
 			if aty, ok = types.TypeC.TyAttrC[result.tyS+":"+x.Name()]; !ok {
 				panic(fmt.Errorf("% not in ", result.tyS, x.Name()))
 				continue // ignore this attribute as it is in current type
@@ -150,9 +151,8 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 					// data will need to be sourced from db
 					// execute query on each x.Name() item and use the propagated uid-pred data to resolve this uid-pred
 					var (
-						nds [][][]byte
-
 						idx index
+						nds [][][]byte
 					)
 					//
 					// to get the UIDs in y we need to perform a query on each UID in the parent uid-pred (ie. x).
@@ -176,14 +176,13 @@ func (r *RootStmt) filterRootResult(grl *grmgr.Limiter, wg *sync.WaitGroup, resu
 								continue
 							}
 							// i,j - defined key for looking up child node UID in cache block.
-							grl.Ask()
-							<-grl.RespCh()
+							//grl.EndR()
+							//grl.Ask()
+							//<-grl.RespCh()
 
 							wgNode.Add(1)
 							idx = index{i, j} // child node location in UL cache
-
-							// execNode will execute the query on the parent uid which will cache the result in y's uid-pred.
-							go y.execNode(grl, &wgNode, util.UID(uid), aty.Ty, 2, y.Name(), idx)
+							y.execNode(nil, &wgNode, util.UID(uid), aty.Ty, 2, y.Name(), idx)
 						}
 					}
 				}
@@ -216,9 +215,9 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 	// note: source of data (nvm) for u is sourced from u's parent propagated data ie. u's data is in the list structures of u-parent (propagated data)
 	//
 
-	if grl != nil {
-		defer grl.EndR()
-	}
+	// if grl != nil {
+	// 	defer grl.EndR()
+	// }
 	defer wg.Done()
 	//
 	u.lvl = lvl // depth in graph as determined from GQL stmt
@@ -268,7 +267,6 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 		// save NV data to a map with uid key and map to u's parent, as it is the source of the NV
 		//
 		nvm = u.Parent.assignData(uid, nvc, idx)
-
 	}
 	//
 	// for a filter: update nvm edges related to u. Note: filter  is the only component  we make use of u directly. Most other access is via u's parent uid-pred
@@ -325,7 +323,8 @@ func (u *UidPred) execNode(grl *grmgr.Limiter, wg *sync.WaitGroup, uid_ util.UID
 
 					wg.Add(1)
 					idx = index{i, j}
-					x.execNode(nil, wg, util.UID(cUid), uty.Ty, u.lvl+1, x.Name(), idx)
+
+					x.execNode(nil, wg, util.UID(cUid), uty.Ty, lvl+1, x.Name(), idx)
 				}
 			}
 		}

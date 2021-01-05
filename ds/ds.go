@@ -25,7 +25,7 @@ type NV struct {
 	//
 	Sortk  string
 	OfUIDs [][]byte // overflow blocks ids
-	// ... for Overflow blocks only
+	// instance data
 	State [][]int  // Nd only (propagated child UIDs only) - states: cuid, cuid-detached, cuid-filtered
 	Null  [][]bool // For propagated scalar values only first slice reps Overflow block, second reps each child node in the overflow block
 }

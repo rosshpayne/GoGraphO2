@@ -5,6 +5,7 @@ package expression
 
 import (
 	"fmt"
+	"sync"
 
 	blk "github.com/DynamoGraph/block"
 	"github.com/DynamoGraph/ds"
@@ -128,7 +129,7 @@ func findRoot(e *Expression) *Expression {
 }
 
 // operand interface.
-// So far type num (integer), Expression satisfy, but this can of course be extended to floats, complex numbers, functions etc.
+// So far type function, Expression satisfy, but this can of course be extended to floats, complex numbers, functions etc.
 type operand interface {
 	//	getParent() *Expression
 	getPredicates([]string) []string
@@ -136,6 +137,8 @@ type operand interface {
 	printName() string
 	getResult(ds.NVmap, node) bool
 }
+
+var L sync.Mutex
 
 type Expression struct { // expr1 and expr2     expr1 or expr2       exp1 or (expr2 and expr3). (expr1 or expr2) and expr3
 	id     uint8           // type of Expression. So far used only to identify the NULL Expression, representing the "(" i.e the left parameter or LPARAM in a mathematical Expression
@@ -146,7 +149,8 @@ type Expression struct { // expr1 and expr2     expr1 or expr2       exp1 or (ex
 	right  operand         //
 	parent *Expression
 	//
-	depth int8
+	//depth int8
+	sync.Mutex
 }
 
 func (e *Expression) getParent() *Expression {
@@ -193,11 +197,12 @@ func (e *Expression) RootApply(nv ds.ClientNV, ty string) bool {
 func (e *Expression) Apply(nvm ds.NVmap, ty string, predicate string) {
 	//
 	// source NV for current uid-pred
+	//
 	nv := nvm[predicate+":"]
 	if x, ok := nv.Value.([][][]byte); !ok {
 		panic(fmt.Errorf("Expression: nv.Value not a [][][]byte")) // TODO: should this be. panic or fatal error msg??
 	} else {
-		// apply filter to all edges and set edge to blk.EdgeFiltered if it fails
+		// apply filter to all edges and set edge to blk.EdgeFiltered if it fails filter
 		for i, u := range x {
 			for k, _ := range u {
 				// if k == 0 { // skip first entry

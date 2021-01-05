@@ -167,7 +167,8 @@ type UidPred struct {
 	//
 	// node edge data assoicated with this uidpred in GQL stmt
 	//
-	lvl    int     // depth of graph (TODO is this used???)
+	lvl    int // depth of graph (TODO is this used???)
+	l      sync.Mutex
 	nodes  NdNvMap // scalar nodes including PKey associated with each nodes belonging to this edge.
 	nodesc NdNv
 	nodesi NdIdx // nodes index into parent uid-pred's UL data. e.g. to get Age of this node - nv:=nodes.parent.nodes[uid]; age:= nv["Age"].([][]int); age[nodesi.i][nodesi.j]
@@ -236,17 +237,19 @@ func (u *UidPred) assignData(uid string, nvc ds.ClientNV, idx index) ds.NVmap {
 		nvm[v.Name] = v
 	}
 	// save this edge (represented by key UID by assigning key to nodes).
-	u.d.Lock()
+	//u.d.Lock()
 	u.nodes[uid] = nvm
 	u.nodesc[uid] = nvc
 	u.nodesi[uid] = idx // index into UL cache data. TODO: is this used?
-	u.d.Unlock()
+	//u.d.Unlock()
 	return nvm
 }
 
 func (u *UidPred) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
+	//u.d.Lock()
 	nvm, _ := u.nodes[key]
 	nvc, ok := u.nodesc[key]
+	//u.d.Unlock()
 	return nvm, nvc, ok
 }
 
@@ -610,23 +613,26 @@ func (r *RootStmt) getnodesc(uid string) (ds.ClientNV, bool) {
 
 func (r *RootStmt) assignData(key string, nvc ds.ClientNV, idx index) ds.NVmap {
 	// create a NVmap
+	//r.d.Lock()
 	nvm := make(ds.NVmap)
 	for _, v := range nvc {
 		nvm[v.Name] = v
 	}
 	// add to existing nodes on this edge
-	r.d.Lock()
+
 	r.nodes[key] = nvm
 	r.nodesc[key] = nvc
 	r.nodesi[key] = idx
-	r.d.Unlock()
+	//r.d.Unlock()
 
 	return nvm
 }
 
 func (r *RootStmt) getData(key string) (ds.NVmap, ds.ClientNV, bool) {
+	//r.d.Lock()
 	nvm, ok := r.nodes[key]
 	nvc, ok := r.nodesc[key]
+	//r.d.Unlock()
 	return nvm, nvc, ok
 }
 
@@ -670,12 +676,37 @@ func (r *RootStmt) genNV(ty string) ds.ClientNV {
 			nv := &ds.NV{Name: un}
 			nvc = append(nvc, nv)
 
+			// 	input := `{
+			//   me(func: eq(name,"Peter Sellers") ) {
+			//     name
+			//     actor.performance {
+			//     	performance.film  {
+			//     		title
+			//     		film.director {
+			//     			name
+			//     		}
+			//     		film.performance {
+			//     				performance.actor {
+			//     					name
+			//     				}
+			//     				performance.character {
+			//     					name
+			//     				}
+			//     			}
+			//     	}
+			//   }
+			// }
+			// }`
 			for _, vv := range x.Select {
 				switch x := vv.Edge.(type) {
+
 				case *ScalarPred:
 					upred := un + x.Name()
 					nv := &ds.NV{Name: upred}
 					nvc = append(nvc, nv)
+
+					//	case *UidPred:
+
 				}
 			}
 			if x.Filter != nil {

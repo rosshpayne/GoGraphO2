@@ -215,54 +215,48 @@ func (g *GraphCache) FetchNodeNonCache(uid util.UID, sortk ...string) (*NodeCach
 	return g.FetchNode(uid)
 }
 
-// var sortk_ string
+// 	var sortk_ string
 
-// g.Lock()
-// if len(sortk) > 0 {
-// 	sortk_ = sortk[0]
-// } else {
-// 	sortk_ = "A#"
-// }
-// uids := uid.String()
-// e := g.cache[uids]
-// //
-// // force db read by setting e to nil
-// //
-// e = nil
-// //
-// if e == nil {
-// 	e = &entry{ready: make(chan struct{})}
-// 	g.cache[uids] = e
-// 	g.Unlock()
-// 	// nb: type blk.NodeBlock []*DataIte
-// 	nb, err := db.FetchNode(uid, sortk_)
-// 	if err != nil {
-// 		return nil, err
+// 	g.Lock()
+// 	if len(sortk) > 0 {
+// 		sortk_ = sortk[0]
+// 	} else {
+// 		sortk_ = "A#"
 // 	}
+// 	uids := uid.String()
+// 	e := g.cache[uids]
+// 	//
+// 	// force db read by setting e to nil
+// 	//
+// 	e = nil
+// 	//
+// 	if e == nil {
+// 		e = &entry{ready: make(chan struct{})}
+// 		g.cache[uids] = e
+// 		g.Unlock()
+// 		// nb: type blk.NodeBlock []*DataIte
+// 		nb, err := db.FetchNode(uid, sortk_)
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-// 	e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
-// 	en := e.NodeCache
-// 	en.Uid = uid
-// 	for _, v := range nb {
-// 		en.m[v.SortK] = v
+// 		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
+// 		en := e.NodeCache
+// 		en.Uid = uid
+// 		for _, v := range nb {
+// 			en.m[v.SortK] = v
+// 		}
+// 		close(e.ready)
+// 	} else {
+// 		g.Unlock()
+// 		<-e.ready
 // 	}
-// 	close(e.ready)
-// } else {
-// 	g.Unlock()
-// 	<-e.ready
+// 	//
+// 	// lock node cache. TODO: when is it unlocked?????
+// 	//
+
+// 	return e.NodeCache, nil
 // }
-// //
-// // lock node cache. TODO: when is it unlocked?????
-// //
-// e.RLock()
-
-// e.locked = true
-// e.ffuEnabled = false
-
-// e.RUnlock()
-
-// return e.NodeCache, nil
-//}
 
 func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error) {
 	var sortk_ string
@@ -285,7 +279,7 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 		if err != nil {
 			return nil, err
 		}
-		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g}
+		e.NodeCache = &NodeCache{m: make(map[SortKey]*blk.DataItem), gc: g, locked: true}
 		en := e.NodeCache
 		en.Uid = uid
 		for _, v := range nb {
@@ -299,14 +293,15 @@ func (g *GraphCache) FetchNode(uid util.UID, sortk ...string) (*NodeCache, error
 	//
 	// lock node cache.
 	//
-	e.RLock()
+	e.RLock() // prevents concurrent update to nodecache
+	//e.Lock()
 	if e.NodeCache == nil {
 		// cache has been cleared. Start again.
 		e = nil
 		g.FetchNode(uid, sortk_)
 	}
-	e.locked = true
-	e.ffuEnabled = false
+	//e.locked = true // TODO - this cannot be done under a read lock
+	//e.ffuEnabled = false
 	var cached bool
 	// check sortk is cached
 	for k := range e.m {
